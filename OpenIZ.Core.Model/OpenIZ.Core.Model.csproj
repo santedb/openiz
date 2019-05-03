@@ -133,6 +133,7 @@
     <Compile Include="Extensions\DateExtensionHandler.cs" />
     <Compile Include="Extensions\DecimalExtensionHandler.cs" />
     <Compile Include="Extensions\DictionaryExtensionHandler.cs" />
+    <Compile Include="Extensions\ReferenceExtensionHandler.cs" />
     <Compile Include="Extensions\StringExtensionHandler.cs" />
     <Compile Include="IdentifiedData.cs" />
     <Compile Include="Interfaces\IBaseEntityData.cs" />
