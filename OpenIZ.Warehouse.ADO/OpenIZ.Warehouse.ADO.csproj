@@ -84,6 +84,7 @@
     <Content Include="Data\SQL\PSQL\openiz-dw-core.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\SQL\PSQL\Updates\20190510-PSQL.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\OpenIZ.licenseheader">

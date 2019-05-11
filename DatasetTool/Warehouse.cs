@@ -71,6 +71,10 @@ namespace OizDevTool
             [Description("Create plan for all those records modified since")]
             public string Since { get; set; }
 
+            [Parameter("timespan")]
+            [Description("Only process for those on certain timespan")]
+            public string Timespan { get; set; }
+
             [Parameter("nofulfill")]
             [Description("Does not scan for fulfillments from acts")]
             public bool NoFulfill { get; set; }
@@ -90,7 +94,6 @@ namespace OizDevTool
             [Parameter("limit")]
             [Description("Limit number of processing items")]
             public String Limit { get; set; }
-
 
             [Parameter("skip")]
             [Description("Skip number of processing items")]
@@ -372,8 +375,12 @@ namespace OizDevTool
 
             // Now we want to calculate
             var patientPersistence = ApplicationContext.Current.GetService<IStoredQueryDataPersistenceService<Patient>>();
-            var lastRefresh = !String.IsNullOrEmpty(parms.Since) ? (DateTimeOffset?)DateTimeOffset.Parse(parms.Since) : null;
+            DateTimeOffset? lastRefresh = 
+                !String.IsNullOrEmpty(parms.Since) ? (DateTimeOffset?)DateTimeOffset.Parse(parms.Since) : 
+                !String.IsNullOrEmpty(parms.Timespan) ? (DateTimeOffset?)(DateTimeOffset.Now - TimeSpan.Parse(parms.Timespan)) :
+                null;
 
+            Console.WriteLine("Will only calculate care plans since : {0}", lastRefresh.GetValueOrDefault().ToString("o"));
             // Should we calculate?
             int tr = 1, ofs = 0, calc = 0, tq = 0;
             var warehousePatients = warehouseService.StoredQuery(dataMart.Id, "consistency", new { }, out tq);
@@ -406,6 +413,28 @@ namespace OizDevTool
                 tr = ofs + 1;
             }
 
+            // Timer
+            bool exitDoodad = false;
+            Task<Action> doodadTask = new Task<Action>(() =>
+            {
+                int c = 0;
+                char[] b = { '|', '/', '-', '\\' };
+                while (!exitDoodad)
+                {
+                    var ips = (((double)(DateTime.Now - start).Ticks / calc) * (tq - calc));
+                    var tps = (((double)(DateTime.Now - start).Ticks / calc) * (tr - calc));
+                    Console.CursorLeft = 0;
+                    Console.Write(new string(' ', Console.WindowWidth - 1));
+                    Console.CursorLeft = 0;
+                    Console.Write("{8} Calculating care plan {6:0.##} R/S - {0}/{1} <<Scan: {4} ({5:0%})>> ({2:0%}) [ETA: {3} .. {7}] ", calc, tq, (float)calc / tq, new TimeSpan((long)ips).ToString("d'd 'h'h 'm'm 's's'"), ofs, (float)ofs / tr, ((double)calc / (double)(DateTime.Now - start).TotalSeconds), new TimeSpan((long)tps).ToString("d'd 'h'h 'm'm 's's'"),
+                        b[c++ % b.Length]);
+                    Thread.Sleep(2000);
+                }
+                return null;
+            });
+            doodadTask.Start();
+
+
             while (ofs < tr)
             {
                 // Let the pressure die down
@@ -435,7 +464,7 @@ namespace OizDevTool
                     if (!lastRefresh.HasValue)
                         prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE", queryId, ofs, 250, AuthenticationContext.SystemPrincipal, out tr);
                     else
-                        // Patients who have had 
+                        // Patients who have had any participation which has modified them
                         prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE" && o.Participations.Any(p => p.Act.ModifiedOn > lastRefresh), queryId, ofs, 250, AuthenticationContext.SystemPrincipal, out tr);
 
                 }
@@ -452,6 +481,7 @@ namespace OizDevTool
                     calc += sk;
                 }
 
+                
                 foreach (var p in prodPatients.Distinct(new IdentifiedData.EqualityComparer<Patient>()))
                 {
                     if (tq++ > limit)
@@ -460,6 +490,8 @@ namespace OizDevTool
                         ApplicationContext.Current.GetService<MemoryQueryPersistenceService>()?.Clear();
                         break;
                     }
+
+                    List<dynamic> batchInsert = new List<dynamic>();
 
                     wtp.QueueUserWorkItem(state =>
                     {
@@ -471,13 +503,6 @@ namespace OizDevTool
                         List<dynamic> warehousePlan = new List<dynamic>();
 
                         Interlocked.Increment(ref calc);
-                        lock (parms)
-                        {
-                            var ips = (((double)(DateTime.Now - start).Ticks / calc) * (tq - calc));
-                            var tps = (((double)(DateTime.Now - start).Ticks / calc) * (tr - calc));
-                            Console.CursorLeft = 0;
-                            Console.Write("    Calculating care plan {0}/{1} <<Scan: {4} ({5:0%})>> ({2:0%}) [ETA: {3} .. {7}] {6:0.##} R/S ", calc, tq, (float)calc / tq, new TimeSpan((long)ips).ToString("d'd 'h'h 'm'm 's's'"), ofs, (float)ofs / tr, ((double)calc / (double)(DateTime.Now - start).TotalSeconds), new TimeSpan((long)tps).ToString("d'd 'h'h 'm'm 's's'"));
-                        }
 
                         var data = pState; //  ApplicationContext.Current.GetService<IDataPersistenceService<Patient>>().Get(p.Key.Value);
                         //p.par
@@ -517,6 +542,8 @@ namespace OizDevTool
 
             wtp.WaitOne();
 
+            exitDoodad = true;
+            
             return 0;
         }
 

@@ -124,7 +124,7 @@ namespace OpenIZ.Authentication.OAuth2.Wcf
             this.m_traceSource.TraceInformation("Begin owner password credential grant for {0}", clientPrincipal.Identity.Name);
 
             if (this.m_configuration.AllowedScopes != null && !this.m_configuration.AllowedScopes.Contains(tokenRequest["scope"]))
-                return this.CreateErrorCondition(OAuthErrorType.invalid_scope, "Scope not registered with provider");
+                return this.CreateErrorCondition(OAuthErrorType.invalid_scope, $"Scope {tokenRequest["scope"]} not registered with provider");
 
             var appliesTo = new EndpointReference(tokenRequest["scope"]);
 

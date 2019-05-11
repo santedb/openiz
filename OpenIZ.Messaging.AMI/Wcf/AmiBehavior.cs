@@ -219,7 +219,17 @@ namespace OpenIZ.Messaging.AMI.Wcf
 				WebOperationContext.Current.OutgoingResponse.Headers.Add("Accept-Patch", "application/xml+oiz-patch");
 			}
 
-			var serviceOptions = new ServiceOptions
+            // Allow redirect of binding
+            String boundHostPort = $"{WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Scheme}://{WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Host}:{WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Port}";
+
+            var rewriteHostPort = ApplicationContext.Current.GetService<IConfigurationManager>().AppSettings["mex.externalHostPort"];
+            if (!String.IsNullOrEmpty(rewriteHostPort))
+            {
+                var tUrl = new Uri(rewriteHostPort);
+                boundHostPort = $"{tUrl.Scheme}://{tUrl.Host}:{tUrl.Port}";
+            }
+
+            var serviceOptions = new ServiceOptions
 			{
 				InterfaceVersion = "0.9.0.0",
 				Services = new List<ServiceResourceOptions>
@@ -238,7 +248,10 @@ namespace OpenIZ.Messaging.AMI.Wcf
 				Endpoints = ApplicationContext.Current.GetServices().OfType<IApiEndpointProvider>().Select(o =>
 					new ServiceEndpointOptions
 					{
-						BaseUrl = o.Url,
+						BaseUrl = o.Url.Select(url => {
+                            var turi = new Uri(url);
+                            return $"{boundHostPort}{turi.AbsolutePath}";
+                        }).ToArray(),
 						ServiceType = o.ApiType,
 						Capabilities = o.Capabilities
 					}
