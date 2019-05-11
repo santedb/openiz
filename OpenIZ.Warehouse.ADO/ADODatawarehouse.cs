@@ -434,7 +434,7 @@ namespace OpenIZ.Warehouse.ADO
                 {
                     this.m_tracer.TraceError("Error deleting {0} : {1}", datamartId, e);
                     context.Transaction.Rollback();
-                    throw;
+                    throw new Exception($"Error deleting from {datamartId}", e);
                 }
             }
         }
