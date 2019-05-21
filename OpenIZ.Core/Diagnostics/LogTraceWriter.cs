@@ -39,6 +39,7 @@ namespace OpenIZ.Core.Diagnostics
         /// </summary>
         public LogTraceWriter(EventLevel filter, String initializationData) : base(filter, null)
         {
+            this.m_traceSource.TraceInfo("Binding PCL logging to .NET Logging");
         }
 
 
