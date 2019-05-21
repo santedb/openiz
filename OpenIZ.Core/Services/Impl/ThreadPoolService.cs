@@ -76,7 +76,12 @@ namespace OpenIZ.Core.Services.Impl
         /// </summary>
         public void QueueNonPooledWorkItem(Action<object> action, object parm)
         {
-            Thread thd = new Thread(new ParameterizedThreadStart(action));
+            Thread thd = new Thread(new ParameterizedThreadStart((o) =>
+            {
+                this.m_traceSource.TraceVerbose("NPWI THREAD START: {0}({1})", action, o);
+                action(o);
+                this.m_traceSource.TraceVerbose("NPWI THREAD STOP: {0}({1})", action, o);
+            }));
             thd.IsBackground = true;
             thd.Name = $"OpenIZBackground-{action}";
             thd.Start(parm);
@@ -92,7 +97,9 @@ namespace OpenIZ.Core.Services.Impl
             {
                 try
                 {
+                    this.m_traceSource.TraceVerbose("THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceVerbose("THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
@@ -109,7 +116,9 @@ namespace OpenIZ.Core.Services.Impl
             this.m_threadPool.QueueUserWorkItem((o) => {
                 try
                 {
+                    this.m_traceSource.TraceVerbose("THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceVerbose("THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
@@ -128,7 +137,9 @@ namespace OpenIZ.Core.Services.Impl
             new Timer((o) => {
                 try
                 {
+                    this.m_traceSource.TraceVerbose("TIMER THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceVerbose("TIMER THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {

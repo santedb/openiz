@@ -172,6 +172,9 @@ namespace OpenIZ.Messaging.AMI.Wcf
 					WaitReason = null,
 					State = thd.ThreadState.ToString()
 				});
+
+            var thd = ApplicationContext.Current.GetService<IThreadPoolService>();
+            thd
 			retVal.ApplicationInfo.Assemblies = AppDomain.CurrentDomain.GetAssemblies().Select(o => new DiagnosticVersionInfo(o)).ToList();
 			retVal.ApplicationInfo.EnvironmentInfo = new DiagnosticEnvironmentInfo()
 			{
