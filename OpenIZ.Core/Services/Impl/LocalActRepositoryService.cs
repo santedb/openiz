@@ -310,28 +310,33 @@ namespace OpenIZ.Core.Services.Impl
 
 			try
 			{
-				act = businessRulesService != null ? businessRulesService.BeforeUpdate(act) : act;
 
-				act = persistenceService.Update(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                if (act.Key.HasValue && persistenceService.Get(new Identifier<Guid>(act.Key.Value), AuthenticationContext.Current.Principal, true) != null)
+                {
+                    act = businessRulesService != null ? businessRulesService.BeforeUpdate(act) : act;
+                    act = persistenceService.Update(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                    businessRulesService?.AfterUpdate(act);
+                    this.DataUpdated?.Invoke(this, new AuditDataEventArgs(act));
+                }
+                else
+                {
+                    act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
+                    act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                    this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
+                    businessRulesService.AfterInsert(act);
+                }
 
-                businessRulesService?.AfterUpdate(act);
-
-                this.DataUpdated?.Invoke(this, new AuditDataEventArgs(act));
                 return act;
 			}
 			catch (KeyNotFoundException)
 			{
 				act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
-
 				act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
-
                 this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
                 businessRulesService.AfterInsert(act);
-
                 return act;
 			}
 
-			return act;
 		}
 
         /// <summary>
