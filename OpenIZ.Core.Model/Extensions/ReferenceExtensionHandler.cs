@@ -45,9 +45,17 @@ namespace OpenIZ.Core.Extensions
         /// </summary>
         public object DeSerialize(byte[] extensionData)
         {
-            if (extensionData.Length != 0x11)
-                throw new InvalidOperationException($"Extension data must be {0x11} bytes long");
-            Guid uuid = new Guid(extensionData.Skip(1).ToArray());
+            Guid uuid = Guid.Empty;
+            if (extensionData.Length == 0x11) // Data in pure binary format
+                uuid = new Guid(extensionData.Skip(1).ToArray());
+            else if (extensionData[1] == (byte)'^') // Data is from text format 
+            {
+                var extData = Encoding.UTF8.GetString(extensionData, 0, extensionData.Length);
+                uuid = new Guid(extData.Substring(2));
+                extensionData[0] = byte.Parse(extData.Substring(0, 1));
+            }
+            else
+                throw new ArgumentOutOfRangeException(nameof(extensionData), $"Argument not in appropriate format. Expecting 11 byte binary reference or string format ({BitConverter.ToString(extensionData)}");
             switch ((ReferenceType)extensionData[0])
             {
                 case ReferenceType.Act:
@@ -75,6 +83,7 @@ namespace OpenIZ.Core.Extensions
         /// </summary>
         public byte[] Serialize(object data)
         {
+
             byte[] retVal = new byte[0x11];
             if (data is Entity)
                 retVal[0] = (byte)ReferenceType.Entity;
