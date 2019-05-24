@@ -56,9 +56,6 @@ namespace OpenIZ.OrmLite
         // Items to be added to cache after an action
         private Dictionary<Guid, IdentifiedData> m_cacheCommit = new Dictionary<Guid, IdentifiedData>();
 
-        // Cached query
-        private Dictionary<String, IEnumerable<Object>> m_cachedQuery = new Dictionary<string, IEnumerable<object>>();
-
         // Trace source
         private TraceSource m_tracer = new TraceSource("OpenIZ.OrmLite");
 
@@ -192,7 +189,6 @@ namespace OpenIZ.OrmLite
             var retVal = this.m_provider.CloneConnection(this);
             retVal.Open();
             retVal.m_dataDictionary = this.m_dataDictionary; // share data
-            retVal.m_cachedQuery = this.m_cachedQuery;
             retVal.LoadState = this.LoadState;
             //retVal.PrepareStatements = this.PrepareStatements;
             return retVal;
@@ -236,8 +232,6 @@ namespace OpenIZ.OrmLite
                 }
             this.m_cacheCommit?.Clear();
             this.m_cacheCommit = null;
-            this.m_cachedQuery?.Clear();
-            this.m_cachedQuery = null;
             this.m_transaction?.Dispose();
             this.m_connection?.Dispose();
         }
@@ -325,27 +319,6 @@ namespace OpenIZ.OrmLite
             return retVal.ToString();
         }
 
-        /// <summary>
-        /// Add a cached set of query results
-        /// </summary>
-        public void AddQuery(SqlStatement domainQuery, IEnumerable<object> results)
-        {
-            var key = this.GetQueryLiteral(domainQuery);
-            lock (this.m_cachedQuery)
-                if (!this.m_cachedQuery.ContainsKey(key))
-                    this.m_cachedQuery.Add(key, results);
-        }
-
-        /// <summary>
-        /// Cache a query 
-        /// </summary>
-        public IEnumerable<Object> CacheQuery(SqlStatement domainQuery)
-        {
-            var key = this.GetQueryLiteral(domainQuery);
-            IEnumerable<Object> retVal = null;
-            this.m_cachedQuery.TryGetValue(key, out retVal);
-            return retVal;
-        }
 
     }
 }

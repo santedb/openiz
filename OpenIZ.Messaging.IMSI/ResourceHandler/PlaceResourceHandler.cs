@@ -86,7 +86,8 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
             // Clean reverse relationships
             List<String> lean = null;
             if (queryParameters.TryGetValue("_lean", out lean) && lean[0] == "true")
-                retVal.OfType<Entity>().AsParallel().ForAll(r => r.Relationships.RemoveAll(o => o.SourceEntityKey != r.Key));
+                foreach(var r in retVal.OfType<Entity>())
+                    r.Relationships.RemoveAll(o => o.SourceEntityKey != r.Key);
 
             return retVal;
         }

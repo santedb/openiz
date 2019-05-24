@@ -28,6 +28,7 @@ using OpenIZ.Core.Model.Attributes;
 using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Model.Serialization;
 using OpenIZ.Core.Services;
 using StackExchange.Redis;
@@ -373,7 +374,8 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
                 this.m_connection = ConnectionMultiplexer.Connect(configuration);
                 this.m_subscriber = this.m_connection.GetSubscriber();
                 // Look for non-cached types
-                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null || o.GetCustomAttribute<XmlRootAttribute>() == null))
+                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null || 
+                    (o.GetCustomAttribute<XmlRootAttribute>() == null && !typeof(IVersionedAssociation).IsAssignableFrom(o))))
                     this.m_nonCached.Add(itm);
 
                 // Subscribe to OpenIZ events
