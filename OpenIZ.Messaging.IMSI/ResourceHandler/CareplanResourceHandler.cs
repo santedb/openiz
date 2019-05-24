@@ -146,7 +146,7 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
 
             // Create care plan for the patients
             IConceptRepositoryService conceptService = ApplicationContext.Current.GetService<IConceptRepositoryService>();
-            return patients.AsParallel().Select(o => {
+            return patients.Select(o => {
                 var plan = carePlanner.CreateCarePlan(o);
                 foreach (var p in plan.Action)
                     p.Participations.ForEach(x => x.ParticipationRoleKey = x.ParticipationRoleKey ?? conceptService.GetConcept(x.ParticipationRole?.Mnemonic).Key);

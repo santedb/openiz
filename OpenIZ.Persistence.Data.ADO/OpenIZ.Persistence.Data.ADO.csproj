@@ -275,6 +275,8 @@
   <ItemGroup>
     <Content Include="Data\SQL\PSQL\openiz-vws.sql" />
     <Content Include="Data\SQL\Updates\20180126-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\20181113-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\20190322-PSQL.sql" />
     <Content Include="Data\SQL\Updates\20190522-PSQL.sql" />
     <Content Include="Data\SQL\Updates\20180131-PSQL.sql" />
     <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql" />

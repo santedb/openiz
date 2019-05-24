@@ -135,7 +135,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             totalResults = resultCount;
 
             if (!AdoPersistenceService.GetConfiguration().SingleThreadFetch)
-                return results.AsParallel().Select(o =>
+                return results.AsParallel().AsOrdered().Select(o =>
                 {
                     var subContext = context;
                     var newSubContext = results.Count() > 1;
@@ -148,6 +148,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                             return this.Get(subContext, (Guid)o, principal);
                         else
                             return this.CacheConvert(o, subContext, principal);
+
                     }
                     catch (Exception e)
                     {
@@ -157,7 +158,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     finally
                     {
                         if (newSubContext)
+                        {
+                            foreach (var i in subContext.CacheOnCommit)
+                                context.AddCacheCommit(i);
                             subContext.Dispose();
+                        }
                     }
                 });
             else
@@ -315,22 +320,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         protected IEnumerable<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery, ref int totalResults)
         {
-
             // Build and see if the query already exists on the stack???
             domainQuery = domainQuery.Build();
-            var cachedQueryResults = context.CacheQuery(domainQuery);
-            if (cachedQueryResults != null)
-            {
-                totalResults = cachedQueryResults.Count();
-                return cachedQueryResults.OfType<TResult>();
-            }
-
             var results = context.Query<TResult>(domainQuery).ToList();
-
-            // Cache query result
-            context.AddQuery(domainQuery, results.OfType<Object>());
             return results;
-
         }
 
 

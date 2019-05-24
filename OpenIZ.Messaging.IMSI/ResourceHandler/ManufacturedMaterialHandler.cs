@@ -89,11 +89,11 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
             var erPersistence = ApplicationContext.Current.GetService<IDataPersistenceService<EntityRelationship>>() as IFastQueryDataPersistenceService<EntityRelationship>;
             var authContext = AuthenticationContext.Current.Principal;
 
-            retVal.OfType<ManufacturedMaterial>().AsParallel().ForAll(o => {
+            foreach(var o in retVal.OfType<ManufacturedMaterial>()) { 
                 int tr = 0;
                 if(!o.Relationships.Any(r=>r.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance))
                     o.Relationships.AddRange(erPersistence.QueryFast(q => q.TargetEntityKey == o.Key && q.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance, Guid.Empty, 0, 100, authContext, out tr));
-            });
+            };
 
             return retVal;
         }

@@ -665,11 +665,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                     foreach (var i in retVal.Where(i => i != null))
                         connection.AddCacheCommit(i);
 
-                    ApplicationContext.Current.GetService<IThreadPoolService>()?.QueueUserWorkItem(o =>
-                    {
-                        foreach (var itm in (o as IEnumerable<IdentifiedData>))
-                            ApplicationContext.Current.GetService<IDataCachingService>()?.Add(itm);
-                    }, connection.CacheOnCommit.ToList());
+                    foreach (var itm in connection.CacheOnCommit)
+                        ApplicationContext.Current.GetService<IDataCachingService>()?.Add(itm);
 
                     this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Returning {0}..{1} or {2} results", offset, offset + (count ?? 1000), totalCount);
 
