@@ -136,13 +136,13 @@ namespace OizDevTool
             DateTime startDate = DateTime.Now.AddMonths(-3);
 
             Dictionary<Guid, Guid> manufacturedMaterialLinks = new Dictionary<Guid, Guid>();
+            Dictionary<Guid, Int32> quantityInfo = new Dictionary<Guid, int>();
 
             int tr = 1, ofs = 0;
-
             Guid queryId = Guid.NewGuid();
             while (ofs < tr)
             {
-                Console.WriteLine("Fetch facilities: {0} - {1} of {1}", ofs, ofs + 100, tr); ;
+                Console.WriteLine("Fetch facilities: {0} - {1} of {2}", ofs, ofs + 100, tr); ;
 
                 IEnumerable<Place> places = null;
                 if (String.IsNullOrEmpty(parms.Name))
@@ -153,11 +153,12 @@ namespace OizDevTool
                 foreach (var plc in places)
                 {
                     try {
-                        Console.WriteLine("Calculating AMC for {0}", plc.Names.FirstOrDefault().ToDisplay());
+                        Console.WriteLine("Calculating AMC for {0} ({1})", plc.Names.FirstOrDefault().ToDisplay(), plc.Key);
 
-                        Console.WriteLine("\tFetch events...");
                         // First we want to get all entity relationships of type consumable related to this place
-                        var consumablePtcpts = apService.Query(o => o.ParticipationRoleKey == ActParticipationKey.Consumable && o.SourceEntity.ActTime > startDate && o.SourceEntity.Participations.Any(p => p.ParticipationRoleKey == ActParticipationKey.Location && p.PlayerEntityKey == plc.Key), AuthenticationContext.Current.Principal);
+                        int tc = 0;
+                        var consumablePtcpts = apService.Query(o => o.ParticipationRoleKey == ActParticipationKey.Consumable && o.SourceEntity.ActTime > startDate && o.SourceEntity.Participations.Any(p => p.ParticipationRoleKey == ActParticipationKey.Location && p.PlayerEntityKey == plc.Key) && !o.SourceEntity.Tags.Any(tg=>tg.TagKey == "excludeFromLedger"), 0, 100000, AuthenticationContext.Current.Principal, out tc);
+                        Console.WriteLine("\tFetch {0} events since {1:o}...", tc, startDate);
 
                         // Now we want to group by consumable
                         int t = 0;
@@ -222,9 +223,17 @@ namespace OizDevTool
                             // Now correct for packaging
 
                             Console.WriteLine("\tCorrecting {0} for Packaging...", gkp.Key);
-                            var pkging = erService.Query(o => o.SourceEntityKey == gkp.Key && o.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance, AuthenticationContext.Current.Principal).Max(o => o.Quantity);
-                            if (pkging > 1)
-                                amc = ((amc / pkging.Value) + 1) * pkging.Value;
+
+                            int presentation = 0;
+                            if(!quantityInfo.TryGetValue(gkp.Key, out presentation))
+                            {
+                                var pkging = erService.Query(o => o.SourceEntityKey == gkp.Key && o.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance, AuthenticationContext.Current.Principal).Max(o => o.Quantity);
+                                presentation = pkging.Value;
+                                quantityInfo.Add(gkp.Key, pkging.Value);
+                            }
+
+                            if (presentation > 1)
+                                amc = ((amc / presentation) + 1) * presentation;
 
                             // Is there an existing stock policy object?
                             var existingPolicy = stockPolicyObject.FirstOrDefault(o => o.MaterialEntityId == gkp.Key);
