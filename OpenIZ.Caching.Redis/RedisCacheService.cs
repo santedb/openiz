@@ -434,7 +434,14 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         /// </summary>
         public void Clear()
         {
-            this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            try
+            {
+                this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceWarning("Cannot flush REDIS cache: {0}", e);
+            }
         }
 
         /// <summary>

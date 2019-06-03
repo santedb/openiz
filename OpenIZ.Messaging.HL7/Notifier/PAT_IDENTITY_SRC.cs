@@ -82,12 +82,12 @@ namespace OpenIZ.Messaging.HL7.Notifier
 						msh = message.MSH;
 						msh.MessageType.MessageType.Value = "ADT";
 						msh.MessageType.MessageStructure.Value = "ADT_A01";
-						msh.MessageType.TriggerEvent.Value = "A01";
+						msh.MessageType.TriggerEvent.Value = "A04";
 
-						pid = message.PID;
+						pid = message.PID;  
 
 						evn = message.EVN;
-						evn.EventTypeCode.Value = "A01";
+						evn.EventTypeCode.Value = "A04";
 
 						pv1 = message.PV1;
 						notificationMessage = message;

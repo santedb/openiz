@@ -175,6 +175,9 @@ namespace OpenIZ.Messaging.FHIR.Util
 
             extension.ExtensionType = extensionTypeService.FindExtensionType(e => e.Name == fhirExtension.Url).FirstOrDefault();
             //extension.ExtensionValue = fhirExtension.Value;
+            if (extension.ExtensionType == null)
+                return null;
+
             if (extension.ExtensionType.ExtensionHandler == typeof(DecimalExtensionHandler))
                 extension.ExtensionValue = (fhirExtension.Value as FhirDecimal).Value;
             else if (extension.ExtensionType.ExtensionHandler == typeof(StringExtensionHandler))
@@ -323,7 +326,7 @@ namespace OpenIZ.Messaging.FHIR.Util
 			traceSource.TraceEvent(TraceEventType.Verbose, 0, "Mapping FHIR coding");
 
 			// Lookup
-			return conceptService.FindConceptsByReferenceTerm(coding.Code, coding.System.Value).FirstOrDefault();
+			return conceptService.FindConceptsByReferenceTerm(coding.Code, system).FirstOrDefault();
 		}
 
 		/// <summary>
@@ -367,7 +370,7 @@ namespace OpenIZ.Messaging.FHIR.Util
 
 			var address = new EntityAddress
 			{
-				AddressUseKey = ToConcept(fhirAddress.Use, "http://hl7.org/fhir/address-use")?.Key
+				AddressUseKey = ToConcept(fhirAddress.Use ?? "home", "http://hl7.org/fhir/address-use")?.Key
 			};
 
 			if (fhirAddress.City?.Value != null)
@@ -646,8 +649,22 @@ namespace OpenIZ.Messaging.FHIR.Util
 		/// <returns>Returns the mapped person language communication instance.</returns>
 		public static PersonLanguageCommunication ToPersonLanguageCommunication(Communication communication)
 		{
+            // communication tag is BCP-47 which may have language and locale, we're only interested in language in OpenIZ
+            var bcpCode = communication.Value.GetCoding(new Uri("http://hl7.org/fhir/ValueSet/languages"));
+            if (bcpCode != null)
+            {
+                bcpCode.Code = bcpCode.Code.ToString().Split('-')[0]; // location tag in BCP is ignored
+                bcpCode.System = new Uri("urn:iso:std:iso:639:1");
+            }
 			var languageCode = ToConcept(communication.Value);
-			return new PersonLanguageCommunication(languageCode.Mnemonic, communication.Preferred.Value ?? false);
+
+            var refTerm = ApplicationContext.Current.GetService<IConceptRepositoryService>().GetConceptReferenceTerm(languageCode.Key.Value, "urn:iso:std:iso:639:1");
+
+            if (refTerm != null)
+            {
+                return new PersonLanguageCommunication(refTerm.Mnemonic, communication.Preferred?.Value ?? false);
+            }
+            return null;
 		}
 	}
 }

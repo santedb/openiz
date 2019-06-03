@@ -146,7 +146,7 @@ namespace OpenIZ.Messaging.HL7.Services
 						var action = domainConfiguration.ActionConfigurations.Exists(a => (a.ActionType & workItem.ActionType) == workItem.ActionType);
 						var domain = workItem.Event.Identifiers.Exists(i => i.Authority.Oid == domainConfiguration.Domain);
 
-						return action && domain;
+						return action && (domain ||  domainConfiguration.Domain == "*");
 					}));
 				}
 

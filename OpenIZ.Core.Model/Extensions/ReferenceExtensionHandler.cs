@@ -52,7 +52,9 @@ namespace OpenIZ.Core.Extensions
             {
                 var extData = Encoding.UTF8.GetString(extensionData, 0, extensionData.Length);
                 uuid = new Guid(extData.Substring(2));
-                extensionData[0] = byte.Parse(extData.Substring(0, 1));
+
+                if(extensionData[0] > 3)
+                    extensionData[0] = byte.Parse(extData.Substring(0, 1));
             }
             else
                 throw new ArgumentOutOfRangeException(nameof(extensionData), $"Argument not in appropriate format. Expecting 11 byte binary reference or string format ({BitConverter.ToString(extensionData)}");

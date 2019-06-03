@@ -56,11 +56,13 @@
   <ItemGroup>
     <Compile Include="Handlers\AdverseEventResourceHandler.cs" />
     <Compile Include="Handlers\AllergyIntoleranceResourceHandler.cs" />
+    <Compile Include="Handlers\BundleResourceHandler.cs" />
     <Compile Include="Handlers\ConditionResourceHandler.cs" />
     <Compile Include="Handlers\EncounterResourceHandler.cs" />
     <Compile Include="Handlers\LocationResourceHandler.cs" />
     <Compile Include="Handlers\MedicationAdministrationResourceHandler.cs" />
     <Compile Include="Handlers\MedicationResourceHandler.cs" />
+    <Compile Include="Handlers\OrganizationResourceHandler.cs" />
     <Compile Include="Handlers\PractitionerResourceHandler.cs" />
     <Compile Include="Handlers\RepositoryResourceHandlerBase.cs" />
     <Compile Include="Handlers\ImmunizationRecommendationResourceHandler.cs" />
@@ -72,6 +74,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Util\DataTypeConverter.cs" />
     <Compile Include="Util\FhirConstants.cs" />
+    <Compile Include="Util\IBundleResourceHandler.cs" />
     <Compile Include="Util\QueryRewriter.cs" />
     <Compile Include="Util\QueryParameterMap.cs" />
   </ItemGroup>

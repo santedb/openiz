@@ -49,14 +49,14 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 	/// <typeparam name="TModel">The type of the t model.</typeparam>
 	/// <seealso cref="MARC.HI.EHRS.SVC.Messaging.FHIR.Handlers.IFhirResourceHandler" />
 	public abstract class ResourceHandlerBase<TFhirResource, TModel> : IFhirResourceHandler
-		where TFhirResource : DomainResourceBase, new()
+		where TFhirResource : ResourceBase, new()
 		where TModel : IdentifiedData, new()
 
 	{
 		/// <summary>
 		/// The trace source instance.
 		/// </summary>
-		protected TraceSource traceSource = new TraceSource("OpenIZ.Messaging.FHIR");
+		protected TraceSource m_traceSource = new TraceSource("OpenIZ.Messaging.FHIR");
 
 		/// <summary>
 		/// Gets the name of the resource.
@@ -73,9 +73,9 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 		/// <exception cref="System.ArgumentNullException">target</exception>
 		/// <exception cref="System.IO.InvalidDataException"></exception>
 		/// <exception cref="System.Data.SyntaxErrorException"></exception>
-		public virtual FhirOperationResult Create(DomainResourceBase target, TransactionMode mode)
+		public virtual FhirOperationResult Create(ResourceBase target, TransactionMode mode)
 		{
-			this.traceSource.TraceInformation("Creating resource {0} ({1})", this.ResourceName, target);
+			this.m_traceSource.TraceInformation("Creating resource {0} ({1})", this.ResourceName, target);
 
 			if (target == null)
 				throw new ArgumentNullException(nameof(target));
@@ -93,7 +93,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			// Return fhir operation result
 			return new FhirOperationResult()
 			{
-				Results = new List<DomainResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
+				Results = new List<ResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
 				Details = issues,
 				Outcome = issues.Exists(o => o.Type == MARC.Everest.Connectors.ResultDetailType.Error) ? ResultCode.Error : ResultCode.Accepted
 			};
@@ -112,7 +112,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			if (String.IsNullOrEmpty(id))
 				throw new ArgumentNullException(nameof(id));
 
-			this.traceSource.TraceInformation("Deleting resource {0}/{1}", this.ResourceName, id);
+			this.m_traceSource.TraceInformation("Deleting resource {0}/{1}", this.ResourceName, id);
 
 			// Delete
 			var guidId = Guid.Empty;
@@ -127,7 +127,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			// Return fhir operation result
 			return new FhirOperationResult()
 			{
-				Results = new List<DomainResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
+				Results = new List<ResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
 				Details = details,
 				Outcome = details.Exists(o => o.Type == MARC.Everest.Connectors.ResultDetailType.Error) ? ResultCode.Error : ResultCode.Accepted
 			};
@@ -198,7 +198,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			{
 				Details = issues,
 				Outcome = ResultCode.Accepted,
-				Results = imsiResults.AsParallel().Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
+				Results = imsiResults.AsParallel().Select(o => this.MapToFhir(o, webOperationContext)).OfType<ResourceBase>().ToList(),
 				Query = query,
 				TotalResults = totalResults
 			};
@@ -234,7 +234,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			return new FhirOperationResult()
 			{
 				Outcome = ResultCode.Accepted,
-				Results = new List<DomainResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
+				Results = new List<ResourceBase>() { this.MapToFhir(result, WebOperationContext.Current) },
 				Details = details
 			};
 		}
@@ -252,9 +252,9 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 		/// <exception cref="System.ArgumentException"></exception>
 		/// <exception cref="System.Reflection.AmbiguousMatchException"></exception>
 		/// <exception cref="System.Collections.Generic.KeyNotFoundException"></exception>
-		public FhirOperationResult Update(string id, DomainResourceBase target, TransactionMode mode)
+		public FhirOperationResult Update(string id, ResourceBase target, TransactionMode mode)
 		{
-			this.traceSource.TraceInformation("Updating resource {0}/{1} ({2})", this.ResourceName, id, target);
+			this.m_traceSource.TraceInformation("Updating resource {0}/{1} ({2})", this.ResourceName, id, target);
 
 			if (target == null)
 				throw new ArgumentNullException(nameof(target));
@@ -285,7 +285,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			// Return fhir operation result
 			return new FhirOperationResult
 			{
-				Results = new List<DomainResourceBase> { this.MapToFhir(result, WebOperationContext.Current) },
+				Results = new List<ResourceBase> { this.MapToFhir(result, WebOperationContext.Current) },
 				Details = issues,
 				Outcome = issues.Exists(o => o.Type == MARC.Everest.Connectors.ResultDetailType.Error) ? ResultCode.Error : ResultCode.Accepted
 			};

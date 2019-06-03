@@ -91,6 +91,9 @@
     <None Include="Applets\org.openiz.templates.pak">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="Data\000-ISO639-1-Codes.dataset">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="Data\000-ListActClass.dataset" />
     <None Include="Data\000-IndustryTypes.dataset">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

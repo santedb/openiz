@@ -38,7 +38,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 	/// <summary>
 	/// Represents a resource handler which can handle patients.
 	/// </summary>
-	public class PatientResourceHandler : RepositoryResourceHandlerBase<Patient, Core.Model.Roles.Patient>
+	public class PatientResourceHandler : RepositoryResourceHandlerBase<Patient, Core.Model.Roles.Patient>, IBundleResourceHandler
 	{
 		/// <summary>
 		/// The repository.
@@ -124,7 +124,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 				CreationTime = DateTimeOffset.Now,
 				DateOfBirth = resource.BirthDate?.DateValue,
 				// TODO: Extensions
-				Extensions = resource.Extension.Select(DataTypeConverter.ToEntityExtension).ToList(),
+				Extensions = resource.Extension.Select(DataTypeConverter.ToEntityExtension).OfType<EntityExtension>().ToList(),
 				GenderConceptKey = DataTypeConverter.ToConcept(new FhirCoding(new Uri("http://hl7.org/fhir/administrative-gender"), resource.Gender?.Value))?.Key,
 				Identifiers = resource.Identifier.Select(DataTypeConverter.ToEntityIdentifier).ToList(),
 				LanguageCommunication = resource.Communication.Select(DataTypeConverter.ToPersonLanguageCommunication).ToList(),
@@ -136,7 +136,6 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			};
 
 			Guid key;
-
 			if (!Guid.TryParse(resource.Id, out key))
 			{
 				key = Guid.NewGuid();
@@ -156,7 +155,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 				patient.DeceasedDatePrecision = DatePrecision.Year;
 			}
 
-			if (resource.MultipleBirth is FhirBoolean)
+			if (resource.MultipleBirth as FhirBoolean == true)
 			{
 				patient.MultipleBirthOrder = 0;
 			}
@@ -183,6 +182,20 @@ namespace OpenIZ.Messaging.FHIR.Handlers
                 TypeRestfulInteraction.Create,
                 TypeRestfulInteraction.Update
             }.Select(o => new InteractionDefinition() { Type = o });
+        }
+
+        /// <summary>
+        /// Map model to the resource
+        /// </summary>
+        /// <param name="bundleResource">The entry to be converted</param>
+        /// <param name="context">The web context</param>
+        /// <param name="bundle">The context for the bundle</param>
+        public IdentifiedData MapToModel(BundleEntry bundleResource, WebOperationContext context, Bundle bundle)
+        {
+            var patient = this.MapToModel(bundleResource.Resource.Resource as Patient, context);
+
+            // TODO: Re-map UUIDs from the bundle uuids to the internal reference uuids.
+            return patient;
         }
     }
 }
