@@ -38,6 +38,7 @@ using OpenIZ.Core.Services;
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Constants;
+using System.Data.Common;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -163,9 +164,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				var method = "Insert";
 
 	            if (itm.TryGetExisting(context, principal, true) != null)
-	            {
 					method = "Update";
-				}
 
                 this.m_tracer.TraceInformation("Will {0} object from bundle {1}...", method, itm);
                 this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)(i + 1) / data.Item.Count, itm));
