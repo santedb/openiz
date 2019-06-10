@@ -45,6 +45,7 @@ using OpenIZ.Persistence.Data.ADO.Data.Model.Acts;
 using OpenIZ.Persistence.Data.ADO.Data.Model.Entities;
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Diagnostics;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -100,7 +101,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 data.CreationTime = DateTimeOffset.Now;
             domainObject.CreationTime = data.CreationTime;
             domainObject.VersionSequenceId = null;
-            domainObject = context.Insert(domainObject);
+
+            if (m_configuration.AutoUpdateExisting &&
+                context.Any<TDomain>(o => o.Key == domainObject.Key))
+            {
+                this.m_tracer.TraceWarning("INSERT for {0} key={1} was changed to UPDATE as item already exists", domainObject.GetType().Name, domainObject.Key);
+                domainObject = context.Update(domainObject);
+            }
+            else
+                domainObject = context.Insert(domainObject);
+
             data.VersionSequence = domainObject.VersionSequenceId;
             data.VersionKey = domainObject.VersionKey;
             data.Key = domainObject.Key;
