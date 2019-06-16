@@ -88,3 +88,15 @@ ALTER TABLE SPLY_TBL ADD ENC_ID UUID;
 
 ALTER TABLE ent_ext_tbl ALTER ext_value TYPE TEXT;
 ALTER TABLE act_ext_tbl ALTER ext_value TYPE TEXT;
+
+CREATE TABLE fac_id_tbl (
+ fac_id UUID NOT NULL,
+ nsid VARCHAR(64) NOT NULL,
+ ext_id VARCHAR(64),
+ CONSTRAINT pk_fac_id_tbl PRIMARY KEY (fac_id, nsid),
+ CONSTRAINT fk_fac_fac_tbl FOREIGN KEY (fac_id) REFERENCES fac_tbl(fac_id)
+);
+
+ALTER TABLE aefi_tbl ADD COLUMN mat_id UUID;
+ALTER TABLE aefi_tbl ADD COLUMN treated_ind BOOLEAN;
+ALTER TABLE aefi_tbl DROP COLUMN act_utc;

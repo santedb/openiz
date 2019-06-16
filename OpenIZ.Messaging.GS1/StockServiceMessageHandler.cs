@@ -129,7 +129,7 @@ namespace OpenIZ.Messaging.GS1
 				foreach (ServiceEndpoint endpoint in this.webHost.Description.Endpoints)
 				{
 					this.traceSource.TraceInformation("Starting GS1 on {0}...", endpoint.Address);
-                    endpoint.EndpointBehaviors.Add(new WcfErrorEndpointBehavior());
+                    endpoint.EndpointBehaviors.Add(new Gs1ErrorEndpointBehavior());
                     endpoint.EndpointBehaviors.Add(new WcfLoggingEndpointBehavior());
                 }
 				// Start the webhost

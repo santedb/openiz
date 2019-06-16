@@ -66,7 +66,7 @@ namespace OpenIZ.Core.Wcf.Serialization
         /// <summary>
         /// Provide fault
         /// </summary>
-        public void ProvideFault(Exception error, MessageVersion version, ref Message fault)
+        public virtual void ProvideFault(Exception error, MessageVersion version, ref Message fault)
         {
 
             FaultCode code = FaultCode.CreateSenderFaultCode("GENERR", "http://openiz.org/model");
@@ -128,6 +128,7 @@ namespace OpenIZ.Core.Wcf.Serialization
             else
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.InternalServerError;
            
+
 
             fault = Message.CreateMessage(version, MessageFault.CreateFault(code, reason), String.Empty);
             

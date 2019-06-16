@@ -57,14 +57,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
-            int tr = 0;
             var addrLookupQuery = context.CreateSqlStatement<DbEntityNameComponent>().SelectFrom()
                 .InnerJoin<DbEntityName>(o => o.SourceKey, o => o.Key)
                 .InnerJoin<DbPhoneticValue>(o => o.ValueSequenceId, o => o.SequenceId)
                 .Where<DbEntityName>(o => o.SourceKey == id && o.ObsoleteVersionSequenceId == null);
 
             /// Yowza! But it appears to be faster than the other way 
-            return this.DomainQueryInternal<CompositeResult<DbEntityNameComponent, DbEntityName, DbPhoneticValue>>(context, addrLookupQuery, ref tr)
+            return this.DomainQueryInternal<CompositeResult<DbEntityNameComponent, DbEntityName, DbPhoneticValue>>(context, addrLookupQuery)
                 .GroupBy(o => o.Object2.Key)
                 .Select(o =>
                     new EntityName()
@@ -223,7 +222,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
             int tr = 0;
-            return this.QueryInternal(context, base.BuildSourceQuery<EntityNameComponent>(id), Guid.Empty, 0, null, out tr, false).Select(o => this.CacheConvert(o, context, principal)).ToList();
+            return this.DoQueryInternal(context, base.BuildSourceQuery<EntityNameComponent>(id), Guid.Empty, 0, null, out tr, false).Select(o => this.CacheConvert(o, context, principal)).ToList();
         }
     }
 }
