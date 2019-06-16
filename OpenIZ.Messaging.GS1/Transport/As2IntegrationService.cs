@@ -92,7 +92,14 @@ namespace OpenIZ.Messaging.GS1.Transport.AS2
                     {
                         this.m_tracer.TraceError(">>>> !!ALERT!! >>>> Error sending message to GS1 broker. Message will be placed in dead-letter queue");
                         this.m_tracer.TraceError(ex.ToString());
-                        ApplicationContext.Current.GetService<IPersistentQueueService>().Enqueue("dead", dq);
+                        try
+                        {
+                            ApplicationContext.Current.GetService<IPersistentQueueService>().Enqueue("dead", dq);
+                        }
+                        catch(Exception e2)
+                        {
+                            this.m_tracer.TraceError(">>>> !!ALERT!! >>> Error sending message to dead letter queue: {0}", e2);
+                        }
                     }
                 } while (true);
             };
