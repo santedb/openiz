@@ -284,16 +284,16 @@ namespace OpenIZ.Caching.Redis
                 // Add
 
                 var redisDb = this.m_connection.GetDatabase();
-                var existing = redisDb.KeyExists(data.Key.Value.ToString());
-                redisDb.HashSet(data.Key.Value.ToString(), this.SerializeObject(data));
+                //var existing = redisDb.KeyExists(data.Key.Value.ToString());
+                redisDb.HashSet(data.Key.Value.ToString(), this.SerializeObject(data), CommandFlags.FireAndForget);
 #if DEBUG
-                this.m_tracer.TraceVerbose("HashSet {0} (EXIST: {1}; @: {2})", data, existing, new System.Diagnostics.StackTrace(true).GetFrame(1));
+                this.m_tracer.TraceVerbose("HashSet {0} (EXIST: {1}; @: {2})", data, false, new System.Diagnostics.StackTrace(true).GetFrame(1));
 #endif 
 
                 this.EnsureCacheConsistency(new DataCacheEventArgs(data));
-                if (existing)
-                    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
-                else
+                //if (existing)
+                //    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
+                //else
                     this.m_connection.GetSubscriber().Publish("oiz.events", $"POST http://{Environment.MachineName}/cache/{data.Key.Value}");
                 //}
             }
@@ -347,7 +347,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
             // Add
             var existing = this.GetCacheItem(key);
             var redisDb = this.m_connection.GetDatabase();
-            redisDb.KeyDelete(key.ToString());
+            redisDb.KeyDelete(key.ToString(), CommandFlags.FireAndForget);
             this.EnsureCacheConsistency(new DataCacheEventArgs(existing), true);
 
             this.m_connection.GetSubscriber().Publish("oiz.events", $"DELETE http://{Environment.MachineName}/cache/{key}");
