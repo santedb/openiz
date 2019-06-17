@@ -179,6 +179,11 @@
     <Compile Include="Security\SecurityUser.cs" />
     <Compile Include="Serialization\ModelSerializationBinder.cs" />
     <Compile Include="NonVersionedEntityData.cs" />
+    <Compile Include="Subscription\SubscriptionClientDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionModeType.cs" />
+    <Compile Include="Subscription\SubscriptionServerDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionTriggerType.cs" />
     <Compile Include="VersionedAssociation.cs" />
     <Compile Include="VersionedEntityData.cs" />
   </ItemGroup>
