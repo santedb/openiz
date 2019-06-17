@@ -17,29 +17,28 @@
  * User: fyfej
  * Date: 2017-9-1
  */
+using Newtonsoft.Json;
 using OpenIZ.Core.Applets.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Collections;
-using System.Xml.Linq;
-using System.IO;
-using System.Xml;
-using System.Text.RegularExpressions;
-using OpenIZ.Core.Model.Query;
-using OpenIZ.Core.Model.Roles;
-using System.Reflection;
-using System.Xml.Serialization;
+using OpenIZ.Core.Applets.ViewModel.Description;
+using OpenIZ.Core.Model;
 using OpenIZ.Core.Model.EntityLoader;
 using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Model.Map;
+using OpenIZ.Core.Model.Query;
+using OpenIZ.Core.Model.Roles;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
-using Newtonsoft.Json.Serialization;
-using Newtonsoft.Json;
-using OpenIZ.Core.Model;
-using OpenIZ.Core.Applets.ViewModel.Description;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
+using System.Xml.Serialization;
 
 namespace OpenIZ.Core.Applets
 {
@@ -62,7 +61,14 @@ namespace OpenIZ.Core.Applets
         internal ReadonlyAppletCollection(AppletCollection wrap)
         {
             this.m_appletManifest = wrap;
+            wrap.CollectionChanged += (o, e) => this.CollectionChanged?.Invoke(o, e);
         }
+
+        /// <summary>
+        /// Fired when the collection has changed
+        /// </summary>
+        public override event NotifyCollectionChangedEventHandler CollectionChanged;
+
 
         /// <summary>
         /// Collection is readonly
@@ -124,7 +130,7 @@ namespace OpenIZ.Core.Applets
     /// <summary>
     /// Represents a collection of applets
     /// </summary>
-    public class AppletCollection : IList<AppletManifest>
+    public class AppletCollection : IList<AppletManifest>, INotifyCollectionChanged
     {
 
         // A cache of rendered assets
@@ -152,6 +158,11 @@ namespace OpenIZ.Core.Applets
         /// Gets or sets whether caching is enabled
         /// </summary>
         public virtual Boolean CachePages { get { return this.m_cachePages; } set { this.m_cachePages = value; } }
+
+        /// <summary>
+        /// Fired when the collection has changed
+        /// </summary>
+        public virtual event NotifyCollectionChangedEventHandler CollectionChanged;
 
         /// <summary>
         /// Get authentication assets
@@ -238,7 +249,15 @@ namespace OpenIZ.Core.Applets
         /// <summary>
         /// Gets or sets the item at the specified element
         /// </summary>
-        public AppletManifest this[int index] { get { return this.m_appletManifest[index]; } set { this.m_appletManifest[index] = value; } }
+        public AppletManifest this[int index]
+        {
+            get { return this.m_appletManifest[index]; }
+            set
+            {
+                this.m_appletManifest[index] = value;
+                this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, value, index));
+            }
+        }
 
         /// <summary>
         /// Return the count of applets in the collection
@@ -272,16 +291,17 @@ namespace OpenIZ.Core.Applets
             get
             {
                 if (s_widgetAssets == null)
-                    s_widgetAssets = this.m_appletManifest.SelectMany(m => m.Assets).Where(o=>o.MimeType =="text/html").Select(a =>
-                    {
-                        var content = ((a.Content == null && this.Resolver != null ? this.Resolver(a) : a.Content) as AppletWidget);
-                        if (content != null) {
-                            content.Controller = this.ResolveAsset(content.Controller, a)?.ToString();
-                            content.Style = content.Style.Select(s => this.ResolveAsset(s, a)?.ToString()).ToList();
-                            content.Icon = this.ResolveAsset(content.Icon, a)?.ToString();
-                        }
-                        return content;
-                    }).Where(o=>o != null).ToList();
+                    s_widgetAssets = this.m_appletManifest.SelectMany(m => m.Assets).Where(o => o.MimeType == "text/html").Select(a =>
+                       {
+                           var content = ((a.Content == null && this.Resolver != null ? this.Resolver(a) : a.Content) as AppletWidget);
+                           if (content != null)
+                           {
+                               content.Controller = this.ResolveAsset(content.Controller, a)?.ToString();
+                               content.Style = content.Style.Select(s => this.ResolveAsset(s, a)?.ToString()).ToList();
+                               content.Icon = this.ResolveAsset(content.Icon, a)?.ToString();
+                           }
+                           return content;
+                       }).Where(o => o != null).ToList();
                 return s_widgetAssets;
             }
         }
@@ -309,6 +329,8 @@ namespace OpenIZ.Core.Applets
             s_stringCache.Clear();
 
             this.m_appletManifest.Add(item);
+            this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, item));
+
         }
 
         /// <summary>
@@ -319,6 +341,8 @@ namespace OpenIZ.Core.Applets
             if (this.IsReadOnly) throw new InvalidOperationException("Collection is readonly");
 
             this.m_appletManifest.Clear();
+            this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset, this.m_appletManifest));
+
         }
 
         /// <summary>
@@ -360,6 +384,8 @@ namespace OpenIZ.Core.Applets
         {
             if (this.IsReadOnly) throw new InvalidOperationException("Collection is readonly");
             this.m_appletManifest.Insert(index, item);
+            this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, item, index));
+
         }
 
         /// <summary>
@@ -369,7 +395,9 @@ namespace OpenIZ.Core.Applets
         {
             if (this.IsReadOnly) throw new InvalidOperationException("Collection is readonly");
 
-            return this.m_appletManifest.Remove(item);
+            var retVal = this.m_appletManifest.Remove(item);
+            if(retVal) this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, item));
+            return retVal;
         }
 
         /// <summary>
@@ -379,7 +407,10 @@ namespace OpenIZ.Core.Applets
         {
             if (this.IsReadOnly) throw new InvalidOperationException("Collection is readonly");
 
+            var item = this.m_appletManifest[index];
             this.m_appletManifest.RemoveAt(index);
+            this.CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, item, index));
+
         }
 
         /// <summary>
@@ -915,7 +946,7 @@ namespace OpenIZ.Core.Applets
             if (isUiContainer) // IS A UI CONTAINER = ANGULAR UI REQUIRES ALL CONTROLLERS BE LOADED
                 return this.ViewStateAssets.SelectMany(o => this.GetInjectionHeaders(o, false)).Distinct(new XElementEquityComparer()).ToList();
             else
-                foreach (var itm in htmlAsset.Script.Where(o=>o.IsStatic != false))
+                foreach (var itm in htmlAsset.Script.Where(o => o.IsStatic != false))
                 {
                     var incAsset = this.ResolveAsset(itm.Reference, asset);
                     if (incAsset != null)
@@ -965,7 +996,7 @@ namespace OpenIZ.Core.Applets
             foreach (var itm in applet.Dependencies)
             {
                 var depItm = this.m_appletManifest.FirstOrDefault(o => o.Info.Id == itm.Id && (o.Info.PublicKeyToken == itm.PublicKeyToken || String.IsNullOrEmpty(itm.PublicKeyToken)));
-                if(depItm == null)
+                if (depItm == null)
                 {
                     var asm = System.Reflection.Assembly.Load(new AssemblyName($"{itm.Id}, Version={itm.Version}"));
                     verified &= asm != null;
