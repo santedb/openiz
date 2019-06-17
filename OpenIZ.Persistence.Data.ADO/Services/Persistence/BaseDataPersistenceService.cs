@@ -129,7 +129,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// <returns></returns>
         public override IEnumerable<TModel> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
         {
-            var qresult = this.QueryInternal(context, query, queryId, offset, count, out totalResults, countResults);
+            var qresult = this.DoQueryInternal(context, query, queryId, offset, count, out totalResults, countResults);
             return qresult.Select(o => o is Guid ? this.Get(context, (Guid)o, principal) : this.CacheConvert(o, context, principal)).ToList();
         }
 

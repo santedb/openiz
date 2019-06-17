@@ -54,6 +54,8 @@
   <ItemGroup>
     <Compile Include="Configuration\Gs1Configuration.cs" />
     <Compile Include="Configuration\As2ServiceElement.cs" />
+    <Compile Include="Gs1ErrorEndpointBehavior.cs" />
+    <Compile Include="Gs1ErrorHandler.cs" />
     <Compile Include="Gs1ModelExtensions.cs" />
     <Compile Include="Model\eComModel.cs" />
     <Compile Include="Model\Gs1Util.cs" />
@@ -78,6 +80,10 @@
     <ProjectReference Include="..\OpenIZ.Core\OpenIZ.Core.csproj">
       <Project>{DB9BC05E-45F1-4F96-A161-F36BDECAF566}</Project>
       <Name>OpenIZ.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\OpenIZ.Messaging.IMSI\OpenIZ.Messaging.IMSI.csproj">
+      <Project>{04E3C581-5A04-4691-82AC-F339947FCE75}</Project>
+      <Name>OpenIZ.Messaging.IMSI</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

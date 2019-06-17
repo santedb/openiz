@@ -129,7 +129,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             data.CreatedBy.EnsureExists(context, principal);
             data.CreatedByKey = data.CreatedBy?.Key ?? data.CreatedByKey;
-
+            if (data.CreatedByKey == Guid.Empty) // HACK: For some reason the UUID For created by is null
+                data.CreatedByKey = null;
 
             // This is technically an insert and not an update
             SqlStatement currentVersionQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
@@ -191,10 +192,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             return rawQuery.OrderBy<TDomain>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
         }
+
+
         /// <summary>
         /// Query internal
         /// </summary>
-        protected override IEnumerable<Object> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool countResults = true)
+        protected override IEnumerable<Object> DoQueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool countResults = true)
         {
             // Is obsoletion time already specified?
             if (!query.ToString().Contains("ObsoletionTime"))
@@ -203,18 +206,15 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
             }
 
+
             // Query has been registered?
             if (this.m_queryPersistence?.IsRegistered(queryId.ToString()) == true)
-            {
-                totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
-                var keyResults = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value);
-                return keyResults.Select(p => p.Id).OfType<Object>();
-            }
+                return this.GetStoredQueryResults(queryId, offset, count, out totalResults);
 
             SqlStatement domainQuery = null;
             var expr = m_mapper.MapModelExpression<TModel, TDomain>(query, false);
             if (expr != null)
-                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
+                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom(typeof(TDomain), typeof(TDomainKey))
                     .InnerJoin<TDomain, TDomainKey>(o => o.Key, o => o.Key)
                     .Where<TDomain>(expr).Build();
             else
@@ -223,55 +223,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             domainQuery = this.AppendOrderBy(domainQuery);
 
-
-            // Query id just get the UUIDs in the db
-            if (queryId != Guid.Empty)
+            // Only perform count
+            if (count == 0)
             {
-                ColumnMapping pkColumn = TableMapping.Get(typeof(TDomainKey)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+                totalResults = context.Count(domainQuery);
+                return new List<CompositeResult<TDomain, TDomainKey>>();
+            }
+            else
+            {
+                if (count == 1)
+                    domainQuery.Limit(1);
 
-                var keyQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pkColumn).Build();
-                var resultKeys = context.Query<Guid>(keyQuery.Build());
-                this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Count(), resultKeys.Take(1000).Select(o => new Identifier<Guid>(o)).ToArray(), query);
-
-                ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(o =>
-                {
-                    int ofs = 1000;
-                    var rkeys = o as Guid[];
-                    if (rkeys == null)
-                    {
-                        return;
-                    }
-                    while (ofs < rkeys.Length)
-                    {
-                        this.m_queryPersistence?.AddResults(queryId.ToString(), rkeys.Skip(ofs).Take(1000).Select(k => new Identifier<Guid>(k)).ToArray());
-                        ofs += 1000;
-                    }
-                }, resultKeys.ToArray());
+                var retVal = context.Query<CompositeResult<TDomain, TDomainKey>>(domainQuery);
 
                 if (countResults)
-                    totalResults = (int)resultKeys.Count();
+                    totalResults = retVal.Count();
                 else
                     totalResults = 0;
 
-                var retVal = resultKeys.Skip(offset);
-                if (count.HasValue)
-                    retVal = retVal.Take(count.Value);
-                return retVal.OfType<Object>();
+                // Query id just get the UUIDs in the db
+                if (queryId != Guid.Empty)
+                    this.AddQueryResults<CompositeResult<TDomain, TDomainKey>>(context, query, queryId, offset, retVal, totalResults);
+                return retVal.Skip(offset).Take(count ?? 100);
             }
-            else if (countResults)
-            {
-                totalResults = context.Count(domainQuery);
-                if (totalResults == 0)
-                    return new List<CompositeResult<TDomain, TDomainKey>>();
-            }
-            else
-                totalResults = 0;
 
-            if (offset > 0)
-                domainQuery.Offset(offset);
-            if (count.HasValue)
-                domainQuery.Limit(count.Value);
-            return context.Query<CompositeResult<TDomain, TDomainKey>>(domainQuery).OfType<Object>();
 
         }
 
@@ -342,7 +317,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     if (uuid.VersionId == Guid.Empty)
                         retVal = this.Get(connection, uuid.Id, principal);
                     else
-                        retVal = this.CacheConvert(this.QueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId && o.ObsoletionTime == null || o.ObsoletionTime != null, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
+                        retVal = this.CacheConvert(this.DoQueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId && o.ObsoletionTime == null || o.ObsoletionTime != null, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
 
                     var postData = new PostRetrievalEventArgs<TModel>(retVal, principal);
                     this.FireRetrieved(postData);

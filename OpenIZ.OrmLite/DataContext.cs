@@ -243,6 +243,8 @@ namespace OpenIZ.OrmLite
         {
             try
             {
+                if (this.m_cacheCommit == null) return;
+
                 IdentifiedData existing = null;
                 if (data.Key.HasValue && !this.m_cacheCommit.TryGetValue(data.Key.Value, out existing))
                 {
