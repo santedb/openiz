@@ -455,6 +455,36 @@ namespace OpenIZ.OrmLite
         }
 
         /// <summary>
+        /// Construct a SELECT FROM statement with the specified selectors
+        /// </summary>
+        /// <param name="selector">The types from which to select columns</param>
+        /// <returns>The constructed sql statement</returns>
+        public SqlStatement<T> SelectFrom(params Type[] scopedTables)
+        {
+            var existingCols = new List<String>();
+            var tableMap = TableMapping.Get(typeof(T));
+            // Column list of distinct columns
+            var columnList = String.Join(",", scopedTables.Select(o => TableMapping.Get(o)).SelectMany(o => o.Columns).Where(o =>
+            {
+                if (!existingCols.Contains(o.Name))
+                {
+                    existingCols.Add(o.Name);
+                    return true;
+                }
+                return false;
+            }).Select(o => $"{o.Table.TableName}.{o.Name}"));
+
+            // Append the result to query
+            var retVal = this.Append(new SqlStatement<T>(this.m_provider, $"SELECT {columnList} ")
+            {
+                m_alias = tableMap.TableName
+            });
+
+            retVal.Append($" FROM {tableMap.TableName} AS {tableMap.TableName} ");
+
+            return retVal;
+        }
+        /// <summary>
         /// Generate an update statement
         /// </summary>
         public SqlStatement<T> UpdateSet()

@@ -131,15 +131,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public override IEnumerable<TModel> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
         {
             int resultCount = 0;
-            var results = this.QueryInternal(context, query, queryId, offset, count, out resultCount, countResults).ToList();
+            var results = this.DoQueryInternal(context, query, queryId, offset, count, out resultCount, countResults).ToList();
             totalResults = resultCount;
 
             if (!AdoPersistenceService.GetConfiguration().SingleThreadFetch)
+            {
                 return results.AsParallel().AsOrdered().Select(o =>
                 {
                     var subContext = context;
                     var newSubContext = results.Count() > 1;
-
+                    var idx = results.IndexOf(o);
                     try
                     {
                         if (newSubContext) subContext = subContext.OpenClonedContext();
@@ -148,11 +149,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                             return this.Get(subContext, (Guid)o, principal);
                         else
                             return this.CacheConvert(o, subContext, principal);
-
                     }
                     catch (Exception e)
                     {
-                        this.m_tracer.TraceEvent(TraceEventType.Error, e.HResult, "Error performing sub-query: {0}", e);
+                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error performing sub-query: {0}", e);
                         throw;
                     }
                     finally
@@ -165,6 +165,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                         }
                     }
                 });
+            }
             else
                 return results.Select(o =>
                 {
@@ -174,11 +175,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                         return this.CacheConvert(o, context, principal);
                 });
         }
-
         /// <summary>
         /// Perform the query 
         /// </summary>
-        protected virtual IEnumerable<Object> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool incudeCount = true)
+        protected virtual IEnumerable<Object> DoQueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool includeCount = true)
         {
 #if DEBUG
             Stopwatch sw = new Stopwatch();
@@ -191,11 +191,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
                 // Query has been registered?
                 if (queryId != Guid.Empty && this.m_queryPersistence?.IsRegistered(queryId.ToString()) == true)
-                {
-                    totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
-                    var resultKeys = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value);
-                    return resultKeys.Select(p => p.Id).OfType<Object>();
-                }
+                    return this.GetStoredQueryResults(queryId, offset, count, out totalResults);
 
                 // Is obsoletion time already specified?
                 if (!query.ToString().Contains("ObsoletionTime") && typeof(BaseEntityData).IsAssignableFrom(typeof(TModel)))
@@ -205,7 +201,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 }
 
                 // Domain query
-                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom();
+                Type[] selectTypes = { typeof(TQueryReturn) };
+                if (selectTypes[0].IsConstructedGenericType)
+                    selectTypes = selectTypes[0].GenericTypeArguments;
+
+                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom(selectTypes);
                 var expression = m_mapper.MapModelExpression<TModel, TDomain>(query, false);
                 if (expression != null)
                 {
@@ -223,75 +223,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 }
                 else
                 {
-                    m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Verbose, 0, "Will use slow query construction due to complex mapped fields");
+                    m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Will use slow query construction due to complex mapped fields");
                     domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query);
                 }
 
                 // Count = 0 means we're not actually fetching anything so just hit the db
                 if (count != 0)
                 {
+
                     domainQuery = this.AppendOrderBy(domainQuery);
+                    if (count == 1)
+                        domainQuery.Limit(1);
 
-                    // Query id just get the UUIDs in the db
-                    if (queryId != Guid.Empty && count != 0)
-                    {
-                        ColumnMapping pkColumn = null;
-                        if (typeof(CompositeResult).IsAssignableFrom(typeof(TQueryReturn)))
-                        {
-                            foreach (var p in typeof(TQueryReturn).GenericTypeArguments.Select(o => AdoPersistenceService.GetMapper().MapModelType(o)))
-                                if (!typeof(DbSubTable).IsAssignableFrom(p) && !typeof(IDbVersionedData).IsAssignableFrom(p))
-                                {
-                                    pkColumn = TableMapping.Get(p).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-                                    break;
-                                }
-                        }
-                        else
-                            pkColumn = TableMapping.Get(typeof(TQueryReturn)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-
-                        var keyQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pkColumn).Build();
-
-                        var resultKeys = context.Query<Guid>(keyQuery.Build());
-
-                        //ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(a => this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Select(o => new Identifier<Guid>(o)).ToArray(), query), null);
-                        // Another check
-                        this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Count(), resultKeys.Select(o => new Identifier<Guid>(o)).Take(1000).ToArray(), query);
-
-                        ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(o =>
-                        {
-                            int ofs = 1000;
-                            var rkeys = o as Guid[];
-                            while (ofs < rkeys.Length)
-                            {
-                                this.m_queryPersistence?.AddResults(queryId.ToString(), rkeys.Skip(ofs).Take(1000).Select(k => new Identifier<Guid>(k)).ToArray());
-                                ofs += 1000;
-                            }
-                        }, resultKeys.ToArray());
-
-                        if (incudeCount)
-                            totalResults = (int)resultKeys.Count();
-                        else
-                            totalResults = 0;
-
-                        var retVal = resultKeys.Skip(offset);
-                        if (count.HasValue)
-                            retVal = retVal.Take(count.Value);
-                        return retVal.OfType<Object>();
-                    }
-                    else if (incudeCount)
-                    {
-                        totalResults = context.Count(domainQuery);
-                        if (totalResults == 0)
-                            return new List<Object>();
-                    }
+                    // Only one is requested, or there is no future query coming back so no savings in querying the entire dataset
+                    var retVal = this.DomainQueryInternal<TQueryReturn>(context, domainQuery).OfType<Object>();
+                    if (includeCount)
+                        totalResults = retVal.Count();
                     else
                         totalResults = 0;
 
-                    if (offset > 0)
-                        domainQuery.Offset(offset);
-                    if (count.HasValue)
-                        domainQuery.Limit(count.Value);
+                    // We have a query identifier and this is the first frame, freeze the query identifiers
+                    if (queryId != Guid.Empty)
+                        this.AddQueryResults<TQueryReturn>(context, query, queryId, offset, retVal, totalResults);
 
-                    return this.DomainQueryInternal<TQueryReturn>(context, domainQuery, ref totalResults).OfType<Object>();
+                    return retVal.Skip(offset).Take(count ?? 100);
                 }
                 else
                 {
@@ -301,7 +256,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             }
             catch (Exception ex)
             {
-                if(domainQuery != null)
+                if (domainQuery != null)
                     this.m_tracer.TraceEvent(TraceEventType.Error, ex.HResult, context.GetQueryLiteral(domainQuery.Build()));
                 context.Dispose(); // No longer important
 
@@ -316,16 +271,90 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         }
 
         /// <summary>
-        /// Perform a domain query
+        /// Get stored query results
         /// </summary>
-        protected IEnumerable<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery, ref int totalResults)
+        protected IEnumerable<object> GetStoredQueryResults(Guid queryId, int offset, int? count, out int totalResults)
         {
-            // Build and see if the query already exists on the stack???
-            domainQuery = domainQuery.Build();
-            var results = context.Query<TResult>(domainQuery).ToList();
-            return results;
+            totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
+            var keyResults = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value).Select(o=>o.Id);
+            return keyResults.OfType<Object>();
         }
 
+        /// <summary>
+        /// Add query results
+        /// </summary>
+        protected void AddQueryResults<TKeySearch>(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, IEnumerable<Object> initialResults, int totalResults)
+        {
+
+            // Get PK Column to select keys
+            ColumnMapping pkColumn = null;
+            IEnumerable<Guid> keyResults = null;
+
+            if (typeof(CompositeResult).IsAssignableFrom(typeof(TKeySearch)))
+            {
+                int keyObj = 0;
+                foreach (var p in typeof(TKeySearch).GenericTypeArguments.Select(o => AdoPersistenceService.GetMapper().MapModelType(o)))
+                {
+                    if (!typeof(DbSubTable).IsAssignableFrom(p) && !typeof(IDbVersionedData).IsAssignableFrom(p))
+                    {
+                        pkColumn = TableMapping.Get(p).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+                        break;
+                    }
+                    keyObj++;
+                }
+
+                // Extract keys from composite
+                Func<CompositeResult, Guid> selector = i => (Guid)pkColumn.SourceProperty.GetValue(i.Values[keyObj], null);
+                keyResults = initialResults.OfType<CompositeResult>().Select(selector);
+
+            }
+            else
+            {
+                pkColumn = TableMapping.Get(typeof(TKeySearch)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+                Func<IDbIdentified, Guid> selector = i => (Guid)pkColumn.SourceProperty.GetValue(i, null);
+                keyResults = initialResults.OfType<IDbIdentified>().Select(selector);
+            }
+
+            this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), totalResults, keyResults.Select(o=>new Identifier<Guid>(o)).ToArray(), query);
+
+            //int step = initialResults.Count();
+
+            //// Build query for additional keys to query store if needed
+            //if (initialResults.Count() < totalResults)
+            //    ApplicationServiceContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem((parm) =>
+            //    {
+            //        var keyQuery = this.m_persistenceService.GetQueryBuilder().CreateQuery(query, orderBy, pkColumn);
+            //        keyQuery = this.AppendOrderBy(keyQuery, orderBy);
+            //        int ofs = offset == 0 ? step : 0;
+            //        //while (ofs < totalResults)
+            //        //{
+            //        this.m_tracer.TraceVerbose("Hydrating query {0} ({1}..{2})", queryId, ofs, totalResults);
+            //        var resultKeys = (parm as DataContext).Query<Guid>(keyQuery.Build().Offset(ofs));
+            //        ofs = 0;
+            //        while(ofs< totalResults) { 
+            //            this.m_tracer.TraceVerbose("Registering results {0} ({1}..{2})", queryId, ofs, ofs + step);
+            //            this.m_queryPersistence?.AddResults(queryId, resultKeys.Skip(ofs).Take(step).ToArray());
+            //            ofs += step;
+            //        }
+            //    }, context.OpenClonedContext());
+
+        }
+
+        /// <summary>
+        /// Perform a domain query
+        /// </summary>
+        protected IEnumerable<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery)
+        {
+
+            // Build and see if the query already exists on the stack???
+            domainQuery = domainQuery.Build();
+
+            var results = context.Query<TResult>(domainQuery);
+
+            // Cache query result
+            return results;
+
+        }
 
         /// <summary>
         /// Build source query

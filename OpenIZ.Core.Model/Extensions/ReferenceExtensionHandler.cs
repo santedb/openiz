@@ -51,8 +51,10 @@ namespace OpenIZ.Core.Extensions
             else if (extensionData[1] == (byte)'^') // Data is from text format 
             {
                 var extData = Encoding.UTF8.GetString(extensionData, 0, extensionData.Length);
-                uuid = new Guid(extData.Substring(2));
-                extensionData[0] = byte.Parse(extData.Substring(0, 1));
+                var parts = extData.Split('^');
+                uuid = new Guid(parts[1]);
+                if (extensionData.Length != 0x26) // Mixed data (UUID in string id as byte)
+                    extensionData[0] = byte.Parse(parts[0]);
             }
             else
                 throw new ArgumentOutOfRangeException(nameof(extensionData), $"Argument not in appropriate format. Expecting 11 byte binary reference or string format ({BitConverter.ToString(extensionData)}");
