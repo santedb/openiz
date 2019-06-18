@@ -70,7 +70,7 @@ namespace OpenIZ.Core.Model.Subscription
         /// Gets the resource type
         /// </summary>
         [XmlIgnore, JsonIgnore]
-        public Type ResourceType => new ModelSerializationBinder().BindToType("SanteDB.Core.Model", this.Resource);
+        public Type ResourceType => new ModelSerializationBinder().BindToType("OpenIZ.Core.Model", this.Resource);
 
         /// <summary>
         /// Gets or sets the server definitions

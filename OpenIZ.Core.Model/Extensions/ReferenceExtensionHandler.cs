@@ -53,7 +53,7 @@ namespace OpenIZ.Core.Extensions
                 var extData = Encoding.UTF8.GetString(extensionData, 0, extensionData.Length);
                 var parts = extData.Split('^');
                 uuid = new Guid(parts[1]);
-                if (extensionData.Length != 0x26) // Mixed data (UUID in string id as byte)
+                if (extensionData[0] >= 48) // Mixed data (UUID in string id as byte)
                     extensionData[0] = byte.Parse(parts[0]);
             }
             else

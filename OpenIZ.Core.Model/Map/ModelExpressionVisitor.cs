@@ -461,19 +461,25 @@ namespace OpenIZ.Core.Model.Map
                         if (right.NodeType == ExpressionType.Convert &&
                             (right as UnaryExpression).Operand.Type == left.Type)
                             right = (right as UnaryExpression).Operand;
+                        else if (left is ConstantExpression && (left as ConstantExpression).Value == null)
+                            return Expression.MakeBinary(node.NodeType, left, right);
                         else
                             right = Expression.Coalesce(right, Expression.Constant(Activator.CreateInstance(right.Type.GetTypeInfo().GenericTypeArguments[0])));
                     }
                     if (left.Type.GetTypeInfo().IsGenericType &&
                         left.Type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    {
                         if (left.NodeType == ExpressionType.Convert &&
                             (left as UnaryExpression).Operand.Type == right.Type)
                             left = (left as UnaryExpression).Operand;
+                        else if(right is ConstantExpression && (right as ConstantExpression).Value == null) // Handle : o.Nullable == null
+                            return Expression.MakeBinary(node.NodeType, left, right);
                         else
                             left = Expression.Coalesce(left, Expression.Constant(Activator.CreateInstance(left.Type.GetTypeInfo().GenericTypeArguments[0])));
+                    }
                     // Handle nullable <> null to always be true
-                    if ((right is ConstantExpression && (right as ConstantExpression).Value == null ||
-                        left is ConstantExpression && (left as ConstantExpression).Value == null) &&
+                    if (right is ConstantExpression && (right as ConstantExpression).Value == null ||
+                        (left is ConstantExpression && (left as ConstantExpression).Value == null) &&
                         (!right.Type.GetTypeInfo().IsClass || !left.Type.GetTypeInfo().IsClass))
                         return Expression.Constant(true);
                 }
@@ -523,6 +529,8 @@ namespace OpenIZ.Core.Model.Map
                     if (convertExpression.Type.GetTypeInfo().IsAssignableFrom(convertExpression.Operand.Type.GetTypeInfo()))
                         node = Expression.MakeMemberAccess(convertExpression.Operand, node.Member);
                 }
+                else if (node.Member.Name == "HasValue" && newExpression.Type == node.Expression.Type)
+                    return Expression.MakeMemberAccess(newExpression, newExpression.Type.GetRuntimeProperty("HasValue"));
                 return this.m_mapper.MapModelMember(node, newExpression);
             }
             return node;

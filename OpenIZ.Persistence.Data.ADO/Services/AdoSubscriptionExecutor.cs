@@ -118,6 +118,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             using (var ctx = provider.GetReadonlyConnection())
                             {
                                 ctx.Open();
+                                ctx.LoadState = LoadState.FullLoad;
+
                                 var retVal = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
                                 cacheService?.Add(retVal as IdentifiedData);
                                 return retVal;
@@ -138,7 +140,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                     try
                     {
                         connection.Open();
-
+                        connection.LoadState = LoadState.FullLoad;
                         // First, build the query using the query build
                         var tableMapping = TableMapping.Get(AdoPersistenceService.GetMapper().MapModelType(subscription.ResourceType));
                         var query = (typeof(QueryBuilder).GetGenericMethod(
