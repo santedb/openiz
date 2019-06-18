@@ -15,7 +15,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace SanteDB.Core.Services.Impl
+namespace OpenIZ.Core.Services.Impl
 {
     /// <summary>
     /// An implementation of the ISubscriptionRepository that loads definitions from applets

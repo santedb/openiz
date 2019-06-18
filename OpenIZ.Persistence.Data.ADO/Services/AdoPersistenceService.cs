@@ -42,6 +42,7 @@ using OpenIZ.Persistence.Data.ADO.Services.Persistence;
 using System.Collections;
 using OpenIZ.OrmLite;
 using OpenIZ.Persistence.Data.ADO.Data.Hax;
+using OpenIZ.Core.Interfaces;
 
 namespace OpenIZ.Persistence.Data.ADO.Services
 {
@@ -440,6 +441,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                 this.m_tracer.TraceEvent(TraceEventType.Error, e.HResult, "Error initializing local persistence: {0}", e);
                 throw e;
             }
+
+            // Bind subscription execution
+            ApplicationContext.Current.GetService<IServiceManager>().AddServiceProvider(typeof(AdoSubscriptionExector));
 
             // Bind some basic service stuff
             ApplicationContext.Current.GetService<IDataPersistenceService<Core.Model.Security.SecurityUser>>().Inserting += (o, e) =>

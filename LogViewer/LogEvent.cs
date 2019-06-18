@@ -27,6 +27,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace LogViewer
 {
@@ -97,9 +98,11 @@ namespace LogViewer
 
             List<LogEvent> retVal = new List<LogEvent>();
             LogEvent current = null;
-
+            int i = 0;
             while (!stream.EndOfStream)
-            { 
+            {
+                if (i++ % 100 == 0) Application.DoEvents();
+
                 var line = stream.ReadLine();
                 var match = v2Regex.Match(line);
                 if (!match.Success)
