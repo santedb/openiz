@@ -222,8 +222,6 @@ namespace OizDevTool
                             var amc = (int)((float)Math.Abs(gkp.Value ?? 0) / 3);
                             // Now correct for packaging
 
-                            Console.WriteLine("\tCorrecting {0} for Packaging...", gkp.Key);
-
                             int presentation = 0;
                             if(!quantityInfo.TryGetValue(gkp.Key, out presentation))
                             {
@@ -234,6 +232,9 @@ namespace OizDevTool
 
                             if (presentation > 1)
                                 amc = ((amc / presentation) + 1) * presentation;
+
+                            Console.WriteLine("\tAMC for {0} after packaging {1}...", gkp.Key, amc);
+
 
                             // Is there an existing stock policy object?
                             var existingPolicy = stockPolicyObject.FirstOrDefault(o => o.MaterialEntityId == gkp.Key);
