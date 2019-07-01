@@ -444,7 +444,7 @@ namespace OizDevTool
             });
             doodadTask.Start();
 
-
+            var otr = tr;
             while (ofs < tr)
             {
                 // Let the pressure die down
@@ -479,6 +479,11 @@ namespace OizDevTool
 
                 }
 
+                if(otr != tr)
+                {
+                    start = DateTime.Now;
+                    otr = tr;
+                }
 
                 ofs += prodPatients.Count();
 

@@ -18,6 +18,7 @@
  * Date: 2017-9-1
  */
 using Newtonsoft.Json;
+using OpenIZ.Core.Model.DataTypes;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Serialization;
@@ -29,7 +30,8 @@ namespace OpenIZ.Core.Model.RISI
 	/// </summary>
 	[XmlType(nameof(ListAutoCompleteSourceDefinition), Namespace = "http://openiz.org/risi")]
 	[JsonObject(nameof(ListAutoCompleteSourceDefinition))]
-	public class ListAutoCompleteSourceDefinition : AutoCompleteSourceDefinition
+    [XmlInclude(typeof(Concept))]
+    public class ListAutoCompleteSourceDefinition : AutoCompleteSourceDefinition
 	{
 		/// <summary>
 		/// Initializes a new instance of the <see cref="ListAutoCompleteSourceDefinition"/> class.

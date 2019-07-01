@@ -105,6 +105,8 @@ namespace OpenIZ.Caching.Redis
             try
             {
                 var redisConn = this.m_connection.GetDatabase(RedisCacheConstants.QueryDatabaseId);
+                redisConn.KeyExpire($"{queryId}.{FIELD_QUERY_RESULT_IDX}", new TimeSpan(1, 0, 0), CommandFlags.FireAndForget);
+                redisConn.KeyExpire($"{queryId}.{FIELD_QUERY_TOTAL_RESULTS}", new TimeSpan(1, 0, 0), CommandFlags.FireAndForget);
                 if (redisConn.KeyExists($"{queryId}.{FIELD_QUERY_RESULT_IDX}"))
                     return redisConn.ListRange($"{queryId}.{FIELD_QUERY_RESULT_IDX}", offset, offset + count).Select(o => new Guid((byte[])o)).ToArray();
                 else
@@ -294,6 +296,7 @@ namespace OpenIZ.Caching.Redis
         /// <remarks>Backport from SanteDB</remarks>
         public Identifier<TIdentifier>[] GetQueryResults<TIdentifier>(string queryId, int startRecord, int nRecords)
         {
+
             return this.GetQueryResults(Guid.Parse(queryId), startRecord, nRecords).Select(o=>new Identifier<TIdentifier>((TIdentifier)(object)o)).ToArray();
         }
 

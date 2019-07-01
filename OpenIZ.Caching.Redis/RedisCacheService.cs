@@ -289,7 +289,7 @@ namespace OpenIZ.Caching.Redis
 #if DEBUG
                 this.m_tracer.TraceVerbose("HashSet {0} (EXIST: {1}; @: {2})", data, false, new System.Diagnostics.StackTrace(true).GetFrame(1));
 #endif 
-
+                redisDb.KeyExpire(data.Key.Value.ToString(), new TimeSpan(0, 10, 0), CommandFlags.FireAndForget);
                 this.EnsureCacheConsistency(new DataCacheEventArgs(data));
                 //if (existing)
                 //    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
@@ -315,6 +315,7 @@ namespace OpenIZ.Caching.Redis
 
                 // Add
                 var redisDb = this.m_connection.GetDatabase();
+                redisDb.KeyExpire(key.ToString(), new TimeSpan(0, 10, 0), CommandFlags.FireAndForget);
                 return this.DeserializeObject(redisDb.HashGetAll(key.ToString()));
             }
             catch(Exception e)
@@ -366,6 +367,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
 
                 var configuration = new ConfigurationOptions()
                 {
+                    AbortOnConnectFail = false,
                     Password = this.m_configuration.Password
                 };
                 foreach (var itm in this.m_configuration.Servers)
@@ -434,7 +436,14 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         /// </summary>
         public void Clear()
         {
-            this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            try
+            {
+                this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceError("Could not flush REDIS database: {0}", e);
+            }
         }
 
         /// <summary>
