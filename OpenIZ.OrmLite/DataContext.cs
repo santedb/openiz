@@ -269,8 +269,7 @@ namespace OpenIZ.OrmLite
         public IdentifiedData GetCacheCommit(Guid key)
         {
             IdentifiedData retVal = null;
-            lock(this.m_lockObject)
-                this.m_cacheCommit.TryGetValue(key, out retVal);
+            this.m_cacheCommit.TryGetValue(key, out retVal);
             return retVal;
         }
 

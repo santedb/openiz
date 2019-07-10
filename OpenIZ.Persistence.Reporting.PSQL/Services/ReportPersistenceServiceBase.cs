@@ -475,8 +475,8 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 					if ((count ?? 1000) > 25)
 						connection.PrepareStatements = true;
-					if (fastQuery)
-						connection.AddData("loadFast", true);
+					//if (fastQuery)
+					//	connection.AddData("loadFast", true);
 
 					var results = this.Query(connection, query, offset, count ?? 1000, out totalCount, true, authContext);
 

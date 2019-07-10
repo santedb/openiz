@@ -141,13 +141,18 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             {
                 if (cacheItem.LoadState < context.LoadState)
                 {
+                    this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Cache state of {0}({1}) is lower than context ({2})", cacheItem, cacheItem.LoadState, context.LoadState);
                     cacheItem.LoadAssociations(context, principal);
                     cacheService?.Add(cacheItem);
                 }
+                else
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} from cache returned", cacheItem);
                 return cacheItem;
             }
             else
             {
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} ({1}) not in cache will load", key, typeof(TData).FullName);
+
                 cacheItem = this.QueryInternal(context, o => o.Key == key, Guid.Empty, 0, 1, out tr, principal, false)?.FirstOrDefault();
                 if (cacheService != null)
                     cacheService.Add(cacheItem);
@@ -549,7 +554,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
                         if (loadFast)
                         {
-                            connection.AddData("loadFast", true);
+                            //connection.AddData("loadFast", true);
                             connection.LoadState = LoadState.PartialLoad;
                         }
                         else
@@ -649,7 +654,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         connection.PrepareStatements = true;
                     if (fastQuery)
                     {
-                        connection.AddData("loadFast", true);
+                        //connection.AddData("loadFast", true);
                         connection.LoadState = LoadState.PartialLoad;
                     }
                     else

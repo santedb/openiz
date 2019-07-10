@@ -259,9 +259,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var cacheService = new AdoPersistenceCache(context);
             var retVal = cacheService.GetCacheItem<TModel>(key);
             if (retVal != null)
+            {
+                this.m_tracer.TraceVerbose("Object {0} found in cache", retVal);
                 return retVal;
+            }
             else
             {
+                this.m_tracer.TraceVerbose("Object {0}({1}) not found in cache will load", typeof(TModel).FullName, key);
+
                 var domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
                     .InnerJoin<TDomain, TDomainKey>(o => o.Key, o => o.Key)
                     .Where<TDomain>(o => o.Key == key && o.ObsoletionTime == null)

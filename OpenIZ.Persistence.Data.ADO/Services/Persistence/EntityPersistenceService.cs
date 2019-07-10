@@ -195,7 +195,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 #if DEBUG
             sw.Stop();
-            this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Basic conversion took: {0}", sw.ElapsedMilliseconds);
+            this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Conversion of {0} took: {1} ms", retVal, sw.ElapsedMilliseconds);
 #endif 
             retVal.LoadAssociations(context, principal);
             return retVal;

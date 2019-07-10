@@ -59,13 +59,18 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             {
                 if (cacheItem.LoadState < context.LoadState)
                 {
+                    this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Cache state of {0}({1}) is lower than context ({2})", cacheItem, cacheItem.LoadState, context.LoadState);
                     cacheItem.LoadAssociations(context, principal);
                     cacheService?.Add(cacheItem);
                 }
-                    return cacheItem;
+                else
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} from cache returned", cacheItem);
+                return cacheItem;
             }
             else
             {
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} ({1}) not in cache will load", key, typeof(TModel).FullName);
+
                 var domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery<TModel>(o => o.Key == key && o.ObsoletionTime == null).Build();
                 domainQuery.OrderBy<TRootEntity>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
                 cacheItem = this.ToModelInstance(context.FirstOrDefault<TQueryReturn>(domainQuery), context, principal);

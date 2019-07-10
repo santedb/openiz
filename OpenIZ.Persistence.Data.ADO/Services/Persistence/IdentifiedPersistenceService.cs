@@ -36,6 +36,7 @@ using OpenIZ.Persistence.Data.ADO.Data;
 using OpenIZ.Persistence.Data.ADO.Exceptions;
 using OpenIZ.OrmLite;
 using System.Data.Common;
+using OpenIZ.Core.Diagnostics;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -157,9 +158,15 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var cacheService = new AdoPersistenceCache(context);
             var retVal = cacheService?.GetCacheItem<TModel>(key);
             if (retVal != null)
+            {
+                this.m_tracer.TraceVerbose("Object {0} found in cache", retVal);
                 return retVal;
+            }
             else
+            {
+                this.m_tracer.TraceVerbose("Object {0}({1}) not found in cache will load", typeof(TModel).FullName, key);
                 return this.CacheConvert(context.FirstOrDefault<TDomain>(o => o.Key == key), context, principal);
+            }
         }
 
         #endregion

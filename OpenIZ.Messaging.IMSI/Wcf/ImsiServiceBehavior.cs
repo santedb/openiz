@@ -249,7 +249,7 @@ namespace OpenIZ.Messaging.IMSI.Wcf
                         WebOperationContext.Current.IncomingRequest.UriTemplateMatch.QueryParameters["_all"] == "true")
                     {
                         retVal = retVal.GetLocked();
-                        ObjectExpander.ExpandProperties(retVal, OpenIZ.Core.Model.Query.NameValueCollection.ParseQueryString(WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Query));
+                    //    //ObjectExpander.ExpandProperties(retVal, OpenIZ.Core.Model.Query.NameValueCollection.ParseQueryString(WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Query));
                         ObjectExpander.ExcludeProperties(retVal, OpenIZ.Core.Model.Query.NameValueCollection.ParseQueryString(WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri.Query));
                         return Bundle.CreateBundle(retVal);
                     }
@@ -478,7 +478,7 @@ namespace OpenIZ.Messaging.IMSI.Wcf
                     }
                     else
                     {
-                        if (query.ContainsKey("_all") || query.ContainsKey("_expand") || query.ContainsKey("_exclude"))
+                        if (!query.ContainsKey("_lean") && (query.ContainsKey("_all") || query.ContainsKey("_expand") || query.ContainsKey("_exclude")))
                         {
                             using (WaitThreadPool wtp = new WaitThreadPool())
                             {

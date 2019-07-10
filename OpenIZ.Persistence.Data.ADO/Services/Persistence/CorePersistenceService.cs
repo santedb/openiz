@@ -70,7 +70,6 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var dInstance = (dataInstance as CompositeResult)?.Values.OfType<TDomain>().FirstOrDefault() ?? dataInstance as TDomain;
             var retVal = m_mapper.MapDomainInstance<TDomain, TModel>(dInstance);
             retVal.LoadAssociations(context, principal);
-            this.m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Verbose, 0, "Model instance {0} created", dataInstance);
 
             return retVal;
         }

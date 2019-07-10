@@ -11,6 +11,12 @@ namespace OpenIZ.Core.Model.Subscription
     {
 
         /// <summary>
+        /// True if only keys are returned
+        /// </summary>
+        [JsonIgnore, XmlAttribute("keyOnly")]
+        public bool KeyOnly { get; set; }
+
+        /// <summary>
         /// Gets or sets the invariant name
         /// </summary>
         [JsonIgnore, XmlAttribute("invariant")]

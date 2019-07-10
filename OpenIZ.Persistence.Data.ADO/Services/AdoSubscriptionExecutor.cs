@@ -37,7 +37,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         /// Gets the service name
         /// </summary>
         public string ServiceName => "ADO.NET Subscription Executor";
-        
+
         // Tracer
         private TraceSource m_tracer = new TraceSource(AdoDataConstants.TraceSourceName);
 
@@ -108,29 +108,53 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             if (queryId != Guid.Empty && queryService?.IsRegistered(queryId.ToString()) == true)
             {
                 totalResults = (int)queryService.QueryResultTotalQuantity(queryId.ToString());
-                return queryService.GetQueryResults<Guid>(queryId.ToString(), offset, count ?? 100)
-                    .AsParallel()
-                    .AsOrdered()
-                    .Select(o =>
+                if (AdoPersistenceService.GetConfiguration().SingleThreadFetch)
+                {
+                    using (var ctx = provider.GetReadonlyConnection())
                     {
-                        try
+                        ctx.Open();
+                        ctx.LoadState = LoadState.PartialLoad;
+                        return queryService.GetQueryResults<Guid>(queryId.ToString(), offset, count ?? 100)
+                        .Select(o =>
                         {
-                            using (var ctx = provider.GetReadonlyConnection())
+                            try
                             {
-                                ctx.Open();
-                                ctx.LoadState = LoadState.FullLoad;
-
                                 var retVal = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
                                 cacheService?.Add(retVal as IdentifiedData);
                                 return retVal;
                             }
-                        }
-                        catch (Exception e)
+                            catch (Exception e)
+                            {
+                                this.m_tracer.TraceError("Error fetching query results for {0}: {1}", queryId, e);
+                                throw new DataPersistenceException("Error fetching query results", e);
+                            }
+                        }).ToList();
+                    }
+                }
+                else
+                    return queryService.GetQueryResults<Guid>(queryId.ToString(), offset, count ?? 100)
+                        .AsParallel()
+                        .AsOrdered()
+                        .Select(o =>
                         {
-                            this.m_tracer.TraceError("Error fetching query results for {0}: {1}", queryId, e);
-                            throw new DataPersistenceException("Error fetching query results", e);
-                        }
-                    }).ToList();
+                            try
+                            {
+                                using (var ctx = provider.GetReadonlyConnection())
+                                {
+                                    ctx.Open();
+                                    ctx.LoadState = LoadState.PartialLoad;
+
+                                    var retVal = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
+                                    cacheService?.Add(retVal as IdentifiedData);
+                                    return retVal;
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                this.m_tracer.TraceError("Error fetching query results for {0}: {1}", queryId, e);
+                                throw new DataPersistenceException("Error fetching query results", e);
+                            }
+                        }).ToList();
             }
             else
             {
@@ -140,7 +164,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                     try
                     {
                         connection.Open();
-                        connection.LoadState = LoadState.FullLoad;
+                        connection.LoadState = LoadState.PartialLoad;
                         // First, build the query using the query build
                         var tableMapping = TableMapping.Get(AdoPersistenceService.GetMapper().MapModelType(subscription.ResourceType));
                         var query = (typeof(QueryBuilder).GetGenericMethod(
@@ -186,6 +210,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         }
                         else
                         {
+                            
+                            this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Executing Subscription Query: {0}", connection.GetQueryLiteral(domainQuery.Build()));
+
                             // Fetch
                             var domainResults = (typeof(DataContext).GetGenericMethod(
                                 nameof(DataContext.Query),
@@ -239,7 +266,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 #if DEBUG
                         this.m_tracer.TraceError("Error executing subscription: {0}", e);
 #else
-                this.m_tracer.TraceError("Error executing subscription: {0}", e.Message);
+                        this.m_tracer.TraceError("Error executing subscription: {0}", e.Message);
 #endif
 
                         throw new DataPersistenceException($"Error executing subscription: {e.Message}", e);
