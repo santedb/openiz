@@ -92,9 +92,9 @@ namespace OpenIZ.Core.Model.Subscription
         /// <summary>
         /// Load the specified subscription definition 
         /// </summary>
-        public static SubscriptionDefinition Load(MemoryStream ms)
+        public static SubscriptionDefinition Load(Stream str)
         {
-            return new XmlSerializer(typeof(SubscriptionDefinition)).Deserialize(ms) as SubscriptionDefinition;
+            return new XmlSerializer(typeof(SubscriptionDefinition)).Deserialize(str) as SubscriptionDefinition;
         }
     }
 }
