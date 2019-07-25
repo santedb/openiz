@@ -404,7 +404,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 		/// <returns>IEnumerable&lt;SecurityUser&gt;.</returns>
 		public override IEnumerable<SecurityUser> QueryInternal(DataContext context, Expression<Func<SecurityUser, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
 		{
-			var results = base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+			var results = base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
 
 			var users = new List<SecurityUser>();
 

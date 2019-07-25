@@ -145,6 +145,7 @@ namespace OpenIZ.Persistence.Data.ADO.Security
             }
             catch (AuthenticationException e)
             {
+                s_traceSource.TraceEvent(TraceEventType.Warning, e.HResult, "Error authenticating {0} : {1}", userName, e.Message);
                 // TODO: Audit this
                 if (e.Message.Contains("AUTH_INV:") || e.Message.Contains("AUTH_LCK:") || e.Message.Contains("AUTH_TFA:"))
                     throw new AuthenticationException(e.Message.Substring(0, e.Message.IndexOf(":")), e);

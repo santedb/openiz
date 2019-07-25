@@ -57,6 +57,7 @@
     <Compile Include="DataContext.cs" />
     <Compile Include="IAdoLoadedData.cs" />
     <Compile Include="IQueryBuilderHack.cs" />
+    <Compile Include="OrmResultSet.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Providers\IDbProvider.cs" />
     <Compile Include="Providers\PostgreSQLProvider.cs" />

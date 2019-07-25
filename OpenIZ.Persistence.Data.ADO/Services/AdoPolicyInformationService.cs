@@ -74,7 +74,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 							query.Where(o => o.Key == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityDevicePolicy>>(query)
-                                                    .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable));
+                                                    .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
+                                                    .ToList();
 					}
                     else if (securable is Core.Model.Security.SecurityRole)
                     {
@@ -83,7 +84,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             .Where(o => o.SourceKey == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityRolePolicy>>(query)
-                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable));
+                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
+                            .ToList();
                     }
                     else if (securable is Core.Model.Security.SecurityApplication || securable is ApplicationPrincipal)
                     {
@@ -97,7 +99,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             query.Where(o => o.Key == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityApplicationPolicy>>(query)
-                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable));
+                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
+                            .ToList();
                     }
                     else if (securable is IPrincipal || securable is IIdentity)
                     {
@@ -159,7 +162,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                   .Where(o => o.SourceKey == pAct.Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbActSecurityPolicy>>(query)
-                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable));
+                            .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
+                            .ToList();
                     }
                     else if (securable is Core.Model.Entities.Entity)
                     {
@@ -184,7 +188,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                 try
                 {
                     dataContext.Open();
-                    return dataContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null).Select(o => new AdoSecurityPolicy(o)).ToArray();
+                    return dataContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null).Select(o => new AdoSecurityPolicy(o)).ToList();
                 }
                 catch (Exception e)
                 {

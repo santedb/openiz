@@ -169,12 +169,8 @@ namespace OpenIZ.OrmLite
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
-                    }
-                    catch(TimeoutException)
-                    {
-                        dbc.Cancel();
-                        throw;
+                            while (rdr.Read())
+                                yield return this.MapObject<TModel>(rdr);
                     }
                     finally
                     {
@@ -710,48 +706,10 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Execute the specified query
         /// </summary>
-        public IEnumerable<TModel> Query<TModel>(Expression<Func<TModel, bool>> querySpec)
+        public OrmResultSet<TModel> Query<TModel>(Expression<Func<TModel, bool>> querySpec)
         {
-#if DEBUG
-            var sw = new Stopwatch();
-            sw.Start();
-            try
-            {
-#endif
-                var query = this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec);
-                lock (this.m_lockObject)
-                {
-                    var dbc = this.m_provider.CreateCommand(this, query);
-                    try
-                    {
-                        using (var rdr = dbc.ExecuteReader()) 
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
-                    }
-                    catch (TimeoutException)
-                    {
-                        dbc.Cancel();
-                        throw;
-                    }
-                    finally
-                    {
-#if DBPERF
-                        this.PerformanceMonitor(query, sw);
-#endif
-                        if (!this.IsPreparedCommand(dbc))
-                        dbc.Dispose();
-                    }
-                }
-
-#if DEBUG
-            }
-            finally
-            {
-                sw.Stop();
-                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", querySpec, sw.ElapsedMilliseconds);
-            }
-#endif
+            return new OrmResultSet<TModel>(this, this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
         }
-
         /// <summary>
         /// Adds data in a safe way
         /// </summary>
@@ -765,10 +723,15 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Query using the specified statement
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="query"></param>
-        /// <returns></returns>
-        public IEnumerable<TModel> Query<TModel>(SqlStatement query)
+        public OrmResultSet<TModel> Query<TModel>(SqlStatement query)
+        {
+            return new OrmResultSet<TModel>(this, query);
+        }
+
+        /// <summary>
+        /// Executes the query against the database
+        /// </summary>
+        internal IEnumerable<TModel> ExecQuery<TModel>(SqlStatement query)
         {
 #if DEBUG
             var sw = new Stopwatch();
@@ -782,13 +745,8 @@ namespace OpenIZ.OrmLite
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
-
-                    }
-                    catch (TimeoutException)
-                    {
-                        dbc.Cancel();
-                        throw;
+                            while (rdr.Read())
+                                yield return this.MapObject<TModel>(rdr);
                     }
                     finally
                     {
@@ -796,7 +754,7 @@ namespace OpenIZ.OrmLite
                         this.PerformanceMonitor(query, sw);
 #endif
                         if (!this.IsPreparedCommand(dbc))
-                             dbc.Dispose();
+                            dbc.Dispose();
                     }
                 }
 
@@ -805,7 +763,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", this.GetQueryLiteral(query), sw.ElapsedMilliseconds);
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "QUERY {0} executed in {1} ms", this.GetQueryLiteral(query), sw.ElapsedMilliseconds);
             }
 #endif
         }

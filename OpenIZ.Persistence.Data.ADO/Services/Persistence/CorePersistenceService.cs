@@ -238,21 +238,24 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 {
 
                     domainQuery = this.AppendOrderBy(domainQuery);
-                    if (count == 1)
-                        domainQuery.Limit(1);
-
+                    
                     // Only one is requested, or there is no future query coming back so no savings in querying the entire dataset
-                    var retVal = this.DomainQueryInternal<TQueryReturn>(context, domainQuery).OfType<Object>();
-                    if (includeCount)
+                    var retVal = this.DomainQueryInternal<TQueryReturn>(context, domainQuery);
+                    
+
+                    // We have a query identifier and this is the first frame, freeze the query identifiers
+                    if (queryId != Guid.Empty)
+                    {
+                        var keys = retVal.Keys<Guid>().ToArray();
+                        totalResults = keys.Count();
+                        this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
+                    }
+                    else if (includeCount)
                         totalResults = retVal.Count();
                     else
                         totalResults = 0;
 
-                    // We have a query identifier and this is the first frame, freeze the query identifiers
-                    if (queryId != Guid.Empty)
-                        this.AddQueryResults<TQueryReturn>(context, query, queryId, offset, retVal, totalResults);
-
-                    return retVal.Skip(offset).Take(count ?? 100);
+                    return retVal.Skip(offset).Take(count ?? 100).OfType<Object>();
                 }
                 else
                 {
@@ -289,39 +292,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// <summary>
         /// Add query results
         /// </summary>
-        protected void AddQueryResults<TKeySearch>(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, IEnumerable<Object> initialResults, int totalResults)
+        protected void AddQueryResults(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, IEnumerable<Guid> initialResults, int totalResults)
         {
 
-            // Get PK Column to select keys
-            ColumnMapping pkColumn = null;
-            IEnumerable<Guid> keyResults = null;
-
-            if (typeof(CompositeResult).IsAssignableFrom(typeof(TKeySearch)))
-            {
-                int keyObj = 0;
-                foreach (var p in typeof(TKeySearch).GenericTypeArguments.Select(o => AdoPersistenceService.GetMapper().MapModelType(o)))
-                {
-                    if (!typeof(DbSubTable).IsAssignableFrom(p) && !typeof(IDbVersionedData).IsAssignableFrom(p))
-                    {
-                        pkColumn = TableMapping.Get(p).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-                        break;
-                    }
-                    keyObj++;
-                }
-
-                // Extract keys from composite
-                Func<CompositeResult, Guid> selector = i => (Guid)pkColumn.SourceProperty.GetValue(i.Values[keyObj], null);
-                keyResults = initialResults.OfType<CompositeResult>().Select(selector);
-
-            }
-            else
-            {
-                pkColumn = TableMapping.Get(typeof(TKeySearch)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-                Func<IDbIdentified, Guid> selector = i => (Guid)pkColumn.SourceProperty.GetValue(i, null);
-                keyResults = initialResults.OfType<IDbIdentified>().Select(selector);
-            }
-
-            this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), totalResults, keyResults.Select(o=>new Identifier<Guid>(o)).ToArray(), query);
+            this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), totalResults, initialResults.Select(o=>new Identifier<Guid>(o)).ToArray(), query);
 
             //int step = initialResults.Count();
 
@@ -349,7 +323,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// <summary>
         /// Perform a domain query
         /// </summary>
-        protected IEnumerable<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery)
+        protected OrmResultSet<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery)
         {
 
             // Build and see if the query already exists on the stack???
@@ -447,7 +421,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     itm.SourceEntityKey = source.Key;
 
             // Get existing
-            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key);
+            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key).ToList();
             // Remove old associations
             var obsoleteRecords = existing.Where(o => !storage.Any(ecn => ecn.Key == o.Key));
             foreach (var del in obsoleteRecords) // Obsolete records = delete as it is non-versioned association

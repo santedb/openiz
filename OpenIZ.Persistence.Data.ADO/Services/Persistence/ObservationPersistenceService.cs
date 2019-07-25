@@ -125,7 +125,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<TextObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("ED"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
         /// <summary>
@@ -196,7 +196,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<CodedObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("CD"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
         /// <summary>
@@ -277,7 +277,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<QuantityObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("PQ"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
 

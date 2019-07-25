@@ -214,28 +214,27 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Executing Subscription Query: {0}", connection.GetQueryLiteral(domainQuery.Build()));
 
                             // Fetch
-                            var domainResults = (typeof(DataContext).GetGenericMethod(
+                            var domainResults = typeof(DataContext).GetGenericMethod(
                                 nameof(DataContext.Query),
                                 new Type[] { resultType },
-                                new Type[] { typeof(SqlStatement) }).Invoke(connection, new object[] { domainQuery }) as IEnumerable).OfType<Object>().ToList();
-
-                            // Count
-                            totalResults = domainResults.Count();
+                                new Type[] { typeof(SqlStatement) }).Invoke(connection, new object[] { domainQuery }) as IOrmResultSet;
 
                             // Register query if query id specified
                             if (queryId != Guid.Empty)
                             {
-                                if (typeof(CompositeResult).IsAssignableFrom(resultType))
-                                    ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>()?.RegisterQuerySet(queryId.ToString(), totalResults, domainResults.OfType<CompositeResult>().Select(o => new Identifier<Guid>((o.Values[0] as IDbIdentified).Key)).ToArray(), null);
-                                else
-                                    ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>()?.RegisterQuerySet(queryId.ToString(), totalResults, domainResults.OfType<IDbIdentified>().Select(o => new Identifier<Guid>(o.Key)).ToArray(), null);
-
+                                var results = domainResults.Keys<Guid>().OfType<Guid>().Select(o => new Identifier<Guid>(o)).ToArray();
+                                totalResults = results.Count();
+                                ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>()?.RegisterQuerySet(queryId.ToString(), totalResults, results, null);
                             }
+                            else
+                                totalResults = domainResults.Count();
 
                             // Return
                             return domainResults
                                 .Skip(offset)
                                 .Take(count ?? 100)
+                                .OfType<Object>()
+                                .ToList()
                                 .AsParallel()
                                 .AsOrdered()
                                 .Select(o =>
@@ -258,7 +257,6 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
                         }
 
-                        totalResults = 0;
                     }
                     catch (Exception e)
                     {
