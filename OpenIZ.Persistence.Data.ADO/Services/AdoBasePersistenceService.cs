@@ -67,6 +67,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
         // Get tracer
         protected TraceSource m_tracer = new TraceSource(AdoDataConstants.TraceSourceName);
+        protected TraceSource m_dataTracers = new TraceSource(AdoDataConstants.TraceSourceName + ".Resource");
 
         // Configuration
         protected static AdoConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection(AdoDataConstants.ConfigurationSectionName) as AdoConfiguration;
@@ -229,7 +230,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
+
 #else
                             this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif
@@ -240,7 +243,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         }
                         catch (Exception e)
                         {
-                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 
                             tx?.Rollback();
                             throw new DataPersistenceException(e.Message, e);
@@ -331,7 +335,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 #else
                             this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif
@@ -344,7 +349,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 #else
                         this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif

@@ -235,17 +235,25 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 var retVal = context.Query<CompositeResult<TDomain, TDomainKey>>(domainQuery);
 
                 // Counts
-                if (queryId != Guid.Empty)
+                if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                 {
                     var keys = retVal.Keys<Guid>().ToArray();
                     totalResults = keys.Count();
                     this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
+                    if (totalResults == 0)
+                        return new List<Object>();
+
                 }
                 else if (countResults)
+                {
                     totalResults = retVal.Count();
+                    if (totalResults == 0)
+                        return new List<Object>();
+                }
                 else
                     totalResults = 0;
 
+                
                 return retVal.Skip(offset).Take(count ?? 100);
             }
 

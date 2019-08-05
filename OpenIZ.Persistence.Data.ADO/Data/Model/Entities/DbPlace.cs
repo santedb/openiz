@@ -35,12 +35,6 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Model.Entities
         /// <summary>
         /// Parent key join
         /// </summary>
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.CityOrTown)]
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.Country)]
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.CountyOrParish)]
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.Place)]
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.ServiceDeliveryLocation)]
-        [JoinFilter(PropertyName = nameof(DbEntity.ClassConceptKey), Value = EntityClassKeyStrings.State)]
         public override Guid ParentKey
         {
             get

@@ -343,12 +343,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 if(AdoPersistenceService.GetConfiguration().DataCorrectionKeys.Contains("edmonton-participation-keyfix"))
                 {
                     // Obsolete all
-                    foreach(var itm in context.Query<DbActParticipation>(o=>o.SourceKey == retVal.Key && o.ObsoleteVersionSequenceId == null && o.ParticipationRoleKey == ActParticipationKey.Consumable)) {
+                    foreach(var itm in context.Query<DbActParticipation>(o=>o.SourceKey == retVal.Key && o.ObsoleteVersionSequenceId == null && o.ParticipationRoleKey == ActParticipationKey.Consumable).ToArray()) {
                         itm.ObsoleteVersionSequenceId = retVal.VersionSequence;
                         context.Update(itm);
                     }
                     // Now we want to re-point to correct the issue
-                    foreach (var itm in context.Query<DbActParticipation>(o => o.SourceKey == retVal.Key && o.ParticipationRoleKey == ActParticipationKey.Consumable && o.ObsoleteVersionSequenceId == retVal.VersionSequence))
+                    foreach (var itm in context.Query<DbActParticipation>(o => o.SourceKey == retVal.Key && o.ParticipationRoleKey == ActParticipationKey.Consumable && o.ObsoleteVersionSequenceId == retVal.VersionSequence).ToArray())
                     {
 
                         var dItm = data.Participations.Find(o => o.Key == itm.Key);

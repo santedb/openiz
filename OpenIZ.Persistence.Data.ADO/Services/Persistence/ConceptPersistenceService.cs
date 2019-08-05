@@ -154,7 +154,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             if (retVal.ConceptSetsXml != null)
             {
                 // Special case m2m
-                var existingConceptSets = context.Query<DbConceptSetConceptAssociation>(o => o.ConceptKey == retVal.Key).Select(o=>o.ConceptSetKey);
+                var existingConceptSets = context.Query<DbConceptSetConceptAssociation>(o => o.ConceptKey == retVal.Key).Select(o=>o.ConceptSetKey).ToArray();
                 
                 // Any new?
                 var newConcepts = data.ConceptSetsXml.Where(o => !existingConceptSets.Contains(o));

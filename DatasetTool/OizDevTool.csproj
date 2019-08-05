@@ -101,6 +101,7 @@
     <Compile Include="DocGen.cs" />
     <Compile Include="ImsiServiceClient.cs" />
     <Compile Include="InteractiveBase.cs" />
+    <Compile Include="LogUtil.cs" />
     <Compile Include="ServiceManager.cs" />
     <Compile Include="Warehouse.cs" />
     <Compile Include="ExampleAttribute.cs" />

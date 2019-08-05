@@ -165,6 +165,21 @@ namespace OpenIZ.OrmLite
                 this.m_connection.Close();
                 this.m_connection.Open();
             }
+
+            try
+            {
+                using (var cmd = this.m_connection.CreateCommand())
+                {
+                    cmd.CommandType = CommandType.Text;
+                    cmd.CommandText = "SET statement_timeout to '3 min'";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceError("Error setting timeout: {0}", e);
+            }
+
         }
 
         /// <summary>
@@ -230,6 +245,17 @@ namespace OpenIZ.OrmLite
 
                     itm?.Dispose();
                 }
+
+            if (this.m_lastCommand != null) {
+                this.m_tracer.TraceInfo("Attempting to cancel last command");
+                try
+                {
+                    this.m_lastCommand.Cancel();
+                }
+                catch
+                {
+                }
+            }
             this.m_cacheCommit?.Clear();
             this.m_cacheCommit = null;
             this.m_transaction?.Dispose();

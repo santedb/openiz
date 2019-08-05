@@ -31,6 +31,7 @@ using System.Reflection;
 using System.Xml.Serialization;
 using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.Interfaces;
+using Newtonsoft.Json;
 
 namespace OpenIZ.Core.Model
 {
@@ -231,10 +232,28 @@ namespace OpenIZ.Core.Model
 			return retVal;
 		}
 
-		/// <summary>
-		/// Compute a basic hash string
-		/// </summary>
-		public static String HashCode(this byte[] me)
+        /// <summary>
+        /// Get the serialization name
+        /// </summary>
+        public static string GetSerializationName(this PropertyInfo me)
+        {
+            var xmlName = me.GetCustomAttributes<XmlElementAttribute>().FirstOrDefault()?.ElementName ?? me.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
+            if (xmlName == null)
+            {
+                var refName = me.GetCustomAttribute<SerializationReferenceAttribute>()?.RedirectProperty;
+                if (refName == null)
+                    return null;
+                xmlName = me.DeclaringType.GetRuntimeProperty(refName)?.GetCustomAttribute<XmlElementAttribute>()?.ElementName;
+            }
+            else if (xmlName == String.Empty)
+                xmlName = me.Name;
+            return xmlName;
+        }
+
+        /// <summary>
+        /// Compute a basic hash string
+        /// </summary>
+        public static String HashCode(this byte[] me)
 		{
 			long hash = 1009;
 			foreach (var b in me)

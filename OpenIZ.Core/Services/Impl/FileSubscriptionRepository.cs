@@ -4,6 +4,7 @@ using OpenIZ.Core.Interfaces;
 using OpenIZ.Core.Model.Subscription;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -29,7 +30,7 @@ namespace OpenIZ.Core.Services.Impl
         private object m_lockObject = new object();
 
         // Tracer
-        private Tracer m_tracer = Tracer.GetTracer(typeof(FileSubscriptionRepository));
+        private TraceSource m_tracer = new TraceSource("OpenIZ.Core.FileSubscription");
 
         /// <summary>
         /// Gets the service name
@@ -139,14 +140,17 @@ namespace OpenIZ.Core.Services.Impl
                 try
                 {
                     using (var f = File.OpenRead(fil))
+                    {
                         this.m_subscriptionDefinitions.Add(SubscriptionDefinition.Load(f));
-
+                    }
                 }
                 catch(Exception e)
                 {
                     this.m_tracer.TraceError("Error loading {0}: {1}", fil, e);
                 }
             }
+
+            this.m_subscriptionDefinitions.ForEach(o => this.m_tracer.TraceInformation("Subscription {0} for {1} available", o.Key, o.Resource));
 
             this.Started?.Invoke(this, EventArgs.Empty);
             return true;

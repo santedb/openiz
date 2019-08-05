@@ -220,7 +220,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 new Type[] { typeof(SqlStatement) }).Invoke(connection, new object[] { domainQuery }) as IOrmResultSet;
 
                             // Register query if query id specified
-                            if (queryId != Guid.Empty)
+                            if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                             {
                                 var results = domainResults.Keys<Guid>().OfType<Guid>().Select(o => new Identifier<Guid>(o)).ToArray();
                                 totalResults = results.Count();

@@ -428,6 +428,7 @@ namespace OpenIZ.Reporting.Jasper
 			{
 				var inputControl = this.LookupResource<InputControl>(reportUnitInputControlReference.Uri);
 
+                this.tracer.TraceEvent(TraceEventType.Verbose, 0, "Input Control From Jasper: dt={0},name={1}", inputControl.DataType, inputControl.Label);
 				var reportParameter = new ReportParameter(inputControl.Label, count++, null)
 				{
 					CorrelationId = inputControl.Uri,

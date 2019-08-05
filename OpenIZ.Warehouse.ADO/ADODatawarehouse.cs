@@ -673,7 +673,7 @@ namespace OpenIZ.Warehouse.ADO
             if (offset > 0)
                 qry = qry.Offset(offset);
 
-            return context.Query<ExpandoObject>(qry);
+            return context.Query<ExpandoObject>(qry).ToList();
         }
 
         /// <summary>
@@ -990,7 +990,7 @@ namespace OpenIZ.Warehouse.ADO
                 try
                 {
                     context.Open();
-                    return context.Query<ExpandoObject>(context.CreateSqlStatement(queryText));
+                    return context.Query<ExpandoObject>(context.CreateSqlStatement(queryText)).ToList();
                 }
                 catch(Exception e)
                 {

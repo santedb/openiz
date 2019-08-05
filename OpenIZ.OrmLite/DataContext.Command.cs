@@ -49,6 +49,7 @@ namespace OpenIZ.OrmLite
         // Parse values
         public abstract void ParseValues(IDataReader rdr, IDbProvider provider);
 
+
         /// <summary>
         /// Parse the data
         /// </summary>
@@ -153,6 +154,11 @@ namespace OpenIZ.OrmLite
         public bool IsReadonly { get; private set; }
 
         /// <summary>
+        /// Last command
+        /// </summary>
+        private IDbCommand m_lastCommand = null;
+
+        /// <summary>
         /// Execute a stored procedure transposing the result set back to <typeparamref name="TModel"/>
         /// </summary>
         public IEnumerable<TModel> Query<TModel>(String spName, params object[] arguments)
@@ -165,7 +171,7 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
+                    var dbc = this.m_lastCommand = this.m_lastCommand = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -174,8 +180,10 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
+
                     }
                 }
 #if DEBUG 
@@ -306,7 +314,7 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -323,6 +331,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -350,7 +359,7 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -363,6 +372,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -391,7 +401,7 @@ namespace OpenIZ.OrmLite
                 var stmt = this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec).Limit(1);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -408,6 +418,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -435,7 +446,7 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt.Limit(1));
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt.Limit(1));
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -451,6 +462,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -482,7 +494,7 @@ namespace OpenIZ.OrmLite
 
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -503,6 +515,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                         dbc.Dispose();
                     }
@@ -534,7 +547,7 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Exists(this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (bool)dbc.ExecuteScalar();
@@ -546,6 +559,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -575,7 +589,7 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Exists(querySpec);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (bool)dbc.ExecuteScalar();
@@ -587,6 +601,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -617,7 +632,7 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Count(this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (int)dbc.ExecuteScalar();
@@ -629,6 +644,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -658,7 +674,7 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Count(querySpec);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return Convert.ToInt32(dbc.ExecuteScalar());
@@ -670,6 +686,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -741,7 +758,7 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -753,6 +770,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(query, sw);
 #endif
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -820,7 +838,7 @@ namespace OpenIZ.OrmLite
                 // Execute
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try { 
                         if (returnKeys.Count() > 0 && this.m_provider.Features.HasFlag(SqlEngineFeatures.ReturnedInserts))
                         {
@@ -838,6 +856,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -872,12 +891,13 @@ namespace OpenIZ.OrmLite
                 var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where(where);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -916,12 +936,13 @@ namespace OpenIZ.OrmLite
                 var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where(whereClause);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -975,12 +996,13 @@ namespace OpenIZ.OrmLite
                 // Now update
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -1013,12 +1035,13 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }

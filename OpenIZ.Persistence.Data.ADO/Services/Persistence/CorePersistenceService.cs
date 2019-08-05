@@ -241,17 +241,23 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     
                     // Only one is requested, or there is no future query coming back so no savings in querying the entire dataset
                     var retVal = this.DomainQueryInternal<TQueryReturn>(context, domainQuery);
-                    
+
 
                     // We have a query identifier and this is the first frame, freeze the query identifiers
-                    if (queryId != Guid.Empty)
+                    if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                     {
                         var keys = retVal.Keys<Guid>().ToArray();
                         totalResults = keys.Count();
                         this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
+                        if (totalResults == 0)
+                            return new List<Object>();
                     }
                     else if (includeCount)
+                    {
                         totalResults = retVal.Count();
+                        if (totalResults == 0)
+                            return new List<Object>();
+                    }
                     else
                         totalResults = 0;
 
