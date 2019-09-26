@@ -64,7 +64,10 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
                 if(connectionNode.Attributes["autoInsertChildren"] != null)
                     retVal.AutoInsertChildren = bool.Parse(connectionNode.Attributes["autoInsertChildren"].Value);
 
-                if(connectionNode.Attributes["stm"] != null)
+                if(connectionNode.Attributes["fuzzyTotals"] != null)
+                    retVal.UseFuzzyTotals = bool.Parse(connectionNode.Attributes["autoInsertChildren"].Value);
+
+                if (connectionNode.Attributes["stm"] != null)
                     retVal.SingleThreadFetch = Boolean.Parse(connectionNode.Attributes["stm"].Value);
 
                 if (connectionNode.Attributes["allowPreparedStatements"] != null)

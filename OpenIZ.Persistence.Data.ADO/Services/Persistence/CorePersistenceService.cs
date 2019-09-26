@@ -247,12 +247,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                     {
                         var keys = retVal.Keys<Guid>().ToArray();
-                        totalResults = keys.Count();
+                        totalResults = keys.Length;
                         this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
                         if (totalResults == 0)
                             return new List<Object>();
                     }
-                    else if (includeCount)
+                    else if (count.HasValue && includeCount && !m_configuration.UseFuzzyTotals)
                     {
                         totalResults = retVal.Count();
                         if (totalResults == 0)
@@ -261,7 +261,19 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     else
                         totalResults = 0;
 
-                    return retVal.Skip(offset).Take(count ?? 100).OfType<Object>();
+                    if (count.HasValue)
+                    {
+                        if (m_configuration.UseFuzzyTotals && totalResults == 0)
+                        {
+                            var fuzzResults = retVal.Skip(offset).Take(count.Value + 1).OfType<Object>().ToList();
+                            totalResults = fuzzResults.Count();
+                            return fuzzResults.Take(count.Value);
+                        }
+                        else
+                            return retVal.Skip(offset).Take(count.Value).OfType<Object>();
+                    }
+                    else
+                        return retVal.Skip(offset).OfType<Object>();
                 }
                 else
                 {

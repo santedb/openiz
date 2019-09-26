@@ -89,5 +89,10 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         /// True if statements should be prepared
         /// </summary>
         public bool PrepareStatements { get; set; }
+
+        /// <summary>
+        /// True when fuzzy totals should be used (i.e. total results will not return actual total results)
+        /// </summary>
+        public bool UseFuzzyTotals { get; set; }
     }
 }

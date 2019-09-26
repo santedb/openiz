@@ -12,7 +12,7 @@ namespace OpenIZ.OrmLite
     /// <summary>
     /// Non-generic interface
     /// </summary>
-    public interface IOrmResultSet : IEnumerable
+    public interface IOrmResultSet : IEnumerable, IDisposable
     {
 
         /// <summary>
@@ -35,6 +35,10 @@ namespace OpenIZ.OrmLite
         /// </summary>
         IOrmResultSet Keys<TKey>();
 
+        /// <summary>
+        /// Clones the object on a new context standalone from the creation context
+        /// </summary>
+        IOrmResultSet AsStandalone();
     }
 
     /// <summary>
@@ -47,12 +51,12 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Gets the SQL statement that this result set is based on
         /// </summary>
-        public SqlStatement Statement { get; }
+        public SqlStatement Statement { get; private set; }
 
         /// <summary>
         /// Get the context
         /// </summary>
-        public DataContext Context { get; }
+        public DataContext Context { get; private set; }
 
         /// <summary>
         /// Create a new result set based on the context and statement
@@ -214,5 +218,20 @@ namespace OpenIZ.OrmLite
             return this.Take(n);
         }
 
+        /// <summary>
+        /// Swap the data context
+        /// </summary>
+        public IOrmResultSet AsStandalone()
+        {
+            return new OrmResultSet<TData>(this.Context.OpenClonedContext(), this.Statement);
+        }
+
+        /// <summary>
+        /// Dispose this object
+        /// </summary>
+        public void Dispose()
+        {
+            this.Context?.Dispose();
+        }
     }
 }

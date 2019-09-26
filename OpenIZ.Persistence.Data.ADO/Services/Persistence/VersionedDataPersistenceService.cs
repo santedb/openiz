@@ -238,13 +238,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                 {
                     var keys = retVal.Keys<Guid>().ToArray();
-                    totalResults = keys.Count();
+                    totalResults = keys.Length;
                     this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
                     if (totalResults == 0)
                         return new List<Object>();
-
                 }
-                else if (countResults)
+                else if (count.HasValue && countResults && !m_configuration.UseFuzzyTotals)
                 {
                     totalResults = retVal.Count();
                     if (totalResults == 0)
@@ -253,8 +252,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 else
                     totalResults = 0;
 
-                
-                return retVal.Skip(offset).Take(count ?? 100);
+                // Fuzzy totals - This will only fetch COUNT + 1 as the total results
+                if (count.HasValue)
+                {
+                    if (m_configuration.UseFuzzyTotals && totalResults == 0)
+                    {
+                        var fuzzResults = retVal.Skip(offset).Take(count.Value + 1).OfType<Object>().ToList();
+                        totalResults = fuzzResults.Count();
+                        return fuzzResults.Take(count.Value);
+                    }
+                    else // We already counted as part of the queryId so no need to take + 1
+                        return retVal.Skip(offset).Take(count.Value).OfType<Object>();
+                }
+                else
+                    return retVal.Skip(offset).OfType<Object>();
+
             }
 
 

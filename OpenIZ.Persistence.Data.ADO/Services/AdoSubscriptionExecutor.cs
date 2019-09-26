@@ -2,6 +2,7 @@
 using MARC.HI.EHRS.SVC.Core.Data;
 using MARC.HI.EHRS.SVC.Core.Event;
 using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Core;
 using OpenIZ.Core.Diagnostics;
 using OpenIZ.Core.Exceptions;
 using OpenIZ.Core.Model;
@@ -110,6 +111,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                 totalResults = (int)queryService.QueryResultTotalQuantity(queryId.ToString());
                 if (AdoPersistenceService.GetConfiguration().SingleThreadFetch)
                 {
+
                     using (var ctx = provider.GetReadonlyConnection())
                     {
                         ctx.Open();
@@ -119,9 +121,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
                             try
                             {
-                                var retVal = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
-                                cacheService?.Add(retVal as IdentifiedData);
-                                return retVal;
+                                var rv = cacheService.GetCacheItem(o.Id);
+                                if (rv == null)
+                                {
+                                    rv = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
+                                    cacheService?.Add(rv as IdentifiedData);
+                                }
+                                return rv;
                             }
                             catch (Exception e)
                             {
@@ -139,15 +145,19 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
                             try
                             {
-                                using (var ctx = provider.GetReadonlyConnection())
-                                {
-                                    ctx.Open();
-                                    ctx.LoadState = LoadState.PartialLoad;
+                                var rv = cacheService.GetCacheItem(o.Id);
 
-                                    var retVal = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
-                                    cacheService?.Add(retVal as IdentifiedData);
-                                    return retVal;
-                                }
+                                if(rv == null)
+                                    using (var ctx = provider.GetReadonlyConnection())
+                                    {
+                                        ctx.Open();
+                                        ctx.LoadState = LoadState.PartialLoad;
+
+                                        rv = persistenceInstance.Get(ctx, (Guid)(object)o.Id, principal);
+                                        cacheService?.Add(rv as IdentifiedData);
+                                    }
+                                return rv;
+
                             }
                             catch (Exception e)
                             {
@@ -210,7 +220,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         }
                         else
                         {
-                            
+
                             this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Executing Subscription Query: {0}", connection.GetQueryLiteral(domainQuery.Build()));
 
                             // Fetch
@@ -219,21 +229,32 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 new Type[] { resultType },
                                 new Type[] { typeof(SqlStatement) }).Invoke(connection, new object[] { domainQuery }) as IOrmResultSet;
 
+                            // Take the first requested page's worth of results plus one to indicate next page is needed
+
                             // Register query if query id specified
                             if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                             {
-                                var results = domainResults.Keys<Guid>().OfType<Guid>().Select(o => new Identifier<Guid>(o)).ToArray();
-                                totalResults = results.Count();
-                                ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>()?.RegisterQuerySet(queryId.ToString(), totalResults, results, null);
+                                var resultKeys = domainResults.Keys<Guid>().OfType<Guid>().Select(o => new Identifier<Guid>(o)).ToArray();
+                                totalResults = resultKeys.Length;
+                                ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>()?.RegisterQuerySet(queryId.ToString(), totalResults, resultKeys, null);
+                                domainResults = domainResults.Skip(offset).Take((count ?? 100));
+
+                            }
+                            else if(AdoPersistenceService.GetConfiguration().UseFuzzyTotals)
+                            {
+                                domainResults = domainResults.Skip(offset).Take((count ?? 100) + 1);
+                                totalResults = domainResults.Count();
                             }
                             else
+                            {
                                 totalResults = domainResults.Count();
+                                domainResults = domainResults.Skip(offset).Take((count ?? 100));
+                            }
 
                             // Return
                             return domainResults
-                                .Skip(offset)
-                                .Take(count ?? 100)
                                 .OfType<Object>()
+                                .Take(count ?? 100)
                                 .ToList()
                                 .AsParallel()
                                 .AsOrdered()
@@ -241,12 +262,17 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 {
                                     try
                                     {
-                                        using (var subConn = connection.OpenClonedContext())
-                                        {
-                                            var retVal = persistenceInstance.ToModelInstance(o, subConn, principal);
-                                            cacheService?.Add(retVal as IdentifiedData);
-                                            return retVal;
-                                        }
+                                        var idData = (o as CompositeResult)?.Values.OfType<IDbIdentified>().FirstOrDefault() ?? o as IDbIdentified;
+                                        var rv = cacheService.GetCacheItem(idData.Key);
+
+                                        if (rv == null)
+                                            using (var subConn = connection.OpenClonedContext())
+                                            {
+                                                rv = persistenceInstance.ToModelInstance(o, subConn, principal);
+                                                cacheService?.Add(rv as IdentifiedData);
+                                            }
+                                        return rv;
+
                                     }
                                     catch (Exception e)
                                     {

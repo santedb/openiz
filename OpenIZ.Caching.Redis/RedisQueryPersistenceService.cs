@@ -80,7 +80,17 @@ namespace OpenIZ.Caching.Redis
             {
                 var redisConn = this.m_connection.GetDatabase(RedisCacheConstants.QueryDatabaseId);
                 if (redisConn.KeyExists($"{queryId}.{FIELD_QUERY_RESULT_IDX}"))
+                {
                     redisConn.ListRightPush($"{queryId}.{FIELD_QUERY_RESULT_IDX}", results.Select(o => (RedisValue)o.ToByteArray()).ToArray());
+                    var llength = redisConn.ListLength($"{queryId}.{FIELD_QUERY_RESULT_IDX}");
+                    var totalCount = BitConverter.ToInt32(redisConn.StringGet($"{queryId}.{FIELD_QUERY_TOTAL_RESULTS}"), 0);
+
+                    if (llength > totalCount)
+                    {
+                        redisConn.StringSet($"{queryId}.{FIELD_QUERY_TOTAL_RESULTS}",  BitConverter.GetBytes(totalCount + results.Count()));
+                        redisConn.KeyExpire($"{queryId}.{FIELD_QUERY_TOTAL_RESULTS}", new TimeSpan(1, 0, 0));
+                    }
+                }
             }
             catch (Exception e)
             {
