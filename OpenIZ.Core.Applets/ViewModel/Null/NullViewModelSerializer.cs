@@ -48,6 +48,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Null
 
         // Static ync lock
         private static object s_syncLock = new Object();
+        private Dictionary<Guid, IdentifiedData> m_loadedObjects = new Dictionary<Guid, IdentifiedData>();
 
         // Related load methods
         private static Dictionary<Type, MethodInfo> m_relatedLoadMethods = new Dictionary<Type, MethodInfo>();
@@ -201,7 +202,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Null
             {
                 var classifierAtt = type.StripGeneric().GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
                 if (classifierAtt != null)
-                    retVal = new Json.JsonReflectionClassifier(type);
+                    retVal = new Json.JsonReflectionClassifier(type, this);
                 lock (m_classifiers)
                     if (!m_classifiers.ContainsKey(type))
                         m_classifiers.Add(type, retVal);
@@ -302,6 +303,25 @@ namespace OpenIZ.Core.Applets.ViewModel.Null
         {
             this.Serialize((TextWriter)null, data);
             return String.Empty;
+        }
+
+
+        /// <summary>
+        /// Attempts to get the loaded object
+        /// </summary>
+        public object GetLoadedObject(Guid key)
+        {
+            this.m_loadedObjects.TryGetValue(key, out IdentifiedData value);
+            return value;
+        }
+
+        /// <summary>
+        /// Add a loaded object
+        /// </summary>
+        public void AddLoadedObject(Guid key, IdentifiedData classifierObj)
+        {
+            if (!this.m_loadedObjects.ContainsKey(key))
+                this.m_loadedObjects.Add(key, classifierObj);
         }
     }
 }

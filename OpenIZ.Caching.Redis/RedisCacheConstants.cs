@@ -25,5 +25,12 @@ namespace OpenIZ.Caching.Redis
         /// Database identifier
         /// </summary>
         public const int QueryDatabaseId = 1;
+
+        /// <summary>
+        /// Ad-hoc database
+        /// </summary>
+        public const int AdhocDatabaseId = 2;
+
     }
 }
+
