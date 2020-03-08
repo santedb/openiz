@@ -484,7 +484,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 					this.Queried?.Invoke(this, postData);
 
-					var retVal = postData.Results.AsParallel().ToList();
+					var retVal = postData.Results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ToList();
 
 					this.traceSource.TraceEvent(TraceEventType.Verbose, 0, $"Returning {offset}..{offset + (count ?? 1000)} or {totalCount} results");
 

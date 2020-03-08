@@ -83,7 +83,7 @@ namespace OpenIZ.Caching.Redis
                 return this.m_connection != null;
             }
         }
-        
+
         // Data was added to the cache
         public event EventHandler<DataCacheEventArgs> Added;
         // Data was removed from the cache
@@ -294,10 +294,10 @@ namespace OpenIZ.Caching.Redis
                 //if (existing)
                 //    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
                 //else
-                    this.m_connection.GetSubscriber().Publish("oiz.events", $"POST http://{Environment.MachineName}/cache/{data.Key.Value}");
+                this.m_connection.GetSubscriber().Publish("oiz.events", $"POST http://{Environment.MachineName}/cache/{data.Key.Value}");
                 //}
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceWarning("REDIS CACHE ERROR (CACHING SKIPPED): {0}", e);
             }
@@ -308,7 +308,8 @@ namespace OpenIZ.Caching.Redis
         /// </summary>
         public object GetCacheItem(Guid key)
         {
-            try { 
+            try
+            {
                 // We want to add
                 if (this.m_connection == null)
                     return null;
@@ -318,18 +319,18 @@ namespace OpenIZ.Caching.Redis
                 redisDb.KeyExpire(key.ToString(), new TimeSpan(1, 0, 0), CommandFlags.FireAndForget);
                 return this.DeserializeObject(redisDb.HashGetAll(key.ToString()));
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceWarning("REDIS CACHE ERROR (FETCHING SKIPPED): {0}", e);
                 return null;
             }
 
-}
+        }
 
-/// <summary>
-/// Get cache item of type
-/// </summary>
-public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
+        /// <summary>
+        /// Get cache item of type
+        /// </summary>
+        public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         {
             var retVal = this.GetCacheItem(key);
             if (retVal is TData)
@@ -376,7 +377,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
                 this.m_connection = ConnectionMultiplexer.Connect(configuration);
                 this.m_subscriber = this.m_connection.GetSubscriber();
                 // Look for non-cached types
-                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null || 
+                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null ||
                     (o.GetCustomAttribute<XmlRootAttribute>() == null && !typeof(IVersionedAssociation).IsAssignableFrom(o))))
                     this.m_nonCached.Add(itm);
 
@@ -410,7 +411,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
                 this.Started?.Invoke(this, EventArgs.Empty);
                 return true;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceError("Error starting REDIS caching, will switch to no-caching : {0}", e);
                 ApplicationContext.Current.RemoveServiceProvider(typeof(RedisCacheService));
@@ -440,7 +441,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
             {
                 this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceError("Could not flush REDIS database: {0}", e);
             }
@@ -449,7 +450,8 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         /// <summary>
         /// Size of the database
         /// </summary>
-        public long Size {
+        public long Size
+        {
             get
             {
                 return this.m_connection.GetServer(this.m_configuration.Servers.First()).DatabaseSize();

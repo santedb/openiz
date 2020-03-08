@@ -541,6 +541,11 @@ namespace OpenIZ.BusinessRules.JavaScript
 
                     return retVal;
                 }
+                catch (JavaScriptException e)
+                {
+                    this.m_tracer.TraceError("Javascript Exception running {0} for {1} : {2}", action, data, e);
+                    throw new BusinessRulesExecutionException($"Error running busines rule {action} for {data} @ {e.LineNumber}:{e.Column} - ({e.Location.Start}:{e.Location.End}) - {e.Source}", e);
+                }
                 catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error running {0} for {1} : {2}", action, data, e);

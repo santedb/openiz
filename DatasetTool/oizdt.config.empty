@@ -102,8 +102,8 @@
     <assemblyBinding xmlns="urn:schemas-microsoft-com:asm.v1">
       <dependentAssembly>
         <assemblyIdentity name="MARC.Everest" publicKeyToken="ba5b2480018546af" culture="neutral" />
-        <bindingRedirect oldVersion="1.1.0.0" newVersion="1.7.0.0" />
-        <bindingRedirect oldVersion="1.7.0.0" newVersion="1.7.0.0" />
+        <bindingRedirect oldVersion="1.1.0.0" newVersion="1.8.0.0" />
+        <bindingRedirect oldVersion="1.8.0.0" newVersion="1.8.0.0" />
       </dependentAssembly>
       <dependentAssembly>
         <assemblyIdentity name="Npgsql" publicKeyToken="5d8b90d52f46fda7" culture="neutral" />

@@ -447,7 +447,7 @@ namespace OpenIZ.Persistence.Data.MSSQL.Services
                         if (count.HasValue)
                             postData.Results = postData.Results.Take(count.Value);
 
-                        var retVal = postData.Results.AsParallel().ToList();
+                        var retVal = postData.Results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ToList();
                         this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Returning {0}..{1} or {2} results", offset, offset + (count ?? 1000), totalCount);
 
                         return retVal;

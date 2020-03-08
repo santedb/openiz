@@ -130,6 +130,12 @@ namespace OpenIZ
                 }
                 else
                 {
+#if DEBUG
+                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.Informational);
+#else
+                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.Warning);
+#endif
+
                     hasConsole = false;
                     ServiceBase[] servicesToRun = new ServiceBase[] { new OpenIZ() };
                     ServiceBase.Run(servicesToRun);

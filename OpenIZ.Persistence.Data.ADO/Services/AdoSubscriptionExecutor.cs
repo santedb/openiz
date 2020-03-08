@@ -141,6 +141,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                     return queryService.GetQueryResults<Guid>(queryId.ToString(), offset, count ?? 100)
                         .AsParallel()
                         .AsOrdered()
+                        .WithDegreeOfParallelism(2)
                         .Select(o =>
                         {
                             try
@@ -259,6 +260,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 .ToList()
                                 .AsParallel()
                                 .AsOrdered()
+                                .WithDegreeOfParallelism(2)
                                 .Select(o =>
                                 {
                                     try

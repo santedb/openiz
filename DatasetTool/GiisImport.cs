@@ -337,7 +337,7 @@ namespace OizDevTool
         private static List<SubstanceAdministration> MapSubstanceAdministrations(Patient patient, Child child, int defaultFacilityId)
         {
 
-            return VaccinationEvent.GetChildVaccinationEvent(child.Id).Where(o => o.NonvaccinationReasonId != 0 || o.VaccinationStatus).AsParallel().Select(o =>
+            return VaccinationEvent.GetChildVaccinationEvent(child.Id).Where(o => o.NonvaccinationReasonId != 0 || o.VaccinationStatus).AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o =>
             {
 
                 try

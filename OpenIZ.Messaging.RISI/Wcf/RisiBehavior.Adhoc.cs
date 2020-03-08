@@ -23,6 +23,8 @@ using OpenIZ.Core.Model.RISI;
 using OpenIZ.Core.Services;
 using SwaggerWcf.Attributes;
 using System;
+using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.ServiceModel.Web;
@@ -179,6 +181,39 @@ namespace OpenIZ.Messaging.RISI.Wcf
 
             return new RisiCollection<DataWarehouseObject>(res) { Size = tr };
 		}
+
+        /// <summary>
+        /// Execute a stored query and return as CSV
+        /// </summary>
+        /// <param name="datamartId"></param>
+        /// <param name="queryId"></param>
+        /// <returns></returns>
+        [SwaggerWcfSecurity("OAUTH2")]
+        [SwaggerWcfTag("Report Integration Service Interface (RISI) - Ad-hoc Interface")]
+        public Stream ExecuteStoredQueryCsv(string datamartId, string queryId)
+        {
+            var adhocService = ApplicationContext.Current.GetService<IAdHocDatawarehouseService>();
+            if (adhocService == null)
+                throw new InvalidOperationException("Cannot find the adhoc data warehouse service");
+
+            int tr = 0;
+            var res = adhocService.StoredQuery(Guid.Parse(datamartId), queryId, WebOperationContext.Current.IncomingRequest.UriTemplateMatch.QueryParameters.ToQuery(), out tr);
+
+            WebOperationContext.Current.OutgoingResponse.ContentType = "text/csv";
+
+            using (var ms = new MemoryStream())
+            {
+                using (var sw = new StreamWriter(ms))
+                {
+
+                    sw.WriteLine(String.Join(",", (res.First() as IDictionary<String, Object>).Keys));
+                    foreach (IDictionary<String, Object> itm in res)
+                        sw.WriteLine(String.Join(",", itm.Values.Select(o => $"\"{o}\"")));
+                }
+                return new MemoryStream(ms.ToArray());
+            }
+            
+        }
 
         /// <summary>
         /// Get a particular datamart

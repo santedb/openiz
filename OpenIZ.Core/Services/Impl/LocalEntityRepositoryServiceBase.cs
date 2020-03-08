@@ -30,6 +30,7 @@ using System.Linq;
 using OpenIZ.Core.Exceptions;
 using OpenIZ.Core.Model.Roles;
 using OpenIZ.Core.Interfaces;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -40,6 +41,8 @@ namespace OpenIZ.Core.Services.Impl
         IAuditEventSource,
         IFastQueryRepositoryService
     {
+
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataEventArgs> DataUpdated;
         public event EventHandler<AuditDataEventArgs> DataObsoleted;
@@ -210,6 +213,12 @@ namespace OpenIZ.Core.Services.Impl
             {
                 throw new DetectedIssueException(details);
             }
+            else
+                foreach (var itm in details)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
+
             return p;
         }
 

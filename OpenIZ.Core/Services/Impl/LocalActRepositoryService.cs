@@ -31,6 +31,7 @@ using System.Linq.Expressions;
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Security.Attribute;
 using OpenIZ.Core.Interfaces;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -50,6 +51,7 @@ namespace OpenIZ.Core.Services.Impl
         IFastQueryRepositoryService
 	{
 
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
         // Events for audit
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataEventArgs> DataUpdated;
@@ -374,6 +376,11 @@ namespace OpenIZ.Core.Services.Impl
 			{
 				throw new DetectedIssueException(details);
 			}
+            else 
+                foreach(var itm in details)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
 
 			// Correct author information and controlling act information
 			data = data.Clean() as TAct;

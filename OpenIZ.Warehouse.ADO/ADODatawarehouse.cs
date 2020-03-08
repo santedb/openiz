@@ -575,7 +575,7 @@ namespace OpenIZ.Warehouse.ADO
                 {
 
                     context.Open();
-                    return context.Query<AdhocDatamart>(o => o.Name != null).Select(o => new DatamartDefinition()
+                    return context.Query<AdhocDatamart>(o => o.Name != null).ToList().Select(o => new DatamartDefinition()
                     {
                         Id = o.DatamartId,
                         Name = o.Name,
@@ -662,6 +662,10 @@ namespace OpenIZ.Warehouse.ADO
             // Build a query
             var qry = context.CreateSqlStatement($"SELECT DISTINCT * FROM {objectName} ")
                 .Where(this.ParseFilterDictionary(context, objectName, parms, properties));
+
+#if DEBUG
+            this.m_tracer.TraceInfo("Will run : {0}", context.GetQueryLiteral(qry.Build()));
+#endif
 
             // Construct the result set
             List<dynamic> retVal = new List<dynamic>();
@@ -948,7 +952,7 @@ namespace OpenIZ.Warehouse.ADO
             };
 
             // Stored queries
-            retVal.Queries = context.Query<AdhocQuery>(o => o.SchemaId == id).Select(o =>
+            retVal.Queries = context.Query<AdhocQuery>(o => o.SchemaId == id).ToList().Select(o =>
               new DatamartStoredQuery(){
                   Id = o.QueryId,
                   Name = o.Name,
@@ -967,7 +971,7 @@ namespace OpenIZ.Warehouse.ADO
         /// </summary>
         private List<DatamartSchemaProperty> LoadProperties(DataContext context, Guid containerId)
         {
-            return context.Query<AdhocProperty>(o => o.ContainerId == containerId || o.SchemaId == containerId).Select(o => new DatamartSchemaProperty()
+            return context.Query<AdhocProperty>(o => o.ContainerId == containerId || o.SchemaId == containerId).ToList().Select(o => new DatamartSchemaProperty()
             {
                 Attributes = (SchemaPropertyAttributes)o.Attributes,
                 Type = (SchemaPropertyType)o.TypeId,

@@ -73,12 +73,16 @@ namespace OpenIZ.Messaging.AMI.Wcf
 					}
 				}, audit);
 
-				WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NoContent;
 			}
 			catch (Exception e)
 			{
 				this.traceSource.TraceError("Error creating audit: {0}", e);
 			}
-		}
+            finally
+            {
+                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NoContent;
+
+            }
+        }
 	}
 }

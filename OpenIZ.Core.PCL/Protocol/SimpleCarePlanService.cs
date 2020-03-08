@@ -278,7 +278,7 @@ namespace OpenIZ.Core.Protocol
                                 itmPtcpt.LoadProperty<Entity>("PlayerEntity").LoadProperty<Concept>("MoodConcept");
                             };
                         }
-                    protocolActs = execProtocols.AsParallel().SelectMany(o => o.Calculate(thdPatient, parmDict)).OrderBy(o => o.StopTime - o.StartTime).ToList();
+                    protocolActs = execProtocols.AsParallel().AsOrdered().WithDegreeOfParallelism(2).SelectMany(o => o.Calculate(thdPatient, parmDict)).OrderBy(o => o.StopTime - o.StartTime).ToList();
                 }
 
                 // Current processing 

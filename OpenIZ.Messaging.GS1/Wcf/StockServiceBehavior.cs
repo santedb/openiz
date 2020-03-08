@@ -306,7 +306,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
             var masterAuthContext = AuthenticationContext.Current;
 
             // Create the inventory report
-            filterPlaces.AsParallel().ForAll(place =>
+            filterPlaces.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ForAll(place =>
             {
                 try
                 {
@@ -324,7 +324,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
                     // What are the relationships of held entities
                     var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
                     var relationships = persistenceService.Query(o=>o.RelationshipTypeKey == EntityRelationshipTypeKeys.OwnedEntity && o.SourceEntityKey == place.Key.Value, AuthenticationContext.Current.Principal);
-                    relationships.AsParallel().ForAll(rel =>
+                    relationships.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ForAll(rel =>
                     {
                         AuthenticationContext.Current = masterAuthContext;
 

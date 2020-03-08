@@ -160,7 +160,7 @@ namespace OpenIZ.Core.Model
 					if (!s_typePropertyCache.ContainsKey(toEntity.GetType()))
 						s_typePropertyCache.Add(toEntity.GetType(), properties);
 			}
-			foreach (var destinationPi in properties.AsParallel())
+			foreach (var destinationPi in properties)
 			{
 				var sourcePi = fromEntity.GetType().GetRuntimeProperty(destinationPi.Name);
 				// Skip properties no in the source

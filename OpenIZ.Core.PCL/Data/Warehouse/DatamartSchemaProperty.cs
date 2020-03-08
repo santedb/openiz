@@ -144,10 +144,12 @@ namespace OpenIZ.Core.Data.Warehouse
         /// <summary>
         /// Identifies a column has a date and a time
         /// </summary>
+        [XmlEnum("datetime")]
         DateTime = 9,
         /// <summary>
         /// Represents a timestamp (with timezone)
         /// </summary>
+        [XmlEnum("timestamp")]
         TimeStamp = 10
     }
 }

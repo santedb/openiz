@@ -135,7 +135,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             if (!AdoPersistenceService.GetConfiguration().SingleThreadFetch)
             {
-                return results.AsParallel().AsOrdered().Select(o =>
+                return results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o =>
                 {
                     var subContext = context;
                     var newSubContext = results.Count() > 1;

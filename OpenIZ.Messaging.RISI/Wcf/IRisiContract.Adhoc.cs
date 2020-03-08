@@ -21,6 +21,7 @@ using OpenIZ.Core.Data.Warehouse;
 using OpenIZ.Core.Model.RISI;
 using SwaggerWcf.Attributes;
 using System;
+using System.IO;
 using System.ServiceModel;
 using System.ServiceModel.Web;
 
@@ -79,9 +80,16 @@ namespace OpenIZ.Messaging.RISI.Wcf
         [SwaggerWcfPath("Execute Stored Query", "Runs a previously registered stored query and returns the results. Filters can be applied using the IMSI query patterns")]
 		RisiCollection<DataWarehouseObject> ExecuteStoredQuery(String datamartId, String queryId);
 
-		/// <summary>
-		/// Gets a specified datamart
+        /// <summary>
+		/// Executes a stored query
 		/// </summary>
+		[WebGet(UriTemplate = "/datamart/{datamartId}/query/{queryId}.csv")]
+        [SwaggerWcfPath("Execute Stored Query", "Runs a previously registered stored query and returns the results. Filters can be applied using the IMSI query patterns")]
+        Stream ExecuteStoredQueryCsv(String datamartId, String queryId);
+
+        /// <summary>
+        /// Gets a specified datamart
+        /// </summary>
         [SwaggerWcfPath("Get Ad-hoc Datamart", "Retrieves datamart metadata for the identified data mart")]
 		[WebGet(UriTemplate = "/datamart/{id}")]
 		DatamartDefinition GetDatamart(String id);

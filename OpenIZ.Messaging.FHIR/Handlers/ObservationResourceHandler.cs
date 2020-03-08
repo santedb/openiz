@@ -174,7 +174,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
             {
                 Details = issues,
                 Outcome = ResultCode.Accepted,
-                Results = imsiResults.AsParallel().Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
+                Results = imsiResults.AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
                 Query = query,
                 TotalResults = totalResults
             };

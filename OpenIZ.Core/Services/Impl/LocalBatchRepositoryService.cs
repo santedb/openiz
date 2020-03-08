@@ -29,6 +29,7 @@ using System.Linq;
 using OpenIZ.Core.Interfaces;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -37,6 +38,8 @@ namespace OpenIZ.Core.Services.Impl
 	/// </summary>
 	public class LocalBatchRepositoryService : IBatchRepositoryService, IRepositoryService<Bundle>
 	{
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
+
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataDisclosureEventArgs> DataDisclosed;
         public event EventHandler<AuditDataEventArgs> DataObsoleted;
@@ -183,9 +186,13 @@ namespace OpenIZ.Core.Services.Impl
 			var issues = breService?.Validate(bundle);
 			if (issues?.Any(i => i.Priority == DetectedIssuePriorityType.Error) == true)
 				throw new DetectedIssueException(issues);
-
-			// Bundle items
-			for (int i = 0; i < bundle.Item.Count; i++)
+            else
+                foreach (var itm in issues)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
+            // Bundle items
+            for (int i = 0; i < bundle.Item.Count; i++)
 			{
 				var itm = bundle.Item[i];
 				if (itm is Patient)
