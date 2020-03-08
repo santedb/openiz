@@ -1,4 +1,5 @@
-﻿using MARC.Everest.Threading;
+﻿using LogViewer;
+using MARC.Everest.Threading;
 using MohawkCollege.Util.Console.Parameters;
 using System;
 using System.Collections.Generic;
@@ -126,6 +127,61 @@ namespace OizDevTool
             public GeoIpStruct GeoInfo { get; set; }
         }
 
+        /// <summary>
+        /// Imports the Core data
+        /// </summary>
+        [Description("Extracts a core log to CSV")]
+        [ParameterClass(typeof(LogToCsvParameters))]
+        [Example("Extract openiz_20190701.log to 20190701.csv", "--log=openiz_20190701.log --out=20190701.csv")]
+        public static void CoreToCsv(string[] args)
+        {
+
+            LogToCsvParameters parms = new ParameterParser<LogToCsvParameters>().Parse(args);
+           
+            for (int i = 0; i < parms.Logs.Count; i++)
+            {
+                if (parms.Logs[i].Contains("*"))
+                {
+                    var filter = parms.Logs[i];
+                    parms.Logs.AddRange(Directory.GetFiles(Path.GetDirectoryName(filter), Path.GetFileName(filter)));
+                    parms.Logs.RemoveAt(i);
+                }
+            }
+
+            WaitThreadPool wtp = new WaitThreadPool();
+            object locker = new object();
+
+            Dictionary<Guid, RequestInfo> infoCache = new Dictionary<Guid, RequestInfo>();
+            using (var tw = File.CreateText(parms.Output ?? "http.csv"))
+            {
+                tw.WriteLine($"File,Sequence,Source,Thread,Date,Level,Message");
+
+                foreach (var lf in parms.Logs)
+                {
+
+                    var fi = new FileInfo(lf);
+                    Console.WriteLine("Processing {0} ({1:#,000} KB)", lf, fi.Length / 1024);
+                    try
+                    {
+                        using (var s = File.OpenRead(lf))
+                        using (var sr = new StreamReader(s))
+                            foreach (var itm in LogEvent.Load(sr).OfType<LogEvent>())
+                                tw.WriteLine($"{Path.GetFileNameWithoutExtension(lf)},{itm.Sequence},{itm.Source},{itm.Thread},{itm.Date},{itm.Level},{itm.Message.Substring(0, itm.Message.Contains("Exception") ? itm.Message.IndexOf("Exception") + 10 : itm.Message.Length > 10 ? 10 : itm.Message.Length)}");
+                        wtp.WaitOne();
+
+                        Console.SetCursorPosition(1, Console.CursorTop);
+                        Console.WriteLine("    100.0%   ");
+
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error processing {0} : {1}", lf, e.Message);
+                    }
+                }
+            }
+
+
+        }
         /// <summary>
         /// Imports the Core data
         /// </summary>

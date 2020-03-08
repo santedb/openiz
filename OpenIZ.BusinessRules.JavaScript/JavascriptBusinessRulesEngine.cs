@@ -167,7 +167,10 @@ namespace OpenIZ.BusinessRules.JavaScript
         public static void AddRulesGlobal(String ruleId, StreamReader script)
         {
             s_threadInstance = JavascriptBusinessRulesEngine.Current;
+
+            // Only add to global handlers
             JavascriptBusinessRulesEngine.Current.AddRules(ruleId, script);
+
             foreach (var i in s_brePool)
             {
                 script.BaseStream.Seek(0, SeekOrigin.Begin);
@@ -366,6 +369,9 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public void RegisterRule(string target, string trigger, Func<object, ExpandoObject> _delegate)
         {
+            // Ensure that rules are only registered by the core rule
+            if (this != JavascriptBusinessRulesEngine.Current) return;
+
             Dictionary<String, List<Func<object, ExpandoObject>>> triggerHandler = null;
             if (!this.m_triggerDefinitions.TryGetValue(target, out triggerHandler))
             {
@@ -391,6 +397,7 @@ namespace OpenIZ.BusinessRules.JavaScript
             }
             else
             {
+
                 List<Func<object, ExpandoObject>> delegates = null;
                 if (!triggerHandler.TryGetValue(trigger, out delegates))
                     lock (this.m_localLock)

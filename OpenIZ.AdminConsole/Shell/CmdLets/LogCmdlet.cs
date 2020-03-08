@@ -223,7 +223,7 @@ namespace OpenIZ.AdminConsole.Shell.CmdLets
         /// <summary>
         /// Print filtered object
         /// </summary>
-        private static void PrintFiltered(List<LogEvent> list, DisplayOptions logOptions)
+        private static void PrintFiltered(IEnumerable<LogEvent> list, DisplayOptions logOptions)
         {
             var nLines = Int32.Parse(logOptions.NumLines ?? "25");
             var searchRegex = new Regex(logOptions.Grep ?? ".*");

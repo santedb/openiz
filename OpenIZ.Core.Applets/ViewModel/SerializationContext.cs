@@ -20,10 +20,13 @@
 using OpenIZ.Core.Applets.ViewModel.Description;
 using OpenIZ.Core.Model;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace OpenIZ.Core.Applets.ViewModel
 {
@@ -32,12 +35,16 @@ namespace OpenIZ.Core.Applets.ViewModel
     /// </summary>
     public abstract class SerializationContext
     {
+        // Serialization checks already created
+        private static ConcurrentDictionary<Type, Object> m_cachedSerializationChecks = new ConcurrentDictionary<Type, object>();
+
         // Object identifier
         private int m_objectId = 0;
         private int m_masterObjectId = 0;
 
         // Element description
         private PropertyContainerDescription m_elementDescription;
+        private Dictionary<String, MethodInfo> m_serializationCheck;
 
         /// <summary>
         /// Gets the serialization context
@@ -50,6 +57,21 @@ namespace OpenIZ.Core.Applets.ViewModel
             this.Context = context;
             this.ViewModelDescription = this.Context.ViewModel;
             this.LoadedProperties = new Dictionary<Guid, HashSet<string>>();
+
+            // Attempt to load from cache
+            object check = null;
+            if (instance != null && !m_cachedSerializationChecks.TryGetValue(instance.GetType(), out check))
+            {
+                this.m_serializationCheck = instance?.GetType().GetRuntimeProperties()
+                    .Select(p => new { MethodInfo = p.DeclaringType.GetRuntimeMethod($"ShouldSerialize{p.Name}", new Type[0]), SerializationName = p.GetCustomAttributes<XmlElementAttribute>().FirstOrDefault()?.ElementName })
+                    .Where(o => o.MethodInfo != null && !String.IsNullOrEmpty(o.SerializationName))
+                    .ToDictionary(o => o.SerializationName, o => o.MethodInfo);
+                m_cachedSerializationChecks.TryAdd(instance.GetType(), this.m_serializationCheck);
+            }
+            else if (check != null)
+                this.m_serializationCheck = (Dictionary<String, MethodInfo>)check;
+
+
         }
 
         /// <summary>
@@ -207,16 +229,22 @@ namespace OpenIZ.Core.Applets.ViewModel
         /// </summary>
         public bool ShouldSerialize(String childProperty)
         {
-            if (childProperty == "id") return true;
+            var retVal = true;
+            if (childProperty == "id") return retVal;
             var propertyDescription = this.ElementDescription?.FindProperty(childProperty) as PropertyModelDescription;
             if (propertyDescription?.Action == SerializationBehaviorType.Never || // Never serialize
                 this.ElementDescription == null ||
                 (!this.ElementDescription.All && propertyDescription == null))
             {
                 // Parent is not set to all and does not explicitly call this property out
-                return (this.ElementDescription == null && this.Parent?.ElementDescription?.All == true);
+                retVal &= (this.ElementDescription == null && this.Parent?.ElementDescription?.All == true);
             }
-            return true;
+
+            // Get the member
+            MethodInfo serializationCheck = null;
+            if (this.m_serializationCheck.TryGetValue(childProperty, out serializationCheck))
+                retVal &= (bool)serializationCheck.Invoke(this.Instance, new object[0]);
+            return retVal;
         }
 
         /// <summary>

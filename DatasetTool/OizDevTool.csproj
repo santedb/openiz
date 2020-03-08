@@ -157,6 +157,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\LogViewer\LogViewer.csproj">
+      <Project>{20C72E5E-CDB0-4EF8-AA88-2DB30662F732}</Project>
+      <Name>LogViewer</Name>
+    </ProjectReference>
     <ProjectReference Include="..\OpenIZ.BusinessRules.JavaScript\OpenIZ.BusinessRules.JavaScript.csproj">
       <Project>{3BFD6EE6-0267-4D82-BE7D-9B48B2F6F3D4}</Project>
       <Name>OpenIZ.BusinessRules.JavaScript</Name>

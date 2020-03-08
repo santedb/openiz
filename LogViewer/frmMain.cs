@@ -36,7 +36,7 @@ namespace LogViewer
     public partial class frmMain : Form
     {
 
-        private List<LogEvent> m_logEvent = null;
+        private IEnumerable<LogEvent> m_logEvent = null;
         
         public frmMain()
         {

@@ -82,6 +82,7 @@
     <Compile Include="Protocol\ProtocolComparer.cs" />
     <Compile Include="Services\IActExtensionRepositoryService.cs" />
     <Compile Include="Services\IActRepositoryService.cs" />
+    <Compile Include="Services\IAdhocCacheService.cs" />
     <Compile Include="Services\IAssigningAuthorityRepositoryService.cs" />
     <Compile Include="Interfaces\IAuditEventSource.cs" />
     <Compile Include="Services\IAuditRepositoryService.cs" />

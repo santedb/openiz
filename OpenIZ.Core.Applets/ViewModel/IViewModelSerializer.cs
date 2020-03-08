@@ -76,6 +76,15 @@ namespace OpenIZ.Core.Applets.ViewModel
         /// Loads the specified related object
         /// </summary>
         TRelated LoadRelated<TRelated>(Guid? objectKey) where TRelated : IdentifiedData, new();
-        
+
+        /// <summary>
+        /// Get loaded object from delay load cache
+        /// </summary>
+        object GetLoadedObject(Guid key);
+
+        /// <summary>
+        /// Add the classified object
+        /// </summary>
+        void AddLoadedObject(Guid key, IdentifiedData classifierObj);
     }
 }
