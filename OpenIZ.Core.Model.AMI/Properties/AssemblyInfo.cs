@@ -43,7 +43,7 @@ using System.Resources;
 //
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
-// [assembly: AssemblyVersion("1.8.0.*")][assembly: AssemblyInformationalVersion("Gananoque")]
-[assembly: AssemblyVersion("1.8.0.*")]
+// [assembly: AssemblyVersion("1.10.0.*")][assembly: AssemblyInformationalVersion("Gananoque")]
+[assembly: AssemblyVersion("1.10.0.*")]
 [assembly: AssemblyInformationalVersion("Gananoque")]
-[assembly: AssemblyFileVersion("1.8.0.0")]
+[assembly: AssemblyFileVersion("1.10.0.0")]

@@ -369,9 +369,6 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public void RegisterRule(string target, string trigger, Func<object, ExpandoObject> _delegate)
         {
-            // Ensure that rules are only registered by the core rule
-            if (this != JavascriptBusinessRulesEngine.Current) return;
-
             Dictionary<String, List<Func<object, ExpandoObject>>> triggerHandler = null;
             if (!this.m_triggerDefinitions.TryGetValue(target, out triggerHandler))
             {
