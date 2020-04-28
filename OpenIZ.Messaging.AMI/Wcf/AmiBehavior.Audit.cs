@@ -47,8 +47,8 @@ namespace OpenIZ.Messaging.AMI.Wcf
 			{
 				// Audit the access
 				var auditService = ApplicationContext.Current.GetService<IAuditorService>();
-				if (auditService == null)
-					throw new SecurityException("Audit service does not exist!");
+                if (auditService == null)
+                    this.traceSource.TraceWarning("Could not find audit service, no audits will be dispatched to central repository");
 
 				var authContext = AuthenticationContext.Current;
 				ApplicationContext.Current.GetService<IThreadPoolService>()?.QueueNonPooledWorkItem(o =>
@@ -57,6 +57,7 @@ namespace OpenIZ.Messaging.AMI.Wcf
 					{
 						var adt = o as AuditInfo;
 						AuthenticationContext.Current = authContext;
+                        if(auditService != null)
 						adt.Audit.ForEach(a => auditService.SendAudit(a));
 
 						// Persist this audit as well?

@@ -176,7 +176,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 }
                 catch(TargetInvocationException e)
                 {
-                    throw e.InnerException;
+                    throw new Exception($"Bundle persistence error inserting record at {i}", e.InnerException);
                 }
             }
 

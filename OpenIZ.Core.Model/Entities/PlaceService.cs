@@ -80,7 +80,7 @@ namespace OpenIZ.Core.Model.Entities
 		/// The schedule that the service is offered
 		/// </summary>
 		[XmlElement("serviceSchedule"), JsonProperty("serviceSchedule")]
-		public Object ServiceSchedule { get; set; }
+		public String ServiceSchedule { get; set; }
 
 		/// <summary>
 		/// Refresh the delay load properties

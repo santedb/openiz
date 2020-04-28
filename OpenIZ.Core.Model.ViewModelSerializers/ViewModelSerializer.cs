@@ -14988,7 +14988,7 @@ namespace OpenIZ.Core.Model.Json.Formatter {
                                             r.Read();
                                             object _instance = context.JsonContext.ReadElementUtil(r, typeof(object), new OpenIZ.Core.Applets.ViewModel.Json.JsonSerializationContext("serviceSchedule", context.JsonContext, _retVal, context));
                                             if ((_instance != null)) {
-                                                _retVal.ServiceSchedule = ((object)(_instance));
+                                                _retVal.ServiceSchedule = ((string)(_instance));
                                             }
                                         }
                                         else {

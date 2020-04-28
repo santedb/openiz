@@ -206,7 +206,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 		{
 			foreach (var reportFormat in reportDefinition.Formats)
 			{
-				var existing = context.Query<ReportDefinitionFormatAssociation>(c => c.Key == reportFormat.Key.Value && c.SourceKey == reportDefinition.Key.Value).FirstOrDefault();
+				var existing = context.FirstOrDefault<ReportDefinitionFormatAssociation>(c => c.Key == reportFormat.Key.Value && c.SourceKey == reportDefinition.Key.Value);
 
 				if (existing != null)
 				{
@@ -229,7 +229,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 			foreach (var reportParameter in reportDefinition.Parameters)
 			{
-				var existingReportParameter = context.Query<ReportParameter>(c => c.ReportId == reportDefinition.Key.Value && c.CorrelationId == reportParameter.CorrelationId).FirstOrDefault();
+				var existingReportParameter = context.FirstOrDefault<ReportParameter>(c => c.ReportId == reportDefinition.Key.Value && c.CorrelationId == reportParameter.CorrelationId);
 
 				reportParameter.ReportDefinitionKey = reportDefinition.Key.Value;
 

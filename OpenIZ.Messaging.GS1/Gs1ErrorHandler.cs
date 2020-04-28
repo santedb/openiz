@@ -41,24 +41,8 @@ namespace OpenIZ.Messaging.GS1
             base.ProvideFault(error, version, ref fault);
 
             // Construct an error result
-            var retVal = new ErrorResult()
-            {
-                Key = Guid.NewGuid(),
-                Type = error.GetType().Name,
-                Details = new List<ResultDetail>()
-                    {
-                        new ResultDetail(DetailType.Error, error.Message)
-                    }
-            };
-
-            // Cascade inner exceptions
-            var ie = error.InnerException;
-            while (ie != null)
-            {
-                retVal.Details.Add(new ResultDetail(DetailType.Error, String.Format("Caused By: {0}", ie.Message)));
-                ie = ie.InnerException;
-            }
-
+            var retVal = new ErrorResult(error);
+            
             // Return error in XML only at this point
             fault = new WcfMessageDispatchFormatter<IImsiServiceContract>().SerializeReply(version, null, retVal);
         }

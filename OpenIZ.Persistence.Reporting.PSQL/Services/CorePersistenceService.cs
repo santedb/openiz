@@ -144,7 +144,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 					domainQuery.Limit(count.Value);
 				}
 
-				var results = context.Query<TQueryReturn>(domainQuery).OfType<object>();
+				var results = context.Query<TQueryReturn>(domainQuery).OfType<object>().ToList();
 				totalResults = results.Count();
 
 				return results.Select(r => ToModelInstance(r, context, principal));

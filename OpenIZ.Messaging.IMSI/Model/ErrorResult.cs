@@ -17,6 +17,7 @@
  * User: fyfej
  * Date: 2017-9-1
  */
+using OpenIZ.Core.Exceptions;
 using OpenIZ.Core.Model;
 using System;
 using System.Collections.Generic;
@@ -55,10 +56,35 @@ namespace OpenIZ.Messaging.IMSI.Model
         }
 
         /// <summary>
+        /// Constructs from an exception
+        /// </summary>
+        public ErrorResult(Exception e)
+        {
+            this.Type = e.GetType().Name;
+            this.Message = e.Message;
+            if (e is DetectedIssueException dte)
+                this.Details = dte.Issues.Select(o => new ResultDetail(o.Priority == Core.Services.DetectedIssuePriorityType.Error ? DetailType.Error : DetailType.Warning, o.Text)).ToList();
+
+            if (e.InnerException != null)
+                this.Cause = new ErrorResult(e.InnerException);
+        }
+
+        /// <summary>
         /// Gets or sets the details of the result
         /// </summary>
         [XmlElement("detail")]
         public List<ResultDetail> Details { get; set; }
 
+        /// <summary>
+        /// Gets the message of the erorr
+        /// </summary>
+        [XmlElement("message")]
+        public String Message { get; set; }
+
+        /// <summary>
+        /// Caused by 
+        /// </summary>
+        [XmlElement("cause")]
+        public ErrorResult Cause { get; set; }
     }
 }

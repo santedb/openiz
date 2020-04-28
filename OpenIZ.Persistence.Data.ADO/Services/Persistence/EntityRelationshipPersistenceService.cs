@@ -77,12 +77,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public override EntityRelationship InsertInternal(DataContext context, EntityRelationship data, IPrincipal principal)
         {
-            
+
             // Ensure we haven't already persisted this
-            if(data.TargetEntity != null && !data.InversionIndicator) data.TargetEntity = data.TargetEntity.EnsureExists(context, principal) as Entity;
+            if (data.TargetEntity != null && !data.InversionIndicator) data.TargetEntity = data.TargetEntity.EnsureExists(context, principal) as Entity;
             data.TargetEntityKey = data.TargetEntity?.Key ?? data.TargetEntityKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
-            
+            data.EffectiveVersionSequenceId = data.EffectiveVersionSequenceId ?? data.SourceEntity?.VersionSequence;
+
+            // Lookup the original 
+            if (!data.EffectiveVersionSequenceId.HasValue)
+                data.EffectiveVersionSequenceId = context.FirstOrDefault<DbEntityVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
             return base.InsertInternal(context, data, principal);
         }
 
@@ -94,6 +98,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             // Ensure we haven't already persisted this
             data.TargetEntityKey = data.TargetEntity?.Key ?? data.TargetEntityKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
+
+            if (data.ObsoleteVersionSequenceId == Int32.MaxValue)
+                data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
             return base.UpdateInternal(context, data, principal);
         }
 

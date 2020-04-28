@@ -29,6 +29,7 @@ using OpenIZ.Core.Services;
 using OpenIZ.Messaging.GS1.Configuration;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -51,6 +52,9 @@ namespace OpenIZ.Messaging.GS1.Model
         private IPlaceRepositoryService m_placeRepository;
         // Stock service
         private IStockManagementRepositoryService m_stockService;
+
+        // Tracer
+        private TraceSource m_tracer = new TraceSource("OpenIZ.Messaging.GS1");
 
         /// <summary>
         /// GS1 Utility class
@@ -269,6 +273,9 @@ namespace OpenIZ.Messaging.GS1.Model
                 var mmat = material as ManufacturedMaterial;
                 var mat = this.m_materialRepository.FindMaterial(o => o.Relationships.Where(r => r.RelationshipType.Mnemonic == "Instance").Any(r => r.TargetEntity.Key == mmat.Key)).FirstOrDefault();
 
+                if (mat == null)
+                    throw new KeyNotFoundException($"Material information for {mmat.Key} cannot be found");
+
                 return new TransactionalTradeItemType()
                 {
                     additionalTradeItemIdentification = material.LoadCollection<EntityIdentifier>("Identifiers").Where(o => o.Authority.DomainName != "GTIN").Select(o => new AdditionalTradeItemIdentificationType()
@@ -284,14 +291,14 @@ namespace OpenIZ.Messaging.GS1.Model
                             codeListVersion = o.LoadProperty<AssigningAuthority>("Authority").DomainName
                         }).ToArray()
                     },
-                    gtin = material.Identifiers.FirstOrDefault(o => o.Authority.DomainName == "GTIN").Value,
+                    gtin = material.LoadCollection<EntityIdentifier>("Identifiers").FirstOrDefault(o => o.Authority.DomainName == "GTIN").Value,
                     itemTypeCode = typeItemCode,
-                    tradeItemDescription = material.Names.Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
+                    tradeItemDescription = material.LoadCollection<EntityName>("Names").Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
                     transactionalItemData = new TransactionalItemDataType[]
                     {
                         new TransactionalItemDataType() {
                             batchNumber = mmat.LotNumber,
-                            itemExpirationDate = mmat.ExpiryDate.Value,
+                            itemExpirationDate = mmat.ExpiryDate ?? DateTime.MaxValue,
                             itemExpirationDateSpecified = true
                         }
                     }
@@ -336,6 +343,7 @@ namespace OpenIZ.Messaging.GS1.Model
             ManufacturedMaterial retVal = this.m_materialRepository.FindManufacturedMaterial(m => m.Identifiers.Any(o => o.Value == tradeItem.gtin && o.Authority.DomainName == "GTIN") && m.LotNumber == lotNumberString, 0, 1, out tr).FirstOrDefault();
             if (retVal == null && createIfNotFound)
             {
+                this.m_tracer.TraceInformation("Will create ManufacturedMaterial from GS1 trade item with git {0} lot #{1}",tradeItem.gtin, lotNumberString);
                 var additionalData = tradeItem.transactionalItemData[0];
                 if (!additionalData.itemExpirationDateSpecified)
                     throw new InvalidOperationException("Cannot auto-create material, expiration date is missing");
@@ -395,18 +403,22 @@ namespace OpenIZ.Messaging.GS1.Model
                     }
                 if (materialReference == null)
                     materialReference = this.m_materialRepository.FindMaterial(o => o.TypeConceptKey == retVal.TypeConceptKey && o.ClassConceptKey == EntityClassKeys.Material && o.StatusConceptKey != StatusKeys.Obsolete, 0, 1, out tr).SingleOrDefault();
-                if (materialReference == null)
+                if (materialReference == null || !materialReference.Key.HasValue)
                     throw new InvalidOperationException("Cannot find the base Material from trade item type code");
 
+                
                 // Material relationship
                 EntityRelationship materialRelationship = new EntityRelationship()
                 {
                     RelationshipTypeKey = EntityRelationshipTypeKeys.Instance,
                     Quantity = (int)(additionalData.tradeItemQuantity?.Value ?? 1),
+                    HolderKey = materialReference.Key,
                     SourceEntityKey = materialReference.Key,
+                    SourceEntity = materialReference,
                     TargetEntityKey = retVal.Key,
                     EffectiveVersionSequenceId = materialReference.VersionSequence
                 };
+                this.m_tracer.TraceInformation("Material {0} ln #{1} will be related as Instance of {2} ({3})", tradeItem.gtin, lotNumberString, materialReference, materialRelationship); 
 
                 // TODO: Manufacturer won't be known
 

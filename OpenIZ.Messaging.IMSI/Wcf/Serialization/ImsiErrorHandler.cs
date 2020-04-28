@@ -108,11 +108,9 @@ namespace OpenIZ.Messaging.IMSI.Wcf.Serialization
             else if (error is DetectedIssueException)
             {
                 WebOperationContext.Current.OutgoingResponse.StatusCode = (System.Net.HttpStatusCode)422;
-                retVal = new ErrorResult()
+                retVal = new ErrorResult(error)
                 {
-                    Key = Guid.NewGuid(),
-                    Type = "BusinessRuleViolation",
-                    Details = (error as DetectedIssueException).Issues.Select(o => new ResultDetail(o.Priority == Core.Services.DetectedIssuePriorityType.Error ? DetailType.Error : o.Priority == Core.Services.DetectedIssuePriorityType.Warning ? DetailType.Warning : DetailType.Information, o.Text)).ToList()
+                    Type = "BusinessRuleViolation"
                 };
             }
             else if (error is PatchAssertionException)
@@ -125,15 +123,7 @@ namespace OpenIZ.Messaging.IMSI.Wcf.Serialization
 
             // Construct an error result
             if (retVal == null)
-                retVal = new ErrorResult()
-                {
-                    Key = Guid.NewGuid(),
-                    Type = error.GetType().Name,
-                    Details = new List<ResultDetail>()
-                    {
-                        new ResultDetail(DetailType.Error, error.Message)
-                    }
-                };
+                retVal = new ErrorResult(error);
 
             // Cascade inner exceptions
             var ie = error.InnerException;

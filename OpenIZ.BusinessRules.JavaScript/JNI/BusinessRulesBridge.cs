@@ -42,6 +42,7 @@ using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Diagnostics;
 using System.Threading;
 using System.Text.RegularExpressions;
+using OpenIZ.Core.Model.Json.Formatter;
 
 namespace OpenIZ.BusinessRules.JavaScript.JNI
 {
@@ -68,7 +69,7 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public BusinessRulesBridge()
         {
-
+            this.m_modelSerializer.LoadSerializerAssembly(typeof(SecurityApplicationViewModelSerializer).GetTypeInfo().Assembly);
             foreach (var t in typeof(IdentifiedData).GetTypeInfo().Assembly.ExportedTypes)
             {
                 var jatt = t.GetTypeInfo().GetCustomAttribute<JsonObjectAttribute>();
@@ -413,10 +414,15 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
             var mi = idp.GetRuntimeMethod("Obsolete", new Type[] { typeof(Guid) });
             return this.ToViewModel(mi.Invoke(idpInstance, new object[] { id }) as IdentifiedData);
             }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence obsoleting BRE object: {0}/{1} - {2}", type, id, e.InnerException);
+                throw new Exception($"Persistence error obsoleting BRE object: {type}/{id}", e.InnerException);
+            }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error obsoleting object : {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error obsoleting BRE object: {0}/{1} - {2}", type, id, e);
+                throw new Exception($"Error obsoleting BRE object: {type}/{id}", e);
             }
         }
 
@@ -451,12 +457,17 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                 }
                 return retVal;
              }
-            catch(Exception e)
+            catch (TargetInvocationException e)
             {
-                this.m_tracer.TraceError("Error getting object: {0}", e);
-                throw;
+                this.m_tracer.TraceError("Persistence retreiving BRE object: {0}/{1} - {2}", type, id, e.InnerException);
+                throw new Exception($"Persistence error retreiving in BRE: {type}/{id}", e.InnerException);
             }
-}
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error retrieving in BRE object: {0}/{1} - {2}", type, id, e);
+                throw new Exception($"Error retrieving in BRE: {type}/{id}", e);
+            }
+        }
 
         /// <summary>
         /// Find object
@@ -495,10 +506,15 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                 TotalResults = results.Count()
             });
             }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence searching in BRE object: {0} - {1}", query, e.InnerException);
+                throw new Exception($"Error searching in BRE: {type}?{query}", e.InnerException);
+            }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error executing search : {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error searching in BRE: {0}", e);
+                throw new Exception($"Error searching in BRE: {type}?{query}", e);
             }
         }
 
@@ -523,11 +539,17 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
             var mi = idp.GetRuntimeMethod("Save", new Type[] { data.GetType() });
             return this.ToViewModel(mi.Invoke(idpInstance, new object[] { data }) as IdentifiedData);
             }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence error saving BRE object: {0} - {1}", value, e.InnerException);
+                throw new Exception($"Persistence error saving BRE object: {value}", e.InnerException);
+            }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error saving object: {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error saving BRE object: {0}", e);
+                throw new Exception($"Error saving BRE object: {value}", e);
             }
+
         }
 
         /// <summary>
@@ -551,10 +573,15 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                 var mi = idp.GetRuntimeMethod("Insert", new Type[] { data.GetType() });
                 return this.ToViewModel(mi.Invoke(idpInstance, new object[] { data }) as IdentifiedData);
             }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence error inserting BRE object: {0} - {1}", value, e.InnerException);
+                throw new Exception($"Persistence error inserting BRE object: {value}", e.InnerException);
+            }
             catch (Exception e)
             {
                 this.m_tracer.TraceError("Error inserting BRE object: {0}", e);
-                throw;
+                throw new Exception($"Error inserting BRE object: {value}", e);
             }
         }
     }
