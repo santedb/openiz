@@ -87,6 +87,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             // Lookup the original 
             if (!data.EffectiveVersionSequenceId.HasValue)
                 data.EffectiveVersionSequenceId = context.FirstOrDefault<DbEntityVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
+
+            // Does this rel already exist? If so, obs the old
+            var existing = context.FirstOrDefault<DbEntityRelationship>(o => o.SourceKey == data.SourceEntityKey && o.RelationshipTypeKey == data.RelationshipTypeKey && o.TargetKey == data.TargetEntityKey && o.ObsoleteVersionSequenceId == null);
+            if(existing != null)
+            {
+                existing.ObsoleteVersionSequenceId = data.EffectiveVersionSequenceId;
+                context.Update(existing);
+            }
             return base.InsertInternal(context, data, principal);
         }
 

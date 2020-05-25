@@ -2,6 +2,7 @@
 using MARC.Everest.Threading;
 using MohawkCollege.Util.Console.Parameters;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -148,37 +149,76 @@ namespace OizDevTool
                 }
             }
 
+            List<String> sourceFiles = new List<string>(parms.Logs.Count);
             WaitThreadPool wtp = new WaitThreadPool();
-            object locker = new object();
 
-            Dictionary<Guid, RequestInfo> infoCache = new Dictionary<Guid, RequestInfo>();
-            using (var tw = File.CreateText(parms.Output ?? "http.csv"))
+            foreach (var filePath in parms.Logs)
             {
-                tw.WriteLine($"File,Sequence,Source,Thread,Date,Level,Message");
 
-                foreach (var lf in parms.Logs)
+                wtp.QueueUserWorkItem((fileName) =>
                 {
-
-                    var fi = new FileInfo(lf);
-                    Console.WriteLine("Processing {0} ({1:#,000} KB)", lf, fi.Length / 1024);
+                    var fi = new FileInfo(fileName.ToString());
                     try
                     {
-                        using (var s = File.OpenRead(lf))
+                        var ipPattern = new Regex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\s-(.*)");
+                        var tempFileName = Path.GetTempFileName();
+                        Console.WriteLine("Processing {0} ({1:#,000} KB) to {2}", fi.Name, fi.Length / 1024, tempFileName);
+                        using (var tw = File.CreateText(tempFileName))
+                        using (var s = fi.OpenRead())
                         using (var sr = new StreamReader(s))
                             foreach (var itm in LogEvent.Load(sr).OfType<LogEvent>())
-                                tw.WriteLine($"{Path.GetFileNameWithoutExtension(lf)},{itm.Sequence},{itm.Source},{itm.Thread},{itm.Date},{itm.Level},{itm.Message.Substring(0, itm.Message.Contains("Exception") ? itm.Message.IndexOf("Exception") + 10 : itm.Message.Length > 10 ? 10 : itm.Message.Length)}");
-                        wtp.WaitOne();
+                            {
+                                var message = itm.Message;
+                                if (message.Contains("\r\n"))
+                                    message = message.Substring(0, message.IndexOf("\r\n"));
+                                if (message.Length > 200)
+                                    message = message.Substring(0, 200);
 
-                        Console.SetCursorPosition(1, Console.CursorTop);
-                        Console.WriteLine("    100.0%   ");
+                                var ipMatch = ipPattern.Match(message);
+                                if (ipMatch.Success)
+                                    message = ipMatch.Groups[1].Value;
+
+                                tw.WriteLine($"{fi.Name},{itm.Sequence},{itm.Source},{itm.Thread},{itm.Date},{itm.Level},{message}");
+                            }
+                        Console.WriteLine("Completed processing of {0}", fi.Name);
+
+                        sourceFiles.Add(tempFileName);
 
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Error processing {0} : {1}", lf, e.Message);
+                        Console.WriteLine("Error processing {0} : {1}", fi.Name, e.Message);
+                    }
+
+
+                }, filePath);
+
+            }
+
+            Console.WriteLine("Waiting for processing to complete..");
+            wtp.WaitOne();
+
+            Console.WriteLine("Combining files...");
+            try
+            {
+                using (var outs = File.Create(parms.Output ?? "openiz.csv"))
+                {
+                    var hdr = Encoding.UTF8.GetBytes("File,Sequence,Source,Thread,Date,Level,Message\r\n");
+                    outs.Write(hdr, 0, hdr.Length);
+                    foreach (var itm in sourceFiles)
+                    {
+                        Console.WriteLine("Including {0}", itm);
+                        using (var ins = File.OpenRead(itm))
+                            ins.CopyTo(outs);
+                        File.Delete(itm);
                     }
                 }
             }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error Combining files: {0}", e.Message);
+            }
+
 
 
         }
@@ -240,102 +280,108 @@ namespace OizDevTool
             WaitThreadPool wtp = new WaitThreadPool();
             object locker = new object();
 
-            Dictionary<Guid, RequestInfo> infoCache = new Dictionary<Guid, RequestInfo>();
-            using (var tw = File.CreateText(parms.Output ?? "http.csv"))
-                tw.WriteLine($"ID,Thread,Date,IP,User Agent,Method,Host,Resource,Parms,Geo,Response,Time");
+            ConcurrentDictionary<Guid, RequestInfo> infoCache = new ConcurrentDictionary<Guid, RequestInfo>();
+            ConcurrentDictionary<IPAddress, GeoIpStruct> geoCache = new ConcurrentDictionary<IPAddress, GeoIpStruct>();
+            
+            List<String> sourceFiles = new List<string>(parms.Logs.Count);
 
             Regex requestRe = new Regex(@"^([0-9\-\s\:APM\/]*?)\[@(\d*)\]?\s:\s(.*)\s(Information|Warning|Error|Fatal|Verbose):\s-?\d{1,10}?\s:\sHTTP RQO\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s:\s([A-Z]+)\s(.*?)\s\((.*)\)\s-\s([a-z0-9-]{36}).*$"),
                 responseRe = new Regex(@"^([0-9\-\s\:APM\/]*?)\[@(\d*)\]?\s:\s(.*)\s(Information|Warning|Error|Fatal|Verbose):\s-?\d{1,10}?\s:\sHTTP RSP\s([a-z0-9-]{36})\s:\s(\w+)\s\(([0-9\.]+)\sms");
-            foreach (var lf in parms.Logs)
+            foreach (var filePath in parms.Logs)
             {
 
-                var fi = new FileInfo(lf);
-                Console.WriteLine("Processing {0} ({1:#,000} KB)", lf, fi.Length/1024);
-                try
+                wtp.QueueUserWorkItem((fileName) =>
                 {
-                    int lineCount = 0, processCount = 0;
-                    using (var tr = File.OpenText(lf))
-                        while(!tr.EndOfStream)
-                        {
-                            if(++lineCount % 128 == 0)
-                                lock (locker)
-                                {
-                                    Console.SetCursorPosition(1, Console.CursorTop);
-                                    Console.Write("    {0:0.0%}   ", (float)processCount/(float)lineCount);
-                                }
-
-                            var line = tr.ReadLine();
-
-                            WaitCallback processFunction = null;
-                            processFunction = (object d) =>
+                    var fi = new FileInfo(fileName.ToString());
+                    try
+                    {
+                        var tempFileName = Path.GetTempFileName();
+                        Console.WriteLine("Loading {0} ({1:#,000} KB) to {2}", fi.Name, fi.Length / 1024, tempFileName);
+                        int lineNo = 0;
+                        using (var tw = File.CreateText(tempFileName))
+                        using (var tr = fi.OpenText())
+                            while (!tr.EndOfStream)
                             {
-                                try
+
+                                var line = tr.ReadLine();
+                                lineNo++;
+                                if (lineNo % 10000 == 0)
+                                    Console.WriteLine("Processed {0} lines from {1}", lineNo, fi.Name);
+                                var match = requestRe.Match(line);
+                                if (match.Success)
                                 {
-                                    var match = requestRe.Match(d.ToString());
+
+                                    var requestInfo = new RequestInfo(match);
+                                    if (!parms.NoGeoIp)
+                                    {
+                                        if (!geoCache.TryGetValue(requestInfo.RequestIp, out GeoIpStruct countryCode))
+                                        {
+                                            countryCode = geoRefs.FirstOrDefault(o => o.IsMasked(requestInfo.RequestIp));
+                                            geoCache.TryAdd(requestInfo.RequestIp, countryCode);
+                                        }
+                                        requestInfo.GeoInfo = countryCode;
+                                    }
+                                    lock (locker)
+                                        infoCache.TryAdd(requestInfo.RequestId, requestInfo);
+                                }
+                                else
+                                {
+                                    match = responseRe.Match(line);
                                     if (match.Success)
                                     {
-
-                                        var requestInfo = new RequestInfo(match);
-                                        if(!parms.NoGeoIp)
-                                            requestInfo.GeoInfo = geoRefs.FirstOrDefault(o => o.IsMasked(requestInfo.RequestIp));
-                                        lock (locker)
-                                            infoCache.Add(requestInfo.RequestId, requestInfo);
-                                    }
-                                    else
-                                    {
-                                        match = responseRe.Match(d.ToString());
-                                        if (match.Success)
+                                        var uuid = Guid.Parse(match.Groups[5].Value);
+                                        RequestInfo request = null;
+                                        if (infoCache.TryGetValue(uuid, out request))
                                         {
-                                            var uuid = Guid.Parse(match.Groups[5].Value);
-                                            RequestInfo request = null;
-                                            if (infoCache.TryGetValue(uuid, out request))
-                                            {
-                                                request.Response = match.Groups[6].Value;
-                                                request.ResponseDate = DateTime.Parse(match.Groups[1].Value);
-                                                request.ProcessingTime = new TimeSpan(0, 0, 0, 0, (int)Double.Parse(match.Groups[7].Value));
+                                            request.Response = match.Groups[6].Value;
+                                            request.ResponseDate = DateTime.Parse(match.Groups[1].Value);
+                                            request.ProcessingTime = new TimeSpan(0, 0, 0, 0, (int)Double.Parse(match.Groups[7].Value));
 
-                                                // Append data
-                                                lock (locker)
-                                                {
-                                                    using (var tw = File.AppendText(parms.Output ?? "http.csv"))
-                                                        tw.WriteLine($"{request.RequestId},{request.Thread},{request.RequestDate},{request.RequestIp},{request.UserAgent},{request.Method},{request.Url.Scheme}://{request.Url.Host}:{request.Url.Port},{request.Url.AbsolutePath}, {request.Url.Query},{request.GeoInfo?.Country},{request.Response},{request.ProcessingTime.TotalMilliseconds}");
-                                                    infoCache.Remove(uuid);
-                                                }
-                                            }
-                                            else if(processCount <= lineCount)
-                                                wtp.QueueUserWorkItem(processFunction, d);
+                                            // Append data
+                                            tw.WriteLine($"{request.RequestId},{request.Thread},{request.RequestDate},{request.RequestIp},{request.UserAgent},{request.Method},{request.Url.Scheme}://{request.Url.Host}:{request.Url.Port},{request.Url.AbsolutePath}, {request.Url.Query},{request.GeoInfo?.Country},{request.Response},{request.ProcessingTime.TotalMilliseconds}");
+                                            infoCache.TryRemove(uuid, out request);
                                         }
+                                        else
+                                            Console.WriteLine("WARNING: Cannot find request that goes with response {0}", uuid);
                                     }
-
-
-                                    if (++processCount % 128 == 0 && processCount <= lineCount)
-                                        lock (locker)
-                                        {
-                                            Console.SetCursorPosition(1, Console.CursorTop);
-                                            Console.Write("    {0:0.0%}   ", (float)processCount / (float)lineCount);
-                                        }
                                 }
-                                catch (Exception e)
-                                {
-                                    Console.WriteLine("Error Processing: {0}", e.Message);
-                                }
-                            };
-                            wtp.QueueUserWorkItem(processFunction, line);
-                            
+                            }
+                        Console.WriteLine("Completed processing of {0}", fi.Name);
+                        sourceFiles.Add(tempFileName);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error Processing: {0}", e);
+                    }
 
-                        }
-                    wtp.WaitOne();
 
-                    Console.SetCursorPosition(1, Console.CursorTop);
-                    Console.WriteLine("    100.0%   ");
+                }, filePath);
 
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Error processing {0} : {1}", lf, e.Message);
-                }
             }
 
+            Console.WriteLine("Waiting for processing to complete..");
+            wtp.WaitOne();
+
+            Console.WriteLine("Combining files...");
+            try
+            {
+                using (var outs = File.Create(parms.Output ?? "http.csv"))
+                {
+                    var hdr = Encoding.UTF8.GetBytes("ID,Thread,Date,IP,User Agent,Method,Host,Resource,Parms,Geo,Response,Time\r\n");
+                    outs.Write(hdr, 0, hdr.Length);
+                    foreach (var itm in sourceFiles)
+                    {
+                        Console.WriteLine("Including {0}", itm);
+                        using (var ins = File.OpenRead(itm))
+                            ins.CopyTo(outs);
+                        File.Delete(itm);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error Combining files: {0}", e.Message);
+            }
 
         }
     }

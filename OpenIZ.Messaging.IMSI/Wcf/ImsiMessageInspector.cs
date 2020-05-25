@@ -126,7 +126,7 @@ namespace OpenIZ.Messaging.IMSI.Wcf
                         WebOperationContext.Current.OutgoingResponse.Headers.Add(kv.Key, kv.Value);
 
                 // No reply = no compress :)
-                if (reply.IsEmpty)
+                if (reply == null || reply.IsEmpty)
                     return;
 
                 // Finally compress
