@@ -85,6 +85,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Data\SQL\PSQL\Updates\20190510-PSQL.sql" />
+    <Content Include="Data\SQL\PSQL\Updates\20200618-PSQL.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\OpenIZ.licenseheader">
