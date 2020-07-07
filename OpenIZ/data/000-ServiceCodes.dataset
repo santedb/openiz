@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="HL7v3 SeverityObservation Concept Set" xmlns="http://openiz.org/data">
+  
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://openiz.org/model">
+      <id>54304ED0-6C9F-411B-B008-A1E1561B7963</id>
+      <isReadonly>false</isReadonly>
+      <mnemonic>ServiceCode-Immunization</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>0d6b3439-c9be-4480-af39-eeb457c052d0</conceptClass>
+      <name>
+        <language>en</language>
+        <value>Immunization Services</value>
+      </name>
+      <conceptSet>95f9a19a-fa85-4af7-9342-4ba3af0de72a</conceptSet>
+    </Concept>
+  </update>
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://openiz.org/model">
+      <id>f5304ED0-6C9F-411B-B008-A1E1561B7963</id>
+      <isReadonly>false</isReadonly>
+      <mnemonic>ServiceCode-General</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>0d6b3439-c9be-4480-af39-eeb457c052d0</conceptClass>
+      <name>
+        <language>en</language>
+        <value>General Clinic Services</value>
+      </name>
+      <conceptSet>95f9a19a-fa85-4af7-9342-4ba3af0de72a</conceptSet>
+    </Concept>
+  </update>
+</dataset>

@@ -14885,11 +14885,11 @@ namespace OpenIZ.Core.Model.Json.Formatter {
                     context.JsonContext.WritePropertyUtil(w, "serviceConcept", _strong.ServiceConceptKey, context);
                 }
             }
-            if (context.ShouldSerialize("serviceSchedule")) {
+            if (context.ShouldSerialize("schedule")) {
                 if ((_strong.ServiceSchedule == null)) {
                 }
                 else {
-                    context.JsonContext.WritePropertyUtil(w, "serviceSchedule", _strong.ServiceSchedule, context);
+                    context.JsonContext.WritePropertyUtil(w, "schedule", _strong.ServiceSchedule, context);
                 }
             }
             if (context.ShouldSerialize("effectiveVersionSequence")) {
@@ -14984,9 +14984,9 @@ namespace OpenIZ.Core.Model.Json.Formatter {
                                         }
                                     }
                                     else {
-                                        if ("serviceSchedule".Equals(r.Value)) {
+                                        if ("schedule".Equals(r.Value)) {
                                             r.Read();
-                                            object _instance = context.JsonContext.ReadElementUtil(r, typeof(object), new OpenIZ.Core.Applets.ViewModel.Json.JsonSerializationContext("serviceSchedule", context.JsonContext, _retVal, context));
+                                            object _instance = context.JsonContext.ReadElementUtil(r, typeof(object), new OpenIZ.Core.Applets.ViewModel.Json.JsonSerializationContext("schedule", context.JsonContext, _retVal, context));
                                             if ((_instance != null)) {
                                                 _retVal.ServiceSchedule = ((string)(_instance));
                                             }

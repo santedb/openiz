@@ -204,6 +204,12 @@
     <EmbeddedResource Include="Resources\CarePlanWarehouseSchema.xml">
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <Content Include="ProblemNotification.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AppointmentNotification.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="SeedData.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

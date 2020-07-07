@@ -111,6 +111,9 @@
     <EmbeddedResource Include="License.rtf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>
+    <None Include="Data\000-ServiceCodes.dataset">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="Data\demo\990-demo.concepts.dataset" />
     <None Include="Data\demo\991-demo.facilities.dataset" />
     <None Include="Data\demo\992-demo.places.dataset" />

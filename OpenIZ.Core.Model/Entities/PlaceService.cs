@@ -79,7 +79,7 @@ namespace OpenIZ.Core.Model.Entities
 		/// <summary>
 		/// The schedule that the service is offered
 		/// </summary>
-		[XmlElement("serviceSchedule"), JsonProperty("serviceSchedule")]
+		[XmlElement("schedule"), JsonProperty("schedule")]
 		public String ServiceSchedule { get; set; }
 
 		/// <summary>

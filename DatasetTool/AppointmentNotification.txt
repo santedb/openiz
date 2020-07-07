@@ -1,0 +1,1 @@
+﻿Hello, {given} is due for {product} at {fac_name}. Please arrive between {from} and {to} on {date}.

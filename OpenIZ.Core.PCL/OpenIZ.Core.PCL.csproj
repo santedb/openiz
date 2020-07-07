@@ -76,10 +76,14 @@
     <Compile Include="Interop\ServiceEndpointOptions.cs" />
     <Compile Include="Interop\ServiceOptions.cs" />
     <Compile Include="Interop\ServiceResourceOptions.cs" />
+    <Compile Include="Notifications\NotificationRelayUtil.cs" />
     <Compile Include="OpenIZHostType.cs" />
     <Compile Include="Patch\SimplePatchService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Protocol\ProtocolComparer.cs" />
+    <Compile Include="Scheduling\ClinicScheduleInfo.cs" />
+    <Compile Include="Scheduling\ClinicServiceScheduleInfo.cs" />
+    <Compile Include="Scheduling\Impl\DefaultClinicScheduleService.cs" />
     <Compile Include="Services\IActExtensionRepositoryService.cs" />
     <Compile Include="Services\IActRepositoryService.cs" />
     <Compile Include="Services\IAdhocCacheService.cs" />
@@ -91,6 +95,7 @@
     <Compile Include="Services\ICarePlanService.cs" />
     <Compile Include="Protocol\IClinicalProtocol.cs" />
     <Compile Include="Services\IClinicalProtocolRepositoryService.cs" />
+    <Compile Include="Scheduling\IClinicScheduleService.cs" />
     <Compile Include="Services\IConceptRepositoryService.cs" />
     <Compile Include="Services\IDataCacheService.cs" />
     <Compile Include="Services\IAdHocDatawarehouseService.cs" />
@@ -98,6 +103,7 @@
     <Compile Include="Services\IEntityExtensionRepositoryService.cs" />
     <Compile Include="Services\IFastQueryRepositoryService.cs" />
     <Compile Include="Services\Impl\RegexPasswordValidator.cs" />
+    <Compile Include="Notifications\INotificationRelay.cs" />
     <Compile Include="Services\IPasswordValidatorService.cs" />
     <Compile Include="Services\IPatchService.cs" />
     <Compile Include="Services\IPersonRepositoryService.cs" />

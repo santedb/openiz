@@ -57,5 +57,21 @@ namespace OpenIZ.Core.Services.Impl
         {
             ApplicationContext.Current.RemoveServiceProvider(serviceType);
         }
+
+        /// <summary>
+        /// Get all types
+        /// </summary>
+        public IEnumerable<Type> GetAllTypes()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic)
+                .SelectMany(o => { 
+                    try { 
+                        return o.ExportedTypes; 
+                    } 
+                    catch { 
+                        return new List<Type>(); 
+                    } }); // HACK: Mono does not like all assemblies
+        }
     }
 }

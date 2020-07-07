@@ -133,7 +133,8 @@ namespace OpenIZ.Core.Security.Attribute
 
             this.m_traceSource.TraceInformation("Policy Enforce: {0}({1}) = {2}", principal?.Identity?.Name, this.m_policyId, action);
 
-            if (action != PolicyDecisionOutcomeType.Grant)
+            if (action != PolicyDecisionOutcomeType.Grant &&
+                principal != AuthenticationContext.SystemPrincipal)
                 throw new PolicyViolationException(this.m_policyId, action);
         }
 

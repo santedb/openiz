@@ -19,6 +19,7 @@
  */
 using Newtonsoft.Json;
 using OpenIZ.Core.Model.Attributes;
+using OpenIZ.Core.Model.EntityLoader;
 using OpenIZ.Core.Model.Security;
 using System;
 using System.Xml.Serialization;
@@ -47,8 +48,8 @@ namespace OpenIZ.Core.Model.Entities
 		{
 			get
 			{
-				if (this.IsDelayLoadEnabled)
-					this.m_securityUser = base.DelayLoad(this.m_securityUserKey, this.m_securityUser);
+                if (this.m_securityUser == null)
+                    this.m_securityUser = EntitySource.Current.Get<SecurityUser>(this.m_securityUserKey);
 				return this.m_securityUser;
 			}
 			set

@@ -44,6 +44,14 @@ using System.Collections.Specialized;
 using MARC.HI.EHRS.SVC.Core.Data;
 using OpenIZ.Core.Query;
 using OpenIZ.Caching.Memory;
+using OpenIZ.Core.Scheduling;
+using OpenIZ.Core.Scheduling.Impl;
+using Newtonsoft.Json;
+using System.IO;
+using OpenIZ.Core.Notifications;
+using System.Dynamic;
+using OpenIZ.Core.Model.Security;
+using MARC.HI.EHRS.SVC.Core.Services.Security;
 
 namespace OizDevTool
 {
@@ -102,6 +110,35 @@ namespace OizDevTool
             [Parameter("concurrency")]
             [Description("Sets the number of concurrent plans to generate")]
             public String Concurrency { get; set; }
+
+        }
+
+        /// <summary>
+        /// Notification parameters
+        /// </summary>
+        public class NotifyParameters
+        {
+
+            [Parameter("from")]
+            [Description("Send notifications for the specified date (default is tomorrow)")]
+            public string FromDate { get; set; }
+
+            [Parameter("to")]
+            [Description("Schedule notifications to date (default is next week)")]
+            public string ToDate { get; set; }
+
+            [Parameter("facility")]
+            [Description("Calculate care plan for the specified facility")]
+            public String FacilityId { get; set; }
+
+            [Parameter("concurrency")]
+            [Description("Sets the number of concurrent plans to generate")]
+            public String Concurrency { get; set; }
+
+            [Parameter("template")]
+            [Description("Sets the template file")]
+            public String TemplateFile { get; set; }
+
         }
 
         /// <summary>
@@ -112,6 +149,33 @@ namespace OizDevTool
             [Parameter("name")]
             [Description("Name of the facility to calculate")]
             public string Name { get; set; }
+
+        }
+
+        /// <summary>
+        /// Schedule parameters
+        /// </summary>
+        public class ScheduleParameters
+        {
+
+            /// <summary>
+            /// Minimum capacity
+            /// </summary>
+            [Parameter("min-cap")]
+            [Description("Set the minimum capacity")]
+            public String MinCapacity { get; set; }
+
+            [Parameter("name")]
+            [Description("Name of facility to set schedule for")]
+            public string Name { get; set; }
+
+            [Parameter("open")]
+            [Description("The start of the day when clinics should open")]
+            public String OpenTime { get; set; }
+
+            [Parameter("close")]
+            [Description("The stop time when clinics close")]
+            public String CloseTime { get; set; }
 
         }
 
@@ -152,21 +216,23 @@ namespace OizDevTool
 
                 foreach (var plc in places)
                 {
-                    try {
+                    try
+                    {
                         Console.WriteLine("Calculating AMC for {0} ({1})", plc.Names.FirstOrDefault().ToDisplay(), plc.Key);
 
                         // First we want to get all entity relationships of type consumable related to this place
                         int tc = 0;
-                        var consumablePtcpts = apService.Query(o => o.ParticipationRoleKey == ActParticipationKey.Consumable && o.SourceEntity.ActTime > startDate && o.SourceEntity.Participations.Any(p => p.ParticipationRoleKey == ActParticipationKey.Location && p.PlayerEntityKey == plc.Key) && !o.SourceEntity.Tags.Any(tg=>tg.TagKey == "excludeFromLedger"), 0, 100000, AuthenticationContext.Current.Principal, out tc);
+                        var consumablePtcpts = apService.Query(o => o.ParticipationRoleKey == ActParticipationKey.Consumable && o.SourceEntity.ActTime > startDate && o.SourceEntity.Participations.Any(p => p.ParticipationRoleKey == ActParticipationKey.Location && p.PlayerEntityKey == plc.Key) && !o.SourceEntity.Tags.Any(tg => tg.TagKey == "excludeFromLedger"), 0, 100000, AuthenticationContext.Current.Principal, out tc);
                         Console.WriteLine("\tFetch {0} events since {1:o}...", tc, startDate);
 
                         // Now we want to group by consumable
                         int t = 0;
 
-                        var groupedConsumables = consumablePtcpts.GroupBy(o => o.PlayerEntityKey).Select(o => {
+                        var groupedConsumables = consumablePtcpts.GroupBy(o => o.PlayerEntityKey).Select(o =>
+                        {
 
                             Guid matKey = Guid.Empty;
-                            if(!manufacturedMaterialLinks.TryGetValue(o.Key.Value, out matKey))
+                            if (!manufacturedMaterialLinks.TryGetValue(o.Key.Value, out matKey))
                             {
                                 matKey = matlService.QueryFast(m => m.Relationships.Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance && r.TargetEntityKey == o.Key), Guid.Empty, 0, 1, AuthenticationContext.Current.Principal, out t).FirstOrDefault()?.Key.Value ?? Guid.Empty;
                                 lock (manufacturedMaterialLinks)
@@ -223,7 +289,7 @@ namespace OizDevTool
                             // Now correct for packaging
 
                             int presentation = 0;
-                            if(!quantityInfo.TryGetValue(gkp.Key, out presentation))
+                            if (!quantityInfo.TryGetValue(gkp.Key, out presentation))
                             {
                                 var pkging = erService.Query(o => o.SourceEntityKey == gkp.Key && o.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance, AuthenticationContext.Current.Principal).Max(o => o.Quantity);
                                 presentation = pkging.Value;
@@ -267,7 +333,118 @@ namespace OizDevTool
                         if (hasChanged)
                             placeService.Update(plc, AuthenticationContext.Current.Principal, TransactionMode.Commit);
                     }
-                    catch(Exception e)
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
+                }
+
+                ofs += 100;
+            }
+
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Calculates the AMC for all facilities in the system
+        /// </summary>
+        [Description("Overwrite schedules with calculated values")]
+        [ParameterClass(typeof(ScheduleParameters))]
+        public static int DefaultSchedule(string[] args)
+        {
+            var parms = new ParameterParser<ScheduleParameters>().Parse(args);
+            ApplicationContext.Current.Start();
+            ApplicationServiceContext.Current = ApplicationContext.Current;
+            AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
+            EntitySource.Current = new EntitySource(new PersistenceServiceEntitySource());
+
+            // Get the place service
+            var placeService = ApplicationContext.Current.GetService<IDataPersistenceService<Place>>() as IStoredQueryDataPersistenceService<Place>;
+            var visitService = ApplicationContext.Current.GetService<IDataPersistenceService<PatientEncounter>>();
+            var scheduleService = new DefaultClinicScheduleService();
+
+
+            DateTime startDate = DateTime.Now.AddMonths(-1);
+
+            int weekDays = 0, minCap = 0;
+            for (int d = 0; d < DateTime.Now.Subtract(startDate).TotalDays; d++)
+            {
+                var testDate = startDate.AddDays(d);
+                if (testDate.DayOfWeek > DayOfWeek.Sunday && testDate.DayOfWeek < DayOfWeek.Saturday) weekDays++;
+            }
+
+            if (!String.IsNullOrEmpty(parms.MinCapacity))
+                minCap = Int32.Parse(parms.MinCapacity);
+
+            int tr = 1, ofs = 0;
+            Guid queryId = Guid.NewGuid();
+            while (ofs < tr)
+            {
+                Console.WriteLine("Fetch facilities: {0} - {1} of {2}", ofs, ofs + 100, tr); ;
+
+                IEnumerable<Place> places = null;
+                if (String.IsNullOrEmpty(parms.Name))
+                    places = placeService.Query(o => o.ClassConceptKey == EntityClassKeys.ServiceDeliveryLocation, queryId, ofs, 100, AuthenticationContext.Current.Principal, out tr);
+                else
+                    places = placeService.Query(o => o.ClassConceptKey == EntityClassKeys.ServiceDeliveryLocation && o.Names.Any(n => n.Component.Any(c => c.Value.Contains(parms.Name))), ofs, 100, AuthenticationContext.Current.Principal, out tr);
+
+                foreach (var plc in places)
+                {
+                    try
+                    {
+                        Console.WriteLine("Calculating Scheduled Capacity for {0} ({1})", plc.Names.FirstOrDefault().ToDisplay(), plc.Key);
+
+                        // First we want to get all entity relationships of type consumable related to this place
+                        var visitCount = visitService.Count(o => o.ActTime > startDate && o.Participations.Where(p => p.ParticipationRole.Mnemonic == "Location").Any(p => p.PlayerEntityKey == plc.Key), AuthenticationContext.Current.Principal);
+                        var capacity = (float)visitCount / weekDays;
+                        if (capacity < minCap)
+                            capacity = minCap;
+                        Console.WriteLine("\t{0} visits since {1:o} ({2} weekdays) = {3} visits / day...", visitCount, startDate, weekDays, capacity);
+
+                        // Now create schedule
+                        var schedule = plc.LoadCollection<PlaceService>(nameof(Place.Services)).FirstOrDefault(o => o.ServiceConceptKey == Guid.Parse("f5304ED0-6C9F-411B-B008-A1E1561B7963")) ??
+                            new PlaceService()
+                            {
+                                SourceEntityKey = plc.Key,
+                                ServiceConceptKey = Guid.Parse("f5304ED0-6C9F-411B-B008-A1E1561B7963"),
+                                EffectiveVersionSequenceId = plc.VersionSequence
+                            };
+
+                        var clinicSchedule = new ClinicServiceScheduleInfo();
+                        clinicSchedule.ServiceConceptKey = Guid.Parse("f5304ED0-6C9F-411B-B008-A1E1561B7963");
+                        foreach (var d in Enum.GetValues(typeof(DayOfWeek)).OfType<DayOfWeek>())
+                            switch (d)
+                            {
+                                case DayOfWeek.Saturday:
+                                case DayOfWeek.Sunday:
+                                    break;
+                                default:
+                                    clinicSchedule.Schedule.Add(new ClinicScheduleInfo()
+                                    {
+                                        Capacity = (int)Math.Round(capacity),
+                                        Days = new List<DayOfWeek>()
+                                        {
+                                            d
+                                        },
+                                        StartXml = parms.OpenTime,
+                                        StopXml = parms.CloseTime
+                                    });
+                                    break;
+                            }
+
+
+                        schedule.ServiceSchedule = JsonConvert.SerializeObject(clinicSchedule);
+
+                        // Update or insert old schedule
+                        if (schedule.Key.HasValue)
+                            ApplicationContext.Current.GetService<IDataPersistenceService<PlaceService>>().Update(schedule, AuthenticationContext.SystemPrincipal, TransactionMode.Commit);
+                        else
+                            ApplicationContext.Current.GetService<IDataPersistenceService<PlaceService>>().Insert(schedule, AuthenticationContext.SystemPrincipal, TransactionMode.Commit);
+
+
+                    }
+                    catch (Exception e)
                     {
                         Console.WriteLine(e.ToString());
                     }
@@ -343,9 +520,193 @@ namespace OizDevTool
         }
 
         /// <summary>
+        /// Send notifications out
+        /// </summary>
+        [Description("Sends notifications out for the careplan based on capacity")]
+        [ParameterClass(typeof(NotifyParameters))]
+        public static int SendNotify(String[] argv)
+        {
+
+            var parms = new ParameterParser<NotifyParameters>().Parse(argv);
+            ApplicationContext.Current.Start();
+            ApplicationServiceContext.Current = ApplicationContext.Current;
+            AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
+            EntitySource.Current = new EntitySource(new PersistenceServiceEntitySource());
+            var warehouseService = ApplicationContext.Current.GetService<IAdHocDatawarehouseService>();
+            var placeService = ApplicationContext.Current.GetService<IDataPersistenceService<Place>>() as IStoredQueryDataPersistenceService<Place>;
+            var productService = ApplicationContext.Current.GetService<IDataPersistenceService<Material>>() as IStoredQueryDataPersistenceService<Material>;
+            var userService = ApplicationContext.Current.GetService<IDataPersistenceService<UserEntity>>();
+            var dataMart = warehouseService.GetDatamart("oizcp");
+
+            DateTime fromDate = String.IsNullOrEmpty(parms.FromDate) ? DateTime.Now.Date.AddDays(2) : DateTime.Parse(parms.FromDate).Date,
+                toDate = String.IsNullOrEmpty(parms.ToDate) ? DateTime.Now.Date.AddDays(3) : DateTime.Parse(parms.ToDate).Date;
+
+            try
+            {
+                Console.WriteLine("Fetching planned events from {0:o} and {1:o}", fromDate, toDate);
+                var plannedEvents = warehouseService.AdhocQuery(
+                    String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
+                                    FROM
+	                                    oizcp
+	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
+	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
+                                    WHERE
+	                                    act_date::DATE BETWEEN '{0:o}' AND '{1:o}'
+	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
+	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
+	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
+                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate));
+
+                Console.WriteLine("There are {0} planned events which can receive messages for this timeframe", plannedEvents.Count());
+
+                var productRefs = productService.Query(o => o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal).ToDictionary(o => o.Key, o => o);
+
+                var template = File.ReadAllText(parms.TemplateFile ?? "AppointmentNotification.txt");
+                var problemTemplate = File.ReadAllText(parms.TemplateFile ?? "ProblemNotification.txt");
+
+                List<dynamic> problemAppointments = new List<dynamic>();
+
+                // Create buckets of time for the specified places
+                var locations = plannedEvents.GroupBy(o => o.location_id);
+                foreach (var loc in locations)
+                {
+                    var placeData = placeService.Get(new Identifier<Guid>((Guid)loc.Key, null), AuthenticationContext.SystemPrincipal, true);
+                    if (placeData == null)
+                    {
+                        Console.WriteLine("Skipping location {0}", loc.First().fac_name);
+                        continue;
+                    }
+                    Console.WriteLine("{0} events for location {1}", loc.Count(), loc.First().fac_name);
+
+                    // Load the capacity schedule
+                    var serviceInformation = placeData.LoadCollection<PlaceService>(nameof(Place.Services)).FirstOrDefault(o => o.ServiceConceptKey == Guid.Parse("f5304ED0-6C9F-411B-B008-A1E1561B7963"));
+                    if (serviceInformation == null)
+                    {
+                        Console.WriteLine("\tThis facility does not have a capacity schedule for General Services");
+                        continue;
+                    }
+
+                    var capacityConfiguration = JsonConvert.DeserializeObject<ClinicServiceScheduleInfo>(serviceInformation.ServiceSchedule);
+                    var scheduledSlots = new Dictionary<DateTime, Int32>();
+                    for (var d = 0; d <= toDate.Subtract(fromDate).TotalDays + 7; d++)
+                    {
+                        var date = fromDate.AddDays(d);
+                        var capacity = capacityConfiguration.Schedule.FirstOrDefault(o => o.Days.Contains(date.DayOfWeek));
+                        if (capacity == null || capacity.Capacity == 0)
+                            continue;
+
+                        var openHours = capacity.Stop.Value.TimeOfDay.Subtract(capacity.Start.Value.TimeOfDay).TotalHours;
+                        for (var t = 0; t < openHours; t++)
+                        {
+                            // Remove suggested appointments already sent from capacity
+                            var slotStart = date.Date.Add(capacity.Start.Value.TimeOfDay).AddHours(t);
+                            var alreadySent = warehouseService.AdhocQuery(String.Format(@"SELECT msg_id FROM appt_slot_tbl WHERE appt_dt BETWEEN '{0:yyyy-MM-ddTHH:mm}' AND '{1:yyyy-MM-ddTHH:mm}' AND plc_id = '{2}';", slotStart, slotStart.AddHours(1), loc.Key));
+                            var cap = (int)Math.Round((float)capacity.Capacity / openHours, MidpointRounding.AwayFromZero) - alreadySent.Count;
+                            scheduledSlots.Add(slotStart, cap);
+                        }
+                    }
+
+                    // Process the appointments
+                    foreach (var appt in loc)
+                    {
+                        
+                        // First pre-req data for this patient
+                        var products = new List<Guid>(appt.product).Select(o => productRefs[o]);
+                        var scheduleDate = new List<DateTime>(appt.dates).First();
+
+                        // Next we want to find an available time slot
+                        for (var d = -3; d < 4; d++)
+                        {
+                            var testDate = scheduleDate.AddDays(d);
+                            var availableSlot = scheduledSlots.FirstOrDefault(o => o.Key.Date == testDate.Date && o.Value > 0);
+                            if (availableSlot.Key != DateTime.MinValue)
+                            {
+                                scheduleDate = availableSlot.Key;
+                                scheduledSlots[scheduleDate]--;
+                                break;
+                            }
+
+                            // TODO: Clean this up
+                            if (d == 3) // Couldn't find a slot :/ 
+                            {
+                                var notif = userService.Query(o => o.Relationships.Where(g => g.RelationshipType.Mnemonic == "DedicatedServiceDeliveryLocation").Any(r => r.TargetEntityKey == placeData.Key), AuthenticationContext.SystemPrincipal);
+                                foreach(var user in notif)
+                                {
+                                    // Prepare template
+                                    Dictionary<String, String> tfield = new Dictionary<string, String>()
+                                    {
+                                        { "given", appt.given.ToString() },
+                                        { "product", String.Join(",", products.Select(o=>o.LoadCollection<EntityName>(nameof(Material.Names)).Last().ToString())) },
+                                        { "fac_name", appt.fac_name.ToString() },
+                                        { "barcode", appt.alt_id }
+                                    };
+                                    var prob = problemTemplate;
+                                    foreach (var kv in tfield)
+                                        prob = prob.Replace($"{{{kv.Key}}}", kv.Value);
+                                    var tel = user.SecurityUser?.PhoneNumber;
+                                    if(!String.IsNullOrEmpty(tel))
+                                        NotificationRelayUtil.GetNotificationRelay($"tel:{tel}").Send($"tel:{tel}", "Problem Booking Appointment", prob, scheduleDate.AddDays(-1));
+
+                                }
+
+                            }
+                        }
+                        if (scheduleDate.TimeOfDay.Hours == 0)
+                            continue;
+
+                        var alreadySent = warehouseService.AdhocQuery(String.Format(@"SELECT msg_id FROM appt_slot_tbl WHERE appt_dt::DATE = '{0:yyyy-MM-dd}' AND plc_id = '{1}' AND pat_id = '{2}';", scheduleDate.Date, loc.Key, appt.patient_id));
+                        if(alreadySent.Count > 0)
+                        {
+                            Console.WriteLine("Notification already sent for timeslot for {0}", appt.patient_id);
+                            continue;
+                        }
+
+                        // Prepare template
+                        Dictionary<String, String> templateFields = new Dictionary<string, String>()
+                        {
+                            { "given", appt.given.ToString() },
+                            { "product", String.Join(",", products.Select(o=>o.LoadCollection<EntityName>(nameof(Material.Names)).Last().ToString())) },
+                            { "fac_name", appt.fac_name.ToString() },
+                            { "from", scheduleDate.ToString("HH:mm") },
+                            { "to", scheduleDate.AddHours(1).ToString("HH:mm") },
+                            { "date", scheduleDate.Date.ToString("ddd dd MMM, yyyy") }
+                        };
+
+                        var body = template;
+                        foreach (var kv in templateFields)
+                            body = body.Replace($"{{{kv.Key}}}", kv.Value);
+                        var msgId = NotificationRelayUtil.GetNotificationRelay($"tel:{appt.tel}").Send($"tel:{appt.tel}", "Appointment Reminder", body, scheduleDate.AddDays(-1));
+                        warehouseService.AdhocQuery(String.Format("INSERT INTO APPT_SLOT_TBL (MSG_ID, PAT_ID, APPT_DT, PLC_ID) VALUES ('{0}', '{1}', '{2}', '{3}')", msgId, appt.patient_id, scheduleDate, loc.Key));
+
+                    }
+                }
+
+                // Notify administrators of the issues
+                if (problemAppointments.Any())
+                {
+
+                    var problemBody = String.Join(",", (problemAppointments.First() as IDictionary<String, Object>).Keys) + "\r\n";
+                    problemBody += String.Join("\r\n", problemAppointments.OfType<IDictionary<String, Object>>().Select(o => String.Join(",", o.Values.Select(v => v is Guid[]? String.Join(";", (v as Guid[]).Select(p => productRefs[p].Names.Last())) : v is DateTime[]? String.Join(";", v as DateTime[]) : v.ToString()))));
+
+                    // foreach(var rcpt in adminUsers.Select(o=>o.Email).Distinct())
+                    AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
+                    var adminUsers = ApplicationContext.Current.GetService<IRoleProviderService>().FindUsersInRole("ADMINISTRATORS").Select(o => ApplicationContext.Current.GetService<ISecurityRepositoryService>().GetUser(o).Email);
+                    foreach (var rcpt in adminUsers.Select(o => "justin@fyfesoftware.ca").Distinct())
+                        NotificationRelayUtil.GetNotificationRelay($"mailto:{rcpt}")?.Send($"mailto:{rcpt}", "Care Plan Reminder Service - Unschedulable Appointments", "Some planned appointments could not be scheduled in the allotted time for some facilities, see attachment", null, new Dictionary<String, String>() { { "problem-appointments.csv", problemBody } });
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error sending notifications: {0}", e);
+            }
+            return 0;
+
+        }
+
+        /// <summary>
         /// Generate a care plan
         /// </summary>
-        [Description("Re-generates the data warehouse for all patients")]
+        [Description("Re-generates the data warehouse OIZCP plan for all patients")]
         [ParameterClass(typeof(CareplanParameters))]
         public static int Careplan(string[] argv)
         {
@@ -385,8 +746,8 @@ namespace OizDevTool
 
             // Now we want to calculate
             var patientPersistence = ApplicationContext.Current.GetService<IStoredQueryDataPersistenceService<Patient>>();
-            DateTimeOffset? lastRefresh = 
-                !String.IsNullOrEmpty(parms.Since) ? (DateTimeOffset?)DateTimeOffset.Parse(parms.Since) : 
+            DateTimeOffset? lastRefresh =
+                !String.IsNullOrEmpty(parms.Since) ? (DateTimeOffset?)DateTimeOffset.Parse(parms.Since) :
                 !String.IsNullOrEmpty(parms.Timespan) ? (DateTimeOffset?)(DateTimeOffset.Now - TimeSpan.Parse(parms.Timespan)) :
                 null;
 
@@ -479,7 +840,7 @@ namespace OizDevTool
 
                 }
 
-                if(otr != tr)
+                if (otr != tr)
                 {
                     start = DateTime.Now;
                     otr = tr;
@@ -496,7 +857,7 @@ namespace OizDevTool
                     calc += sk;
                 }
 
-                
+
                 foreach (var p in prodPatients.Distinct(new IdentifiedData.EqualityComparer<Patient>()))
                 {
                     if (tq++ > limit)
@@ -551,6 +912,7 @@ namespace OizDevTool
 
                         // Insert plans
                         warehouseService.Add(dataMart.Id, warehousePlan);
+
                     }, p.Key);
                 }
             }
@@ -558,7 +920,7 @@ namespace OizDevTool
             wtp.WaitOne();
 
             exitDoodad = true;
-            
+
             return 0;
         }
 

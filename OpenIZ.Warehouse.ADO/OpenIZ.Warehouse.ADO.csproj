@@ -56,8 +56,10 @@
     <Compile Include="Data\Model\AdhocProperty.cs" />
     <Compile Include="Data\Model\AdhocQuery.cs" />
     <Compile Include="Data\Model\AdhocSchema.cs" />
+    <Compile Include="Data\Model\MessageQueueEntry.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ADODataWarehouse.cs" />
+    <Compile Include="Services\WarehouseNotificationRelay.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\OpenIZ.Core.Model\OpenIZ.Core.Model.csproj">
@@ -92,6 +94,7 @@
       <Link>OpenIZ.licenseheader</Link>
     </None>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
