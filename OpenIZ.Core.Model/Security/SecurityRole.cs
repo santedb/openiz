@@ -61,7 +61,7 @@ namespace OpenIZ.Core.Model.Security
         /// <summary>
         /// Gets or sets the security users in the role
         /// </summary>
-        [XmlIgnore, JsonIgnore]
+        [XmlIgnore, JsonIgnore, QueryParameter("users")]
         public List<SecurityUser> Users { get; set; }
 
         /// <summary>

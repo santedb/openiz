@@ -26,7 +26,8 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Model.Security
 	/// Represents a security role
 	/// </summary>
 	[Table("sec_rol_tbl")]
-	public class DbSecurityRole : DbNonVersionedBaseData
+    [AssociativeTable(typeof(DbSecurityUser), typeof(DbSecurityUserRole))]
+    public class DbSecurityRole : DbNonVersionedBaseData
 	{
 
         /// <summary>

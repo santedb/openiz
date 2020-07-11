@@ -139,8 +139,7 @@ namespace OpenIZ.Core.Model.Security
         /// <summary>
         /// Represents roles
         /// </summary>
-        [XmlIgnore, JsonIgnore]
-
+        [XmlIgnore, JsonIgnore, QueryParameter("role")]
         public List<SecurityRole> Roles { get; set; }
 
         /// <summary>
