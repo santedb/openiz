@@ -54,6 +54,11 @@ namespace OpenIZ.BusinessRules.JavaScript.Test
             this.m_services.Add(Activator.CreateInstance(serviceType));
         }
 
+        public IEnumerable<Type> GetAllTypes()
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Service type
         /// </summary>

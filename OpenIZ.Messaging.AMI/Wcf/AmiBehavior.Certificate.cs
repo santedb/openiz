@@ -20,7 +20,6 @@
 
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
-using MARC.Util.CertificateTools;
 using OpenIZ.Core.Model.AMI.Security;
 using OpenIZ.Core.Security;
 using OpenIZ.Core.Security.Attribute;
@@ -40,8 +39,6 @@ namespace OpenIZ.Messaging.AMI.Wcf
 	/// </summary>
 	public partial class AmiBehavior
 	{
-		// Certificate tool
-		private readonly CertTool certTool;
 
 		// Configuration
 		private readonly AmiConfiguration configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("openiz.messaging.ami") as AmiConfiguration;
@@ -51,11 +48,6 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		/// </summary>
 		public AmiBehavior()
 		{
-			this.certTool = new CertTool
-			{
-				CertificationAuthorityName = this.configuration?.CaConfiguration.Name,
-				ServerName = this.configuration?.CaConfiguration.ServerName
-			};
 		}
 
 		/// <summary>
@@ -79,13 +71,7 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(201, "The object was created successfully")]
 		public SubmissionResult AcceptCsr(string rawId)
 		{
-			int id = Int32.Parse(rawId);
-			this.certTool.Approve(id);
-			var submission = this.certTool.GetRequestStatus(id);
-
-			var result = new SubmissionResult(submission.Message, submission.RequestId, (SubmissionStatus)submission.Outcome, submission.AuthorityResponse);
-			result.Certificate = null;
-			return result;
+            throw new NotSupportedException();
 		}
 
 		/// <summary>
@@ -111,32 +97,17 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The object was obsoleted successfully")]
 		public SubmissionResult DeleteCertificate(string rawId, String strReason)
 		{
-			// Revoke reason
-			var reason = (OpenIZ.Core.Model.AMI.Security.RevokeReason)Enum.Parse(typeof(OpenIZ.Core.Model.AMI.Security.RevokeReason), strReason);
-			int id = Int32.Parse(rawId);
-			var result = this.certTool.GetRequestStatus(id);
+            // Revoke reason
+            throw new NotSupportedException();
 
-			if (String.IsNullOrEmpty(result.AuthorityResponse))
-				throw new InvalidOperationException("Cannot revoke an un-issued certificate");
-			// Now get the serial key
-			SignedCms importer = new SignedCms();
-			importer.Decode(Convert.FromBase64String(result.AuthorityResponse));
+        }
 
-			foreach (var cert in importer.Certificates)
-				if (cert.Subject != cert.Issuer)
-					this.certTool.RevokeCertificate(cert.SerialNumber, (MARC.Util.CertificateTools.RevokeReason)reason);
-
-			result.Outcome = SubmitOutcome.Revoked;
-			result.AuthorityResponse = null;
-			return new SubmissionResult(result.Message, result.RequestId, (SubmissionStatus)result.Outcome, result.AuthorityResponse);
-		}
-
-		/// <summary>
-		/// Gets a specific certificate.
-		/// </summary>
-		/// <param name="rawId">The raw identifier.</param>
-		/// <returns>Returns the certificate.</returns>
-		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
+        /// <summary>
+        /// Gets a specific certificate.
+        /// </summary>
+        /// <param name="rawId">The raw identifier.</param>
+        /// <returns>Returns the certificate.</returns>
+        [SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
 		[SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
@@ -150,21 +121,15 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public byte[] GetCertificate(string rawId)
 		{
-			var id = int.Parse(rawId);
+            throw new NotSupportedException();
 
-			WebOperationContext.Current.OutgoingResponse.ContentType = "application/x-pkcs12";
-			WebOperationContext.Current.OutgoingResponse.Headers.Add("Content-Disposition", $"attachment; filename=\"crt-{id}.p12\"");
+        }
 
-			var result = this.certTool.GetRequestStatus(id);
-
-			return Encoding.UTF8.GetBytes(result.AuthorityResponse);
-		}
-
-		/// <summary>
-		/// Gets a list of certificates.
-		/// </summary>
-		/// <returns>Returns a list of certificates.</returns>
-		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
+        /// <summary>
+        /// Gets a list of certificates.
+        /// </summary>
+        /// <returns>Returns a list of certificates.</returns>
+        [SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
 		[SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
@@ -178,23 +143,15 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public AmiCollection<X509Certificate2Info> GetCertificates()
 		{
-			var collection = new AmiCollection<X509Certificate2Info>();
+            throw new NotSupportedException();
 
-			var certs = this.certTool.GetCertificates();
+        }
 
-			foreach (var cert in certs)
-			{
-				collection.CollectionItem.Add(new X509Certificate2Info(cert.Attribute));
-			}
-
-			return collection;
-		}
-
-		/// <summary>
-		/// Gets the certificate revocation list.
-		/// </summary>
-		/// <returns>Returns the certificate revocation list.</returns>
-		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
+        /// <summary>
+        /// Gets the certificate revocation list.
+        /// </summary>
+        /// <returns>Returns the certificate revocation list.</returns>
+        [SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
 		[SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
@@ -208,17 +165,16 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public byte[] GetCrl()
 		{
-			WebOperationContext.Current.OutgoingResponse.ContentType = "application/x-pkcs7-crl";
-			WebOperationContext.Current.OutgoingResponse.Headers.Add("Content-Disposition", "attachment; filename=\"openiz.crl\"");
-			return Encoding.UTF8.GetBytes(this.certTool.GetCRL());
-		}
+            throw new NotSupportedException();
 
-		/// <summary>
-		/// Gets a specific certificate signing request.
-		/// </summary>
-		/// <param name="id">The id of the certificate signing request to be retrieved.</param>
-		/// <returns>Returns the certificate signing request.</returns>
-		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
+        }
+
+        /// <summary>
+        /// Gets a specific certificate signing request.
+        /// </summary>
+        /// <param name="id">The id of the certificate signing request to be retrieved.</param>
+        /// <returns>Returns the certificate signing request.</returns>
+        [SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
 		[SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
@@ -232,18 +188,15 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public SubmissionResult GetCsr(string rawId)
 		{
-			int id = Int32.Parse(rawId);
-			var submission = this.certTool.GetRequestStatus(id);
+            throw new NotSupportedException();
 
-			var result = new SubmissionResult(submission.Message, submission.RequestId, (SubmissionStatus)submission.Outcome, submission.AuthorityResponse);
-			return result;
-		}
+        }
 
-		/// <summary>
-		/// Gets a list of submitted certificate signing requests.
-		/// </summary>
-		/// <returns>Returns a list of certificate signing requests.</returns>
-		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
+        /// <summary>
+        /// Gets a list of submitted certificate signing requests.
+        /// </summary>
+        /// <returns>Returns a list of certificate signing requests.</returns>
+        [SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
 		[SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
@@ -257,31 +210,17 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public AmiCollection<SubmissionInfo> GetCsrs()
 		{
-			AmiCollection<SubmissionInfo> collection = new AmiCollection<SubmissionInfo>();
-			var certs = this.certTool.GetCertificates();
-			foreach (var cert in certs)
-			{
-				SubmissionInfo info = new SubmissionInfo();
-				foreach (var kv in cert.Attribute)
-				{
-					var key = kv.Key.Replace("Request.", "");
-					var pi = typeof(CertificateInfo).GetProperty(key, BindingFlags.Public | BindingFlags.Instance);
-					pi?.SetValue(info, kv.Value, null);
-				}
-				info.XmlStatusCode = (SubmissionStatus)this.certTool.GetRequestStatus(Int32.Parse(info.RequestID)).Outcome;
-				if (info.XmlStatusCode == SubmissionStatus.Submission)
-					collection.CollectionItem.Add(info);
-			}
-			return collection;
-		}
+            throw new NotSupportedException();
 
-		/// <summary>
-		/// Rejects a specified certificate signing request.
-		/// </summary>
-		/// <param name="certId">The id of the certificate signing request to be rejected.</param>
-		/// <param name="reason">The reason the certificate signing request is to be rejected.</param>
-		/// <returns>Returns the rejection result.</returns>
-		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.UnrestrictedAdministration)]
+        }
+
+        /// <summary>
+        /// Rejects a specified certificate signing request.
+        /// </summary>
+        /// <param name="certId">The id of the certificate signing request to be rejected.</param>
+        /// <param name="reason">The reason the certificate signing request is to be rejected.</param>
+        /// <returns>Returns the rejection result.</returns>
+        [PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.UnrestrictedAdministration)]
 		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
@@ -296,21 +235,16 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(200, "The operation was successful, and the most recent version of the resource is in the response")]
 		public SubmissionResult RejectCsr(string rawId, OpenIZ.Core.Model.AMI.Security.RevokeReason reason)
 		{
-			int id = Int32.Parse(rawId);
-			this.certTool.DenyRequest(id);
-			var status = this.certTool.GetRequestStatus(id);
+            throw new NotSupportedException();
 
-			var result = new SubmissionResult(status.Message, status.RequestId, (SubmissionStatus)status.Outcome, status.AuthorityResponse);
-			result.Certificate = null;
-			return result;
-		}
+        }
 
-		/// <summary>
-		/// Submits a specific certificate signing request.
-		/// </summary>
-		/// <param name="s">The certificate signing request.</param>
-		/// <returns>Returns the submission result.</returns>
-		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.UnrestrictedAdministration)]
+        /// <summary>
+        /// Submits a specific certificate signing request.
+        /// </summary>
+        /// <param name="s">The certificate signing request.</param>
+        /// <returns>Returns the submission result.</returns>
+        [PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.UnrestrictedAdministration)]
 		[SwaggerWcfTag("Administrative Management Interface (AMI)")]
 		[SwaggerWcfSecurity("OAUTH2")]
 		[SwaggerWcfResponse(503, "The AMI service is unavailable (for example: Server is still starting up, or didn't start up correctly)")]
@@ -326,13 +260,8 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		[SwaggerWcfResponse(201, "The object was created successfully")]
 		public SubmissionResult SubmitCsr(SubmissionRequest s)
 		{
-			var submission = this.certTool.SubmitRequest(s.CmcRequest, s.AdminContactName, s.AdminAddress);
+            throw new NotSupportedException();
 
-			var result = new SubmissionResult(submission.Message, submission.RequestId, (SubmissionStatus)submission.Outcome, submission.AuthorityResponse);
-			if (this.configuration.CaConfiguration.AutoApprove)
-				return this.AcceptCsr(result.RequestId.ToString());
-			else
-				return result;
-		}
-	}
+        }
+    }
 }
