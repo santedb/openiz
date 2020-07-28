@@ -18,12 +18,16 @@
  * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core.Exceptions;
+using OpenIZ.Core.Diagnostics;
 using OpenIZ.Core.Exceptions;
+using OpenIZ.Core.Model.Security;
 using OpenIZ.Core.Security.Audit;
 using OpenIZ.Core.Wcf.Serialization;
 using OpenIZ.Messaging.IMSI.Model;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.Linq;
 using System.Diagnostics;
 using System.IdentityModel.Tokens;
 using System.IO;
@@ -64,77 +68,96 @@ namespace OpenIZ.Messaging.IMSI.Wcf.Serialization
         public void ProvideFault(Exception error, MessageVersion version, ref Message fault)
         {
 
-            this.m_traceSource.TraceEvent(TraceEventType.Error, error.HResult, "Error on IMSI WCF Pipeline: {0}", error);
+            var uriMatched = WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri;
 
-            ErrorResult retVal = null;
+            while (error.InnerException != null)
+                error = error.InnerException;
+
+            var faultMessage = WebOperationContext.Current.OutgoingResponse;
 
             // Formulate appropriate response
-            if (error is PolicyViolationException || error is SecurityException || (error as FaultException)?.Code.SubCode?.Name == "FailedAuthentication")
+            if (error is DomainStateException)
+                faultMessage.StatusCode = System.Net.HttpStatusCode.ServiceUnavailable;
+            else if (error is PolicyViolationException)
             {
-                AuditUtil.AuditRestrictedFunction(error, WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri);
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Forbidden;
+                var pve = error as PolicyViolationException;
+                if (pve.PolicyDecision == MARC.HI.EHRS.SVC.Core.Services.Policy.PolicyDecisionOutcomeType.Elevate)
+                {
+                    // Ask the user to elevate themselves
+                    faultMessage.StatusCode = HttpStatusCode.Unauthorized;
+                }
+                else
+                {
+                    faultMessage.StatusCode = HttpStatusCode.Forbidden;
+                }
+            }
+            else if (error is SecurityException)
+            {
+                faultMessage.StatusCode = HttpStatusCode.Forbidden;
             }
             else if (error is SecurityTokenException)
             {
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Unauthorized;
-                WebOperationContext.Current.OutgoingResponse.Headers.Add("WWW-Authenticate", "Bearer");
+                // TODO: Audit this
+                faultMessage.StatusCode = System.Net.HttpStatusCode.Unauthorized;
             }
-            else if (error is FileNotFoundException || error is KeyNotFoundException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NotFound;
-            else if (error is WebFaultException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = (error as WebFaultException).StatusCode;
-            else if (error is Newtonsoft.Json.JsonException ||
-                error is System.Xml.XmlException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
             else if (error is LimitExceededException)
             {
-                WebOperationContext.Current.OutgoingResponse.StatusCode = (HttpStatusCode)429;
-                WebOperationContext.Current.OutgoingResponse.StatusDescription = "Too Many Requests";
-                WebOperationContext.Current.OutgoingResponse.Headers.Add(HttpResponseHeader.RetryAfter, "1200");
-
+                faultMessage.StatusCode = (HttpStatusCode)429;
+                faultMessage.StatusDescription = "Too Many Requests";
+                faultMessage.Headers.Add("Retry-After", "1200");
             }
-            else if (error is UnauthorizedRequestException)
+            else if (error is AuthenticationException)
             {
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Unauthorized;
-                WebOperationContext.Current.OutgoingResponse.Headers.Add("WWW-Authenticate", (error as UnauthorizedRequestException).AuthenticateChallenge);
+                faultMessage.StatusCode = System.Net.HttpStatusCode.Unauthorized;
             }
             else if (error is UnauthorizedAccessException)
             {
-                AuditUtil.AuditRestrictedFunction(error as UnauthorizedAccessException, WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri);
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Forbidden;
+                faultMessage.StatusCode = System.Net.HttpStatusCode.Forbidden;
             }
+            else if (error is FaultException)
+                faultMessage.StatusCode = HttpStatusCode.InternalServerError;
+            else if (error is Newtonsoft.Json.JsonException ||
+                error is System.Xml.XmlException)
+                faultMessage.StatusCode = System.Net.HttpStatusCode.BadRequest;
+            else if (error is DuplicateKeyException || error is DuplicateNameException)
+                faultMessage.StatusCode = System.Net.HttpStatusCode.Conflict;
+            else if (error is FileNotFoundException || error is KeyNotFoundException)
+                faultMessage.StatusCode = System.Net.HttpStatusCode.NotFound;
             else if (error is DomainStateException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.ServiceUnavailable;
+                faultMessage.StatusCode = System.Net.HttpStatusCode.ServiceUnavailable;
             else if (error is DetectedIssueException)
-            {
-                WebOperationContext.Current.OutgoingResponse.StatusCode = (System.Net.HttpStatusCode)422;
-                retVal = new ErrorResult(error)
-                {
-                    Type = "BusinessRuleViolation"
-                };
-            }
-            else if (error is PatchAssertionException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Conflict;
+                faultMessage.StatusCode = (System.Net.HttpStatusCode)422;
+            else if (error is NotImplementedException)
+                faultMessage.StatusCode = HttpStatusCode.NotImplemented;
+            else if (error is NotSupportedException)
+                faultMessage.StatusCode = HttpStatusCode.MethodNotAllowed;
             else if (error is PatchException)
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NotAcceptable;
-
+                faultMessage.StatusCode = HttpStatusCode.Conflict;
             else
-                WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.InternalServerError;
+                faultMessage.StatusCode = System.Net.HttpStatusCode.InternalServerError;
+
+            switch ((int)faultMessage.StatusCode)
+            {
+                case 409:
+                case 429:
+                case 503:
+                    this.m_traceSource.TraceInfo("Issue on REST pipeline: {0}", error);
+                    break;
+                case 401:
+                case 403:
+                case 501:
+                case 405:
+                    this.m_traceSource.TraceWarning("Warning on REST pipeline: {0}", error);
+                    break;
+                default:
+                    this.m_traceSource.TraceError("Error on REST pipeline: {0}", error);
+                    break;
+            }
 
             // Construct an error result
-            if (retVal == null)
-                retVal = new ErrorResult(error);
-
-            // Cascade inner exceptions
-            var ie = error.InnerException;
-            while (ie != null)
-            {
-                retVal.Details.Add(new ResultDetail(DetailType.Error, String.Format("Caused By: {0}", ie.Message)));
-                ie = ie.InnerException;
-            }
+            var retVal = new ErrorResult(error);
             // Return error in XML only at this point
             fault = new WcfMessageDispatchFormatter<IImsiServiceContract>().SerializeReply(version, null, retVal);
-
 
         }
     }

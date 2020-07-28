@@ -31,6 +31,7 @@ using System.Globalization;
 using OpenIZ.Core.Model.Attributes;
 using System.Collections;
 using System.Runtime.CompilerServices;
+using OpenIZ.Core.Model.Interfaces;
 
 namespace OpenIZ.Core.Model.Query
 {
@@ -66,7 +67,7 @@ namespace OpenIZ.Core.Model.Query
         /// </summary>
         public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables)
         {
-            return BuildLinqExpression<TModelType>(httpQueryParameters, variables, true);
+            return BuildLinqExpression<TModelType>(httpQueryParameters, variables, true, false);
 
         }
 
@@ -80,7 +81,25 @@ namespace OpenIZ.Core.Model.Query
         /// <returns>Expression&lt;Func&lt;TModelType, System.Boolean&gt;&gt;.</returns>
         public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables, bool safeNullable)
         {
-            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable);
+            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable, false);
+
+            if (expression == null) // No query!
+                return (TModelType o) => o != null;
+            else
+                return Expression.Lambda<Func<TModelType, bool>>(expression.Body, expression.Parameters);
+        }
+
+        /// <summary>
+        /// Builds the linq expression.
+        /// </summary>
+        /// <typeparam name="TModelType">The type of the t model type.</typeparam>
+        /// <param name="httpQueryParameters">The HTTP query parameters.</param>
+        /// <param name="variables">The variables.</param>
+        /// <param name="safeNullable">if set to <c>true</c> [safe nullable].</param>
+        /// <returns>Expression&lt;Func&lt;TModelType, System.Boolean&gt;&gt;.</returns>
+        public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables, bool safeNullable, bool forceLoad)
+        {
+            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable, forceLoad);
 
             if (expression == null) // No query!
                 return (TModelType o) => o != null;
@@ -91,7 +110,7 @@ namespace OpenIZ.Core.Model.Query
         /// <summary>
         /// Build LINQ expression
         /// </summary>
-        public static LambdaExpression BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, string parameterName, Dictionary<String, Delegate> variables = null, bool safeNullable = true)
+        public static LambdaExpression BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, string parameterName, Dictionary<String, Delegate> variables = null, bool safeNullable = true, bool forceLoad = false)
         {
             var parameterExpression = Expression.Parameter(typeof(TModelType), parameterName);
             Expression retVal = null;
@@ -204,8 +223,24 @@ namespace OpenIZ.Core.Model.Query
                             memberInfo = backingFor;
                     }
 
-                    accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
-
+                    
+                    if (forceLoad)
+                    {
+                        if (typeof(IList).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
+                        {
+                            var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadCollection), new Type[] { memberInfo.PropertyType.GenericTypeArguments[0] }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                            accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
+                        }
+                        else if(typeof(IIdentifiedEntity).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
+                        {
+                            var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadProperty), new Type[] { memberInfo.PropertyType }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                            accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
+                        }
+                        else
+                            accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
+                    }
+                    else 
+                        accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
 
                     if (!String.IsNullOrEmpty(cast))
                     {
@@ -249,8 +284,22 @@ namespace OpenIZ.Core.Model.Query
                         Expression guardAccessor = guardParameter;
                         while (classifierProperty != null && classAttr != null)
                         {
-                            guardAccessor = Expression.MakeMemberAccess(guardAccessor, classifierProperty);
 
+                            // Force loading
+                            if (typeof(IdentifiedData).GetTypeInfo().IsAssignableFrom(classifierProperty.PropertyType.GetTypeInfo()) && guard != null)
+                            {
+                                if (forceLoad)
+                                {
+                                    var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadProperty), new Type[] { classifierProperty.PropertyType }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                                    var loadExpression = Expression.Call(loadMethod, guardAccessor, Expression.Constant(classifierProperty.Name));
+                                    guardAccessor = Expression.Coalesce(loadExpression, Expression.New(classifierProperty.PropertyType));
+                                }
+                                else
+                                    guardAccessor = Expression.Coalesce(Expression.MakeMemberAccess(guardAccessor, classifierProperty), Expression.New(classifierProperty.PropertyType));
+
+                            }
+                            else
+                                guardAccessor = Expression.MakeMemberAccess(guardAccessor, classifierProperty);
 
                             classAttr = classifierProperty.PropertyType.GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
                             if (classAttr != null && guard != null)
@@ -295,7 +344,7 @@ namespace OpenIZ.Core.Model.Query
                         accessExpression.Type.GetTypeInfo().IsGenericType)
                     {
 
-
+                       
                         Type itemType = accessExpression.Type.GenericTypeArguments[0];
                         Type predicateType = typeof(Func<,>).MakeGenericType(itemType, typeof(bool));
 
@@ -314,9 +363,9 @@ namespace OpenIZ.Core.Model.Query
                             workingValues.Remove(wv);
                         }
 
-                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection), typeof(String), typeof(Dictionary<String, Delegate>), typeof(bool) });
+                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection), typeof(String), typeof(Dictionary<String, Delegate>), typeof(bool), typeof(bool) });
 
-                        Expression predicate = (builderMethod.Invoke(null, new object[] { subFilter, pMember, variables, safeNullable }) as LambdaExpression);
+                        Expression predicate = (builderMethod.Invoke(null, new object[] { subFilter, pMember, variables, safeNullable, forceLoad }) as LambdaExpression);
                         if (predicate == null)
                             continue;
                         keyExpression = Expression.Call(anyMethod, accessExpression, predicate);

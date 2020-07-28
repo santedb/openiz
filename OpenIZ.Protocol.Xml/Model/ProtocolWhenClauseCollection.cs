@@ -81,7 +81,7 @@ namespace OpenIZ.Protocol.Xml.Model
                 else if (itm is WhenClauseImsiExpression)
                 {
                     var imsiExpr = itm as WhenClauseImsiExpression;
-                    clauseExpr = Expression.Invoke(QueryExpressionParser.BuildLinqExpression<TData>(NameValueCollection.ParseQueryString(imsiExpr.Expression), variableFunc, true), expressionParm);
+                    clauseExpr = Expression.Invoke(QueryExpressionParser.BuildLinqExpression<TData>(NameValueCollection.ParseQueryString(imsiExpr.Expression), variableFunc, true, true), expressionParm);
                     if (imsiExpr.NegationIndicator)
                         clauseExpr = Expression.Not(clauseExpr);
                     this.m_tracer.TraceVerbose("Converted WHEN {0} > {1}", imsiExpr.Expression, clauseExpr);

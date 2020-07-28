@@ -99,42 +99,22 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.ParticipationRoleKey = data.ParticipationRole?.Key ?? data.ParticipationRoleKey;
             if (data.Act != null) data.Act = data.Act.EnsureExists(context, principal) as Act;
             data.ActKey = data.Act?.Key ?? data.ActKey;
+            
+            // Lookup the original 
+            if (!data.EffectiveVersionSequenceId.HasValue)
+                data.EffectiveVersionSequenceId = context.FirstOrDefault<DbActVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
 
-            byte[] target = data.PlayerEntityKey.Value.ToByteArray(),
-                source = data.SourceEntityKey.Value.ToByteArray(),
-                typeKey = data.ParticipationRoleKey.Value.ToByteArray();
-
-            //SqlStatement sql = new SqlStatement<DbActParticipation>().SelectFrom()
-            //   .Where<DbActParticipation>(o => o.ActUuid == source )
-            //   .Limit(1).Build();
-
-            //IEnumerable<DbActParticipation> dbrelationships = context.TryGetData($"EX:{sql.ToString()}") as IEnumerable<DbActParticipation>;
-            //if (dbrelationships == null) { 
-            //    dbrelationships = context.Connection.Query<DbActParticipation>(sql.SQL, sql.Arguments.ToArray()).ToList();
-            //    context.AddData($"EX{sql.ToString()}", dbrelationships);
-            //}
-
-            //var existing = dbrelationships.FirstOrDefault(
-            //        o => o.ParticipationRoleUuid == typeKey &&
-            //        o.EntityUuid == target);
-
-            //if (existing == null)
-            //{
-            return base.InsertInternal(context, data, principal);
-            //    (dbrelationships as List<DbActParticipation>).Add(new DbActParticipation()
-            //    {
-            //        Uuid = retVal.Key.Value.ToByteArray(),
-            //        ParticipationRoleUuid = typeKey,
-            //        ActUuid = source,
-            //        EntityUuid = target
-            //    });
-            //    return retVal;
-            //}
-            //else
-            //{
-            //    data.Key = new Guid(existing.Uuid);
-            //    return data;
-            //}
+            // Duplicate check 
+            var existing = context.FirstOrDefault<DbActParticipation>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.PlayerEntityKey && r.ParticipationRoleKey == data.ParticipationRoleKey && !r.ObsoleteVersionSequenceId.HasValue);
+            if (existing == null)
+                return base.InsertInternal(context, data, principal);
+            else if (existing.Quantity != data.Quantity)
+            {
+                data.Key = existing.Key;
+                return base.UpdateInternal(context, data, principal);
+            }
+            else
+                return this.ToModelInstance(existing, context, principal);
         }
 
         /// <summary>
@@ -145,6 +125,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.PlayerEntityKey = data.PlayerEntity?.Key ?? data.PlayerEntityKey;
             data.ParticipationRoleKey = data.ParticipationRole?.Key ?? data.ParticipationRoleKey;
             data.ActKey = data.Act?.Key ?? data.ActKey;
+
+            if (data.ObsoleteVersionSequenceId == Int32.MaxValue)
+                data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
 
             return base.UpdateInternal(context, data, principal);
         }

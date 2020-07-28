@@ -26,14 +26,18 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
+using MARC.HI.EHRS.SVC.Core.Services;
 using OpenIZ.Core;
 using OpenIZ.Core.Services.Impl;
 using OpenIZ.Core.Security;
 using OpenIZ.AdminConsole.Shell;
+using OpenIZ.Core.Services.Jobs;
+using ApplicationContext = MARC.HI.EHRS.SVC.Core.ApplicationContext;
 
 namespace OpenIZ
 {
@@ -63,6 +67,8 @@ namespace OpenIZ
 
             // Parser
             ParameterParser<ConsoleParameters> parser = new ParameterParser<ConsoleParameters>();
+            if(!GCSettings.IsServerGC)
+                Trace.TraceInformation("Process is not in server GC mode! Consider switching this");
 
             // Trace copyright information
             Assembly entryAsm = Assembly.GetEntryAssembly();
@@ -97,6 +103,7 @@ namespace OpenIZ
                     ServiceUtil.Start(typeof(Program).GUID);
                     ApplicationServiceContext.Current = MARC.HI.EHRS.SVC.Core.ApplicationContext.Current;
                     MARC.HI.EHRS.SVC.Core.ApplicationContext.Current.AddServiceProvider(typeof(FileConfigurationService));
+                    ApplicationContext.Current.GetService<ITimerService>().AddJob(new GarbageCollectionCompactJob(), new TimeSpan(0,1,0,0));
                     ApplicationServiceContext.HostType = OpenIZHostType.Server;
                     if (!parameters.StartupTest)
                     {

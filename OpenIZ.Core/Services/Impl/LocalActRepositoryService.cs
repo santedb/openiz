@@ -325,7 +325,7 @@ namespace OpenIZ.Core.Services.Impl
                     act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
                     act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
                     this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
-                    businessRulesService.AfterInsert(act);
+                    businessRulesService?.AfterInsert(act);
                 }
 
                 return act;
@@ -335,7 +335,7 @@ namespace OpenIZ.Core.Services.Impl
 				act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
 				act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
                 this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
-                businessRulesService.AfterInsert(act);
+                businessRulesService?.AfterInsert(act);
                 return act;
 			}
 

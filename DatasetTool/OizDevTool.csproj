@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OizDevTool</RootNamespace>
     <AssemblyName>oizdt</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile />
@@ -38,7 +38,6 @@
     <Reference Include="GIIS.DataLayer">
       <HintPath>..\Solution Items\GIIS.DataLayer.dll</HintPath>
     </Reference>
-    <Reference Include="jint, Version=2.10.2.0, Culture=neutral, PublicKeyToken=2e92ba9c8d81157f" />
     <Reference Include="MARC.Everest, Version=1.5.0.0, Culture=neutral, PublicKeyToken=ba5b2480018546af, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Solution Items\MARC.Everest.dll</HintPath>
@@ -85,7 +84,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Admin.cs" />
+    <None Include="Admin.cs" />
     <Compile Include="ClientRegistry.cs" />
     <Compile Include="CsdImport.Entity.cs" />
     <Compile Include="CsdImport.Metadata.cs" />
@@ -93,9 +92,10 @@
     <Compile Include="CsdImport.PlaceService.cs" />
     <Compile Include="CsdImport.Provider.cs" />
     <Compile Include="Dataset.cs" />
+    <None Include="app.config" />
+    <None Include="Debugger\BreDebugger.cs" />
+    <None Include="Debugger\Debug.cs" />
     <Compile Include="Debugger\ProtoDebugger.cs" />
-    <Compile Include="Debugger\BreDebugger.cs" />
-    <Compile Include="Debugger\Debug.cs" />
     <Compile Include="Debugger\DebuggerBase.cs" />
     <Compile Include="CommandAttribute.cs" />
     <Compile Include="DocGen.cs" />
@@ -130,9 +130,6 @@
     <None Include="oizdt.config.empty">
       <SubType>Designer</SubType>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="App.config">
-      <SubType>Designer</SubType>
     </None>
     <None Include="Resources\CSD.xsd">
       <SubType>Designer</SubType>

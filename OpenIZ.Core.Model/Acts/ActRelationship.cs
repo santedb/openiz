@@ -108,7 +108,7 @@ namespace OpenIZ.Core.Model.Acts
         /// Target act reference
         /// </summary>
         [SerializationReference(nameof(TargetActKey))]
-        [XmlIgnore, JsonIgnore]
+        [XmlIgnore, JsonIgnore, DataIgnore]
         public Act TargetAct
         {
             get

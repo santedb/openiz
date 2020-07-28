@@ -247,7 +247,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Null
                 {
                     foreach (var cls in classifier.Classify(instance as IList))
                     {
-                        Object value = new List<Object>(cls.Value as IEnumerable<Object>);
+                        Object value = cls.Value as IEnumerable<Object>;
                         if (cls.Value.Count == 1)
                             value = cls.Value[0];
                         // Now write
@@ -322,6 +322,17 @@ namespace OpenIZ.Core.Applets.ViewModel.Null
         {
             if (!this.m_loadedObjects.ContainsKey(key))
                 this.m_loadedObjects.Add(key, classifierObj);
+        }
+
+        /// <summary>
+        /// Dispose of the object
+        /// </summary>
+        public void Dispose()
+        {
+            this.m_loadedAssociations.Clear();
+            this.m_loadedObjects.Clear();
+            this.m_loadedObjects = null;
+            this.m_loadedAssociations = null;
         }
     }
 }

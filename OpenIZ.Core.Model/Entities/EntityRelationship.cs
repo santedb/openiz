@@ -159,7 +159,7 @@ namespace OpenIZ.Core.Model.Entities
 		/// Target entity reference
 		/// </summary>
 		[SerializationReference(nameof(TargetEntityKey))]
-		[XmlIgnore, JsonIgnore]
+		[XmlIgnore, JsonIgnore, DataIgnore]
 		public Entity TargetEntity
 		{
 			get
@@ -249,14 +249,7 @@ namespace OpenIZ.Core.Model.Entities
 		{
 			return this.Quantity.HasValue;
 		}
-        /// <summary>
-        /// Shoudl serialize source entity?
-        /// </summary>
-        public override bool ShouldSerializeSourceEntityKey()
-        {
-            return false;
-        }
-
+       
         /// <summary>
         /// Represent as string
         /// </summary>

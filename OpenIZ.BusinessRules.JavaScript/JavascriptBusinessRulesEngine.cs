@@ -37,8 +37,6 @@ using Jint;
 using OpenIZ.Core.Model;
 using System.Text.RegularExpressions;
 using OpenIZ.Core.Interfaces;
-using Jint.Parser.Ast;
-using Jint.Parser;
 using OpenIZ.Core.Exceptions;
 using System.Threading;
 
@@ -582,13 +580,13 @@ namespace OpenIZ.BusinessRules.JavaScript
                 }
                 catch (JavaScriptException e)
                 {
-                    this.m_tracer.TraceError("JAVASCRIPT ERROR VALIDATING OBJECT :::::> {1}@{0}", e.LineNumber, e);
+                    this.m_tracer.TraceError("JAVASCRIPT ERROR VALIDATING OBJECT :::::> {1}@{0} - {2}", e.Location, e, e.CallStack);
                     return new List<DetectedIssue>()
                 {
                     new DetectedIssue()
                     {
                         Priority = DetectedIssuePriorityType.Error,
-                        Text = $"{e.Message} @ {e.LineNumber}"
+                        Text = $"{e.Message} @ {e.LineNumber} - {e.CallStack}"
                     }
                 };
 

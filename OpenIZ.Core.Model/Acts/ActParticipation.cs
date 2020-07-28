@@ -126,7 +126,7 @@ namespace OpenIZ.Core.Model.Acts
         /// <summary>
         /// Gets or sets the entity which participated in the act
         /// </summary>
-        [XmlIgnore, JsonIgnore]
+        [XmlIgnore, JsonIgnore, DataIgnore]
         [SerializationReference(nameof(PlayerEntityKey))]
         public Entity PlayerEntity
         {

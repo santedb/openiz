@@ -83,7 +83,7 @@ namespace OpenIZ.Core.Model
 
             if (typeof(IEnumerable).GetTypeInfo().IsAssignableFrom(propertyToLoad.PropertyType.GetTypeInfo())) // Collection we load by key
             {
-                if ((currentValue as IList)?.Count == 0)
+                if ((currentValue as IList)?.Count == 0 && me.Key.HasValue)
                 {
                     var mi = typeof(IEntitySourceProvider).GetGenericMethod(nameof(IEntitySourceProvider.GetRelations), new Type[] { propertyToLoad.PropertyType.StripGeneric() }, new Type[] { typeof(Guid?) });
                     var loaded = Activator.CreateInstance(propertyToLoad.PropertyType, mi.Invoke(EntitySource.Current.Provider, new object[] { me.Key.Value }));

@@ -57,41 +57,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.TargetActKey = data.TargetAct?.Key ?? data.TargetActKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
 
-            byte[] target = data.TargetActKey.Value.ToByteArray(),
-                source = data.SourceEntityKey.Value.ToByteArray(),
-                typeKey = data.RelationshipTypeKey.Value.ToByteArray();
+            // Lookup the original 
+            if (!data.EffectiveVersionSequenceId.HasValue)
+                data.EffectiveVersionSequenceId = context.FirstOrDefault<DbActVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
 
-            //SqlStatement sql = new SqlStatement<DbActRelationship>().SelectFrom()
-            //    .Where<DbActRelationship>(o => o.SourceUuid == source)
-            //    .Limit(1).Build();
-
-            //IEnumerable<DbActRelationship> dbrelationships = context.TryGetData($"EX:{sql.ToString()}") as IEnumerable<DbActRelationship>;
-            //if (dbrelationships == null)
-            //{
-            //    dbrelationships = context.Connection.Query<DbActRelationship>(sql.SQL, sql.Arguments.ToArray()).ToList();
-            //    context.AddData($"EX{sql.ToString()}", dbrelationships);
-            //}
-            //var existing = dbrelationships.FirstOrDefault(
-            //        o => o.RelationshipTypeUuid == typeKey &&
-            //        o.TargetUuid == target);
-
-            //if (existing == null)
-            //{
-            return base.InsertInternal(context, data, principal);
-            //    (dbrelationships as List<DbActRelationship>).Add(new DbActRelationship()
-            //    {
-            //        Uuid = retVal.Key.Value.ToByteArray(),
-            //        RelationshipTypeUuid = typeKey,
-            //        SourceUuid = source,
-            //        TargetUuid = target
-            //    });
-            //    return retVal;
-            //}
-            //else
-            //{
-            //    data.Key = new Guid(existing.Uuid);
-            //    return data;
-            //}
+            // Duplicate check 
+            var existing = context.FirstOrDefault<DbActRelationship>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.TargetActKey && r.RelationshipTypeKey == data.RelationshipTypeKey && !r.ObsoleteVersionSequenceId.HasValue);
+            if (existing == null)
+                return base.InsertInternal(context, data, principal);
+            else
+                return this.ToModelInstance(existing, context, principal);
         }
 
         /// <summary>
@@ -101,6 +76,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             data.TargetActKey = data.TargetAct?.Key ?? data.TargetActKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
+
+            if (data.ObsoleteVersionSequenceId == Int32.MaxValue)
+                data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
 
             return base.UpdateInternal(context, data, principal);
         }

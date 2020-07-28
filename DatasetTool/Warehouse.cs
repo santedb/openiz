@@ -543,9 +543,10 @@ namespace OizDevTool
 
             try
             {
+
                 Console.WriteLine("Fetching planned events from {0:o} and {1:o}", fromDate, toDate);
-                var plannedEvents = warehouseService.AdhocQuery(
-                    String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
+
+                var query = String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
                                     FROM
 	                                    oizcp
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
@@ -555,11 +556,30 @@ namespace OizDevTool
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
 	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
 	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
-                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate));
+                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate);
+                if(!String.IsNullOrEmpty(parms.FacilityId))
+                    query = String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
+                                    FROM
+	                                    oizcp
+	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
+	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
+                                    WHERE
+	                                    act_date::DATE BETWEEN '{0:o}' AND '{1:o}'
+                                        AND location_id = '{2}'
+	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
+	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
+	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
+                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, parms.FacilityId);
+                var plannedEvents = warehouseService.AdhocQuery(query);
 
                 Console.WriteLine("There are {0} planned events which can receive messages for this timeframe", plannedEvents.Count());
 
-                var productRefs = productService.Query(o => o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal).ToDictionary(o => o.Key, o => o);
+                Dictionary<Guid, Material> productRefs = new Dictionary<Guid, Material>();
+                foreach (var itm in productService.Query(o => o.StatusConcept.Mnemonic == "ACTIVE" && o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal))
+                {
+                    if (!productRefs.ContainsKey(itm.Key.Value))
+                        productRefs.Add(itm.Key.Value, itm);
+                }
 
                 var template = File.ReadAllText(parms.TemplateFile ?? "AppointmentNotification.txt");
                 var problemTemplate = File.ReadAllText(parms.TemplateFile ?? "ProblemNotification.txt");

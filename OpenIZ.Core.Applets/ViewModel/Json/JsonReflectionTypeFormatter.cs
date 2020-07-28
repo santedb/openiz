@@ -97,7 +97,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                     retVal = new Dictionary<string, PropertyInfo>();
                     foreach (var pi in propertyType.GetRuntimeProperties().Where(o => o.CanWrite))
                     {
-                        var propertyName = GetPropertyName(pi);
+                        var propertyName = GetPropertyName(pi, true);
                         if (propertyName != null && !propertyName.StartsWith("$"))
                             retVal.Add(propertyName, pi);
                     }

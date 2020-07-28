@@ -57,8 +57,6 @@ namespace OpenIZ.BusinessRules.JavaScript
                         this.m_tracer.TraceInfo("Added rules from {0}", itm.Name);
                     }
 
-                OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.Current.Bridge.Serializer.LoadSerializerAssembly(typeof(ActExtensionViewModelSerializer).GetTypeInfo().Assembly);
-
                 //// Instruct the rules engine to load rules
                 //OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.EngineCreated += (o, e) =>
                 //{
