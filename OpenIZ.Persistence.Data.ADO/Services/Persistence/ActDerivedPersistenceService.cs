@@ -56,6 +56,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 
         /// <summary>
+        /// If the linked act exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return this.m_actPersister.Exists(context, key);
+        }
+
+        /// <summary>
         /// From model instance
         /// </summary>
         public override object FromModelInstance(TModel modelInstance, DataContext context, IPrincipal princpal)

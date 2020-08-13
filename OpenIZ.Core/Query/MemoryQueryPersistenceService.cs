@@ -112,7 +112,7 @@ namespace OpenIZ.Core.Query
             MemoryQueryInfo retVal = null;
             if (this.m_queryCache.TryGetValue(queryId, out retVal))
             {
-                this.m_tracer.TraceVerbose("Updating query {0} ({1} results)", queryId, results.Count());
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Updating query {0} ({1} results)", queryId, results.Count());
                 lock (retVal.Results)
                     retVal.Results.AddRange(results.Where(o => !retVal.Results.Contains(o.Id)).Select(o => o.Id).OfType<Object>());
 
@@ -175,14 +175,14 @@ namespace OpenIZ.Core.Query
                 MemoryQueryInfo retVal = null;
                 if (this.m_queryCache.TryGetValue(queryId, out retVal))
                 {
-                    this.m_tracer.TraceVerbose("Updating query {0} ({1} results)", queryId, results.Count());
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Updating query {0} ({1} results)", queryId, results.Count());
                     retVal.Results = results.Select(o => o.Id).OfType<Object>().ToList();
                     retVal.QueryTag = tag;
                     retVal.TotalResults = count;
                 }
                 else
                 {
-                    this.m_tracer.TraceVerbose("Registering query {0} ({1} results)", queryId, results.Count());
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Registering query {0} ({1} results)", queryId, results.Count());
 
                     this.m_queryCache.Add(queryId, new MemoryQueryInfo()
                     {

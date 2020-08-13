@@ -120,7 +120,7 @@ namespace OpenIZ.Core.Security.Audit
         /// <param name="auditIds"></param>
         public static void AuditAuditLogUsed(ActionType action, OutcomeIndicator outcome, String query, params Guid[] auditIds)
         {
-            traceSource.TraceVerbose("Create AuditLogUsed audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create AuditLogUsed audit");
             AuditData audit = new AuditData(DateTime.Now, action, outcome, EventIdentifierType.SecurityAlert, CreateAuditActionCode(EventTypeCodes.AuditLogUsed));
 
             // User actors
@@ -158,7 +158,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditSecurityCreationAction(IEnumerable<object> objects, bool success, IEnumerable<string> changedProperties)
         {
-            traceSource.TraceVerbose("Create SecurityCreationAction audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create SecurityCreationAction audit");
 
             var audit = new AuditData(DateTime.Now, ActionType.Create, success ? OutcomeIndicator.Success : OutcomeIndicator.EpicFail, EventIdentifierType.SecurityAlert, CreateAuditActionCode(EventTypeCodes.SecurityObjectChanged));
             AddDeviceActor(audit);
@@ -182,7 +182,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditDataAction<TData>(EventTypeCodes typeCode, ActionType action, AuditableObjectLifecycle lifecycle, EventIdentifierType eventType, OutcomeIndicator outcome, String queryPerformed, params TData[] data) where TData : IdentifiedData
         {
-            traceSource.TraceVerbose("Create AuditDataAction audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create AuditDataAction audit");
 
             AuditCode eventTypeId = CreateAuditActionCode(typeCode);
             AuditData audit = new AuditData(DateTime.Now, action, outcome, eventType, eventTypeId);
@@ -259,7 +259,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditSecurityDeletionAction(IEnumerable<Object> objects, bool success, IEnumerable<string> changedProperties)
         {
-            traceSource.TraceVerbose("Create SecurityDeletionAction audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create SecurityDeletionAction audit");
 
             var audit = new AuditData(DateTime.Now, ActionType.Delete, success ? OutcomeIndicator.Success : OutcomeIndicator.EpicFail, EventIdentifierType.SecurityAlert, CreateAuditActionCode(EventTypeCodes.SecurityObjectChanged));
             AddDeviceActor(audit);
@@ -283,7 +283,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditSecurityAttributeAction(IEnumerable<Object> objects, bool success, IEnumerable<string> changedProperties)
         {
-            traceSource.TraceVerbose("Create SecurityAttributeAction audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create SecurityAttributeAction audit");
 
             var audit = new AuditData(DateTime.Now, ActionType.Update, success ? OutcomeIndicator.Success : OutcomeIndicator.EpicFail, EventIdentifierType.SecurityAlert, CreateAuditActionCode(EventTypeCodes.SecurityAttributesChanged));
             AddDeviceActor(audit);
@@ -314,7 +314,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void SendAudit(AuditData audit)
         {
-            traceSource.TraceVerbose("Sending Audit - {0}", audit.CorrelationToken);
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Sending Audit - {0}", audit.CorrelationToken);
 
             ApplicationContext.Current.GetService<IThreadPoolService>().QueueUserWorkItem(o =>
             {
@@ -332,7 +332,7 @@ namespace OpenIZ.Core.Security.Audit
                         else
                             audit.EventTypeCode.DisplayName = concept.LoadCollection<ConceptName>("ConceptNames").FirstOrDefault()?.Name;
                     }
-                    traceSource.TraceVerbose("Mapped Audit Type Code - {0}-{1}-{2}", audit.EventTypeCode.CodeSystem, audit.EventTypeCode.Code, audit.EventTypeCode.DisplayName);
+                    traceSource.TraceEvent(TraceEventType.Verbose, 0, "Mapped Audit Type Code - {0}-{1}-{2}", audit.EventTypeCode.CodeSystem, audit.EventTypeCode.Code, audit.EventTypeCode.DisplayName);
 
                 }
 
@@ -412,7 +412,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditApplicationStartStop(EventTypeCodes eventType)
         {
-            traceSource.TraceVerbose("Create ApplicationStart audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create ApplicationStart audit");
 
             AuditData audit = new AuditData(DateTime.Now, ActionType.Execute, OutcomeIndicator.Success, EventIdentifierType.ApplicationActivity, CreateAuditActionCode(eventType));
             AddDeviceActor(audit);
@@ -426,7 +426,7 @@ namespace OpenIZ.Core.Security.Audit
         public static void AuditLogin(IPrincipal principal, String identityName, IIdentityProviderService identityProvider, bool successfulLogin = true)
         {
 
-            traceSource.TraceVerbose("Create Login audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create Login audit");
 
             AuditData audit = new AuditData(DateTime.Now, ActionType.Execute, successfulLogin ? OutcomeIndicator.Success : OutcomeIndicator.EpicFail, EventIdentifierType.UserAuthentication, CreateAuditActionCode(EventTypeCodes.Login));
             audit.Actors.Add(new AuditActorData()
@@ -462,7 +462,7 @@ namespace OpenIZ.Core.Security.Audit
             if (principal == null)
                 throw new ArgumentNullException(nameof(principal));
 
-            traceSource.TraceVerbose("Create Logout audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create Logout audit");
 
             AuditData audit = new AuditData(DateTime.Now, ActionType.Execute, OutcomeIndicator.Success, EventIdentifierType.UserAuthentication, CreateAuditActionCode(EventTypeCodes.Logout));
             audit.Actors.Add(new AuditActorData()
@@ -483,7 +483,7 @@ namespace OpenIZ.Core.Security.Audit
         /// </summary>
         public static void AuditRestrictedFunction(Exception ex, Uri url)
         {
-            traceSource.TraceVerbose("Create RestrictedFunction audit");
+            traceSource.TraceEvent(TraceEventType.Verbose, 0, "Create RestrictedFunction audit");
 
             AuditData audit = new AuditData(DateTime.Now, ActionType.Execute, OutcomeIndicator.EpicFail, EventIdentifierType.SecurityAlert, CreateAuditActionCode(EventTypeCodes.UseOfARestrictedFunction));
             AddUserActor(audit);

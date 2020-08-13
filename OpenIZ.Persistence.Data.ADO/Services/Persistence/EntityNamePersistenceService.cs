@@ -96,6 +96,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             // Ensure exists
             if (data.NameUse != null) data.NameUse = data.NameUse?.EnsureExists(context, principal) as Concept;
             data.NameUseKey = data.NameUse?.Key ?? data.NameUseKey;
+            
             var retVal = base.InsertInternal(context, data, principal);
 
             // Data component
@@ -120,8 +121,6 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.NameUseKey = data.NameUse?.Key ?? data.NameUseKey;
 
             var retVal = base.UpdateInternal(context, data, principal);
-
-            var sourceKey = data.Key.Value.ToByteArray();
 
             // Data component
             if (data.Component != null)

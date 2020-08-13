@@ -51,6 +51,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
 
         /// <summary>
+        /// Exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key) => false;
+
+        /// <summary>
         /// From model instance
         /// </summary>
         public override object FromModelInstance(Bundle modelInstance, DataContext context, IPrincipal principal)
@@ -163,7 +168,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 var svc = ApplicationContext.Current.GetService(idp);
 				var method = "Insert";
 
-	            if (itm.TryGetExisting(context, principal, true) != null)
+	            if (itm.CheckExists(context))
 					method = "Update";
 
                 this.m_tracer.TraceInformation("Will {0} object from bundle {1}...", method, itm);

@@ -129,6 +129,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             if (data.ObsoleteVersionSequenceId == Int32.MaxValue)
                 data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
 
+            // Duplicate check 
+            var existing = context.FirstOrDefault<DbActParticipation>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.PlayerEntityKey && r.ParticipationRoleKey == data.ParticipationRoleKey && !r.ObsoleteVersionSequenceId.HasValue);
+            if (existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
+            {
+                existing.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence;
+                if (existing.ObsoleteVersionSequenceId.HasValue)
+                    context.Update(existing);
+                else
+                {
+                    this.m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Warning, 9382, "ActParticipation {0} would conflict with existing {1} -> {2} (role {3}, quantity {4}) already exists and this update would violate unique constraint.", data, existing.SourceKey, existing.TargetKey, existing.ParticipationRoleKey, existing.Quantity);
+                    existing.ObsoleteVersionSequenceId = 1;
+                    context.Update(existing);
+                }
+            }
+
             return base.UpdateInternal(context, data, principal);
         }
 

@@ -56,6 +56,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         /// Map to model instance
         /// </summary>
         Object ToModelInstance(object domainInstance, DataContext context, IPrincipal principal);
+
+        /// <summary>
+        /// Determine if existing object exists
+        /// </summary>
+        bool Exists(DataContext context, Guid guid);
     }
 
     /// <summary>

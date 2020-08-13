@@ -142,13 +142,13 @@ namespace OpenIZ.Core.Model
 		/// <summary>
 		/// Update property data if required
 		/// </summary>
-		public static void CopyObjectData<TObject>(this TObject toEntity, TObject fromEntity)
+		public static void CopyObjectData<TObject>(this TObject toEntity, TObject fromEntity, bool checkTypes = true)
 		{
 			if (toEntity == null)
 				throw new ArgumentNullException(nameof(toEntity));
 			else if (fromEntity == null)
 				throw new ArgumentNullException(nameof(fromEntity));
-			else if (!fromEntity.GetType().GetTypeInfo().IsAssignableFrom(toEntity.GetType().GetTypeInfo()))
+			else if (checkTypes && !fromEntity.GetType().GetTypeInfo().IsAssignableFrom(toEntity.GetType().GetTypeInfo()))
 				throw new ArgumentException($"Type mismatch {toEntity.GetType().FullName} != {fromEntity.GetType().FullName}", nameof(fromEntity));
 
 			PropertyInfo[] properties = null;

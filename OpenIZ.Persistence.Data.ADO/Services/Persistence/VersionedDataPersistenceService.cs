@@ -59,6 +59,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     {
 
         /// <summary>
+        /// Return true if the specified object exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return context.Any<TDomainKey>(o => o.Key == key);
+        }
+
+        /// <summary>
         /// Insert the data
         /// </summary>
         public override TModel InsertInternal(DataContext context, TModel data, IPrincipal principal)
@@ -101,7 +109,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 data.CreationTime = DateTimeOffset.Now;
             domainObject.CreationTime = data.CreationTime;
             domainObject.VersionSequenceId = null;
-
+            domainObject.ObsoletionTime = null;
+            domainObject.ObsoletedByKey = null;
             if (m_configuration.AutoUpdateExisting &&
                 context.Any<TDomain>(o => o.Key == domainObject.Key))
             {
@@ -171,6 +180,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             context.Update(existingObject);
 
+            // There must always be an active version
+            newEntityVersion.ObsoletedByKey = null;
+            newEntityVersion.ObsoletionTime = null;
             newEntityVersion = context.Insert<TDomain>(newEntityVersion);
             nonVersionedObect = context.Update<TDomainKey>(nonVersionedObect);
 
@@ -463,7 +475,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     eftVersion = source.VersionSequence.GetValueOrDefault();
                 ins.EffectiveVersionSequenceId = eftVersion;
 
-                persistenceService.InsertInternal(context, ins, principal);
+                if (ins.Key.HasValue && persistenceService.Get(context, ins.Key.Value, principal) != null)
+                    persistenceService.UpdateInternal(context, ins, principal);
+                else
+                    persistenceService.InsertInternal(context, ins, principal);
             }
         }
     }

@@ -125,5 +125,6 @@ namespace OpenIZ.Core.Model.Entities
 				this.Lng == other.Lng &&
 				this.Services?.SemanticEquals(other.Services) == true;
 		}
-	}
+
+    }
 }

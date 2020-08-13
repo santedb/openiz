@@ -77,6 +77,22 @@ namespace OpenIZ.Persistence.Data.ADO.Data
         private static Dictionary<String, Guid> m_userIdCache = new Dictionary<string, Guid>();
 
         /// <summary>
+        /// Try get by classifier
+        /// </summary>
+        public static bool CheckExists(this IIdentifiedEntity me, DataContext context)
+        {
+
+            // Is there a classifier?
+            var idpInstance = AdoPersistenceService.GetPersister(me.GetType()) as IAdoPersistenceService;
+
+            if (me.Key.HasValue && me.Key != Guid.Empty)
+                return idpInstance.Exists(context, me.Key.GetValueOrDefault());
+            else
+                return false;
+        }
+
+
+        /// <summary>
         /// Get fields
         /// </summary>
         private static FieldInfo[] GetFields(Type type)

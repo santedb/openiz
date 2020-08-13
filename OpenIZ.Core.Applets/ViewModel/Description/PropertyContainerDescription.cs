@@ -82,7 +82,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Description
             PropertyModelDescription model = null;
             if(!this.m_properties.TryGetValue(name, out model))
             {
-                model = this.Properties.FirstOrDefault(o => o.Name == name);
+                model = this.Properties.ToArray().FirstOrDefault(o => o.Name == name);
                 lock (this.m_properties)
                     if (!this.m_properties.ContainsKey(name))
                         this.m_properties.Add(name, model);

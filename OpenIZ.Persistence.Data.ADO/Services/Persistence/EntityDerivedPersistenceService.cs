@@ -93,6 +93,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         }
 
         /// <summary>
+        /// If the linked act exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return this.m_entityPersister.Exists(context, key);
+        }
+
+        /// <summary>
         /// Update the specified TModel
         /// </summary>
         public override TModel UpdateInternal(DataContext context, TModel data, IPrincipal principal)

@@ -20,12 +20,14 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Persistence.Data.ADO.Data.Model;
 using System.Security.Principal;
+using OpenIZ.Core.Model;
 using OpenIZ.Persistence.Data.ADO.Data.Model.Entities;
 using OpenIZ.Persistence.Data.ADO.Data;
 using OpenIZ.OrmLite;
@@ -113,7 +115,20 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public override Core.Model.Entities.Person UpdateInternal(DataContext context, Core.Model.Entities.Person data, IPrincipal principal)
         {
+            // Re-route
+            var currentVersion = context.FirstOrDefault<DbEntityVersion>(o => o.Key == data.Key.Value && !o.ObsoletionTime.HasValue);
+            var dbUe = context.FirstOrDefault<DbUserEntity>(o => o.ParentKey == currentVersion.VersionKey);
+            if (!(data is UserEntity) && currentVersion != null && dbUe != null) {
+                this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Attempted to convert UE to Person, don't do this - Ignoring this update");
+                var ue = new UserEntity();
+                ue.CopyObjectData(data, false);
+                ue.SecurityUserKey = dbUe.SecurityUserKey;
+
+                return ue;
+            }
+
             var retVal = base.UpdateInternal(context, data, principal);
+
             var sourceKey = retVal.Key.Value.ToByteArray();
 
             // Language communication

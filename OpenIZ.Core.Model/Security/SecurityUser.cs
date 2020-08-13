@@ -113,7 +113,6 @@ namespace OpenIZ.Core.Model.Security
         [XmlElement("photo"), JsonProperty("photo")]
         public byte[] UserPhoto { get; set; }
         
-
         /// <summary>
         /// The last login time
         /// </summary>
@@ -160,6 +159,13 @@ namespace OpenIZ.Core.Model.Security
         [XmlElement("userClass"), JsonProperty("userClass")]
         [Binding(typeof(UserClassKeys))]
         public Guid UserClass { get; set; }
+
+
+        /// <summary>
+        /// Link from this security resource to an entity resource 
+        /// </summary>
+        [XmlIgnore, QueryParameter("userEntity"), JsonIgnore]
+        public UserEntity UserEntity { get; set; }
 
         /// <summary>
         /// Gets the etag

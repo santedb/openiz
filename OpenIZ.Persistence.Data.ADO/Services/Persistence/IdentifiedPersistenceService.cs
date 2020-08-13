@@ -56,6 +56,15 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         where TDomain : class, IDbIdentified, new()
     {
 
+
+        /// <summary>
+        /// Return true if the specified object exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return context.Any<TDomain>(o => o.Key == key);
+        }
+
         #region implemented abstract members of LocalDataPersistenceService
 
 

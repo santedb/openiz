@@ -93,6 +93,9 @@
     <Compile Include="CsdImport.Provider.cs" />
     <Compile Include="Dataset.cs" />
     <None Include="app.config" />
+    <None Include="DefaulterNotification.sms">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="Debugger\BreDebugger.cs" />
     <None Include="Debugger\Debug.cs" />
     <Compile Include="Debugger\ProtoDebugger.cs" />
@@ -102,6 +105,10 @@
     <Compile Include="ImsiServiceClient.cs" />
     <Compile Include="InteractiveBase.cs" />
     <Compile Include="LogUtil.cs" />
+    <Compile Include="Notifications\DefaultersNotification.cs" />
+    <Compile Include="Notifications\INotificationProcess.cs" />
+    <Compile Include="Notifications\NotificationUtils.cs" />
+    <Compile Include="Notifications\SchedulingNotification.cs" />
     <Compile Include="ServiceManager.cs" />
     <Compile Include="Warehouse.cs" />
     <Compile Include="ExampleAttribute.cs" />
@@ -201,12 +208,12 @@
     <EmbeddedResource Include="Resources\CarePlanWarehouseSchema.xml">
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <Content Include="ProblemNotification.txt">
+    <None Include="ProblemNotification.sms">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="AppointmentNotification.txt">
+    </None>
+    <None Include="AppointmentNotification.sms">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    </None>
     <Content Include="SeedData.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

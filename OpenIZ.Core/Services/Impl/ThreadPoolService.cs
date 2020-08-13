@@ -78,9 +78,9 @@ namespace OpenIZ.Core.Services.Impl
         {
             Thread thd = new Thread(new ParameterizedThreadStart((o) =>
             {
-                this.m_traceSource.TraceVerbose("NPWI THREAD START: {0}({1})", action, o);
+                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD START: {0}({1})", action, o);
                 action(o);
-                this.m_traceSource.TraceVerbose("NPWI THREAD STOP: {0}({1})", action, o);
+                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD STOP: {0}({1})", action, o);
             }));
             thd.IsBackground = true;
             thd.Name = $"OpenIZBackground-{action}";
@@ -97,9 +97,9 @@ namespace OpenIZ.Core.Services.Impl
             {
                 try
                 {
-                    this.m_traceSource.TraceVerbose("THREAD START: {0}({1})", action, o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
                     action(o);
-                    this.m_traceSource.TraceVerbose("THREAD STOP: {0}({1})", action, o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
@@ -116,9 +116,9 @@ namespace OpenIZ.Core.Services.Impl
             this.m_threadPool.QueueUserWorkItem((o) => {
                 try
                 {
-                    this.m_traceSource.TraceVerbose("THREAD START: {0}({1})", action, o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
                     action(o);
-                    this.m_traceSource.TraceVerbose("THREAD STOP: {0}({1})", action, o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
