@@ -185,7 +185,7 @@ namespace OpenIZ.Core.Model.Query
                     {
                         memberInfo = accessExpression.Type.GetRuntimeProperties().FirstOrDefault(p => p.GetCustomAttributes<XmlElementAttribute>()?.Any(a => a.ElementName == pMember) == true || p.GetCustomAttribute<QueryParameterAttribute>()?.ParameterName == pMember);
                         if (memberInfo == null)
-                            throw new ArgumentOutOfRangeException(currentValue.Key);
+                            throw new ArgumentOutOfRangeException(currentValue.Key, $"Property {currentValue.Key} could not be found on {accessExpression.Type.FullName}"); 
 
                         // Member cache
                         lock (memberCache)
@@ -196,7 +196,7 @@ namespace OpenIZ.Core.Model.Query
                     // Handle XML props
                     if (memberInfo.Name.EndsWith("Xml"))
                         memberInfo = accessExpression.Type.GetRuntimeProperty(memberInfo.Name.Replace("Xml", ""));
-                    else if (pMember != memberPath.Last())
+                    else if (i != memberPath.Length - 1)
                     {
                         PropertyInfo backingFor = null;
 

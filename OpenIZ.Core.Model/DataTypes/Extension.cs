@@ -148,7 +148,8 @@ namespace OpenIZ.Core.Model.DataTypes
             set
             {
                 this.m_extensionType = value;
-                this.m_extensionTypeKey = value?.Key;
+                if(value != null)
+                    this.m_extensionTypeKey = value?.Key;
             }
         }
 

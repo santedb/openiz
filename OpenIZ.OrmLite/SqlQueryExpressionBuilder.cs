@@ -20,6 +20,7 @@
 using OpenIZ.OrmLite.Providers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -376,15 +377,24 @@ namespace OpenIZ.OrmLite
                             case ExpressionType.Constant:
                             case ExpressionType.TypeAs:
                             case ExpressionType.MemberAccess:
-                                // Ok, this is a constant member access.. so ets get the value
                                 var cons = this.GetConstantValue(expr);
-                                if (node.Member is PropertyInfo)
-                                    this.m_sqlStatement.Append(" ? ", (node.Member as PropertyInfo).GetValue(cons));
-                                else if (node.Member is FieldInfo)
-                                    this.m_sqlStatement.Append(" ? ", (node.Member as FieldInfo).GetValue(cons));
-                                else
-                                    throw new NotSupportedException();
-                                break;
+
+                                try
+                                {
+                                    // Ok, this is a constant member access.. so ets get the value
+                                    if (node.Member is PropertyInfo)
+                                        this.m_sqlStatement.Append(" ? ", (node.Member as PropertyInfo).GetValue(cons));
+                                    else if (node.Member is FieldInfo)
+                                        this.m_sqlStatement.Append(" ? ", (node.Member as FieldInfo).GetValue(cons));
+                                    else
+                                        throw new NotSupportedException();
+                                    break;
+                                }
+                                catch (Exception e)
+                                {
+                                    Trace.TraceError("Error making member access: {0} on {1} ({2})", node.Member.Name, cons, expr);
+                                    throw;
+                                }
                         }
                     }
                     else // constant expression

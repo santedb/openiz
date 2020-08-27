@@ -64,6 +64,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			retVal.Active = model.StatusConceptKey == StatusKeys.Active;
 			retVal.Address = model.LoadCollection<EntityAddress>("Addresses").Select(o => DataTypeConverter.ToFhirAddress(o)).ToList();
 			retVal.BirthDate = model.DateOfBirth;
+            retVal.BirthDate.Precision = model.DateOfBirthPrecision == DatePrecision.Day ? MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes.DatePrecision.Day : MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes.DatePrecision.Month;
 			retVal.Deceased = model.DeceasedDate == DateTime.MinValue ? (object)new FhirBoolean(true) : model.DeceasedDate != null ? new FhirDate(model.DeceasedDate.Value) : null;
 			retVal.Gender = DataTypeConverter.ToFhirCodeableConcept(model.LoadProperty<Concept>("GenderConcept"))?.GetPrimaryCode()?.Code;
 			retVal.Identifier = model.Identifiers?.Select(o => DataTypeConverter.ToFhirIdentifier(o)).ToList();

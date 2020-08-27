@@ -139,7 +139,6 @@ namespace OpenIZ.Warehouse.ADO
                 catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error while adding data to {0}: {1}", datamartId, e);
-                    context.Transaction.Commit();
                     throw;
                 }
             }

@@ -117,14 +117,18 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             // Re-route
             var currentVersion = context.FirstOrDefault<DbEntityVersion>(o => o.Key == data.Key.Value && !o.ObsoletionTime.HasValue);
-            var dbUe = context.FirstOrDefault<DbUserEntity>(o => o.ParentKey == currentVersion.VersionKey);
-            if (!(data is UserEntity) && currentVersion != null && dbUe != null) {
-                this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Attempted to convert UE to Person, don't do this - Ignoring this update");
-                var ue = new UserEntity();
-                ue.CopyObjectData(data, false);
-                ue.SecurityUserKey = dbUe.SecurityUserKey;
+            if (currentVersion != null)
+            {
+                var dbUe = context.FirstOrDefault<DbUserEntity>(o => o.ParentKey == currentVersion.VersionKey);
+                if (!(data is UserEntity) && currentVersion != null && dbUe != null)
+                {
+                    this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Attempted to convert UE to Person, don't do this - Ignoring this update");
+                    var ue = new UserEntity();
+                    ue.CopyObjectData(data, false);
+                    ue.SecurityUserKey = dbUe.SecurityUserKey;
 
-                return ue;
+                    return ue;
+                }
             }
 
             var retVal = base.UpdateInternal(context, data, principal);

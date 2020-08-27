@@ -32,8 +32,11 @@ namespace OizDevTool.Notifications
             {
 
                 // Here the date is the date we want messages sent, so we add days
-                DateTime fromDate = refDate.AddDays(2),
-                    toDate = refDate.AddDays(3);
+                DateTime fromDate = refDate.AddDays(2).Date,
+                    toDate = refDate.AddDays(3).Date;
+                var timezone = TimeZone.CurrentTimeZone.GetUtcOffset(DateTime.Now);
+                var ctz = $"{(timezone.Hours < 0 ? "" : "+")}{timezone.Hours:00}:{timezone.Minutes:00}";
+                
 
                 var warehouseService = ApplicationContext.Current.GetService<IAdHocDatawarehouseService>();
                 var placeService = ApplicationContext.Current.GetService<IDataPersistenceService<Place>>() as IStoredQueryDataPersistenceService<Place>;
@@ -43,7 +46,7 @@ namespace OizDevTool.Notifications
                 var roleService = ApplicationContext.Current.GetService<IRoleProviderService>();
                 var securityService = ApplicationContext.Current.GetService<ISecurityRepositoryService>();
 
-                Console.WriteLine("Fetching planned events from {0:o} and {1:o}", fromDate, toDate);
+                Console.WriteLine("Fetching planned events from {0:o} and {1:o} in TZ {2}", fromDate.Date, toDate.Date,ctz);
 
                 var query = String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
                                     FROM
@@ -51,11 +54,11 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
-	                                    act_date::DATE BETWEEN '{0:o}' AND '{1:o}'
+	                                    (act_date at time zone '{2}')::DATE BETWEEN '{0:o}' AND '{1:o}'
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
 	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
 	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
-                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate);
+                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, ctz);
                 if (!String.IsNullOrEmpty(facilityId))
                     query = String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
                                     FROM
@@ -63,12 +66,12 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
-	                                    act_date::DATE BETWEEN '{0:o}' AND '{1:o}'
+	                                    (act_date at time zone '{3}')::DATE BETWEEN '{0:o}' AND '{1:o}'
                                         AND location_id = '{2}'
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
 	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
 	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
-                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, facilityId);
+                                    GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, facilityId, ctz);
                 var plannedEvents = warehouseService.AdhocQuery(query);
 
                 Console.WriteLine("There are {0} planned events which can receive messages for this timeframe", plannedEvents.Count());

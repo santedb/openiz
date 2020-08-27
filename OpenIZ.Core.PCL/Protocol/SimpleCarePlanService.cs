@@ -34,6 +34,7 @@ using OpenIZ.Core.Model.EntityLoader;
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Model.Entities;
+using System.Collections.Concurrent;
 
 namespace OpenIZ.Core.Protocol
 {
@@ -112,7 +113,7 @@ namespace OpenIZ.Core.Protocol
         // Protocols 
         private List<IClinicalProtocol> m_protocols = new List<IClinicalProtocol>();
         // Care plan loading promise dictionary (prevents double-loading of patients)
-        private Dictionary<Guid, Patient> m_patientPromise = new Dictionary<Guid, Patient>();
+        private ConcurrentDictionary<Guid, Patient> m_patientPromise = new ConcurrentDictionary<Guid, Patient>();
 
         /// <summary>
         /// Constructs the aggregate care planner
@@ -193,62 +194,61 @@ namespace OpenIZ.Core.Protocol
                     isCurrentProcessing = this.m_patientPromise.TryGetValue(p.Key.Value, out currentProcessing);
                 if (p.Key.HasValue && !isCurrentProcessing)
                 {
-                    lock (this.m_patientPromise)
-                        if (!this.m_patientPromise.TryGetValue(p.Key.Value, out currentProcessing))
+                    if (!this.m_patientPromise.TryGetValue(p.Key.Value, out currentProcessing))
+                    {
+                        currentProcessing = p.Copy() as Patient;
+
+                        // Are the participations of the patient null?
+                        if (p.Participations.Count == 0 && p.VersionKey.HasValue)
                         {
-                            currentProcessing = p.Copy() as Patient;
+                            p.Participations = EntitySource.Current.Provider.Query<Act>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key) &&
+                                o.StatusConceptKey != StatusKeys.Nullified && o.StatusConceptKey != StatusKeys.Obsolete && o.StatusConceptKey != StatusKeys.Cancelled).OfType<Act>()
+                                .Select(a =>
+                                new ActParticipation()
+                                {
+                                    Act = a,
+                                    ParticipationRole = new Concept() { Mnemonic = "RecordTarget" },
+                                    PlayerEntity = currentProcessing
+                                }).ToList();
 
-                            // Are the participations of the patient null?
-                            if (p.Participations.Count == 0 && p.VersionKey.HasValue)
-                            {
-                                p.Participations = EntitySource.Current.Provider.Query<Act>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key) &&
-                                    o.StatusConceptKey != StatusKeys.Nullified && o.StatusConceptKey != StatusKeys.Obsolete && o.StatusConceptKey != StatusKeys.Cancelled).OfType<Act>()
-                                    .Select(a =>
-                                    new ActParticipation()
-                                    {
-                                        Act = a,
-                                        ParticipationRole = new Concept() { Mnemonic = "RecordTarget" },
-                                        PlayerEntity = currentProcessing
-                                    }).ToList();
-
-                                //EntitySource.Current.Provider.Query<SubstanceAdministration>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key)).OfType<Act>()
-                                //    .Union(EntitySource.Current.Provider.Query<QuantityObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
-                                //    .Union(EntitySource.Current.Provider.Query<CodedObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
-                                //    .Union(EntitySource.Current.Provider.Query<TextObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
-                                //    .Union(EntitySource.Current.Provider.Query<PatientEncounter>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
+                            //EntitySource.Current.Provider.Query<SubstanceAdministration>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key)).OfType<Act>()
+                            //    .Union(EntitySource.Current.Provider.Query<QuantityObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
+                            //    .Union(EntitySource.Current.Provider.Query<CodedObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
+                            //    .Union(EntitySource.Current.Provider.Query<TextObservation>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
+                            //    .Union(EntitySource.Current.Provider.Query<PatientEncounter>(o => o.Participations.Where(g => g.ParticipationRole.Mnemonic == "RecordTarget").Any(g => g.PlayerEntityKey == currentProcessing.Key))).OfType<Act>()
                                     
-                                (ApplicationServiceContext.Current.GetService(typeof(IDataCachingService)) as IDataCachingService)?.Add(p);
-                            }
-                            currentProcessing.Participations = new List<ActParticipation>(p.Participations);
-
-                            // The record target here is also a record target for any /relationships
-                            // TODO: I think this can be removed no?
-                            //currentProcessing.Participations = currentProcessing.Participations.Union(currentProcessing.Participations.SelectMany(pt =>
-                            //{
-                            //    if (pt.Act == null)
-                            //        pt.Act = EntitySource.Current.Get<Act>(pt.ActKey);
-                            //    return pt.Act?.Relationships?.Select(r =>
-                            //    {
-                            //        var retVal = new ActParticipation(ActParticipationKey.RecordTarget, currentProcessing)
-                            //        {
-                            //            ActKey = r.TargetActKey,
-                            //            ParticipationRole = new Model.DataTypes.Concept() { Mnemonic = "RecordTarget", Key = ActParticipationKey.RecordTarget }
-                            //        };
-                            //        if (r.TargetAct != null)
-                            //            retVal.Act = r.TargetAct;
-                            //        else
-                            //        {
-                            //            retVal.Act = currentProcessing.Participations.FirstOrDefault(o=>o.ActKey == r.TargetActKey)?.Act ?? EntitySource.Current.Get<Act>(r.TargetActKey);
-                            //        }
-                            //        return retVal;
-                            //    }
-                            //    );
-                            //})).ToList();
-
-                            // Add to the promised patient
-                            this.m_patientPromise.Add(p.Key.Value, currentProcessing);
-
+                            (ApplicationServiceContext.Current.GetService(typeof(IDataCachingService)) as IDataCachingService)?.Add(p);
                         }
+                        currentProcessing.Participations = new List<ActParticipation>(p.Participations);
+
+                        // The record target here is also a record target for any /relationships
+                        // TODO: I think this can be removed no?
+                        //currentProcessing.Participations = currentProcessing.Participations.Union(currentProcessing.Participations.SelectMany(pt =>
+                        //{
+                        //    if (pt.Act == null)
+                        //        pt.Act = EntitySource.Current.Get<Act>(pt.ActKey);
+                        //    return pt.Act?.Relationships?.Select(r =>
+                        //    {
+                        //        var retVal = new ActParticipation(ActParticipationKey.RecordTarget, currentProcessing)
+                        //        {
+                        //            ActKey = r.TargetActKey,
+                        //            ParticipationRole = new Model.DataTypes.Concept() { Mnemonic = "RecordTarget", Key = ActParticipationKey.RecordTarget }
+                        //        };
+                        //        if (r.TargetAct != null)
+                        //            retVal.Act = r.TargetAct;
+                        //        else
+                        //        {
+                        //            retVal.Act = currentProcessing.Participations.FirstOrDefault(o=>o.ActKey == r.TargetActKey)?.Act ?? EntitySource.Current.Get<Act>(r.TargetActKey);
+                        //        }
+                        //        return retVal;
+                        //    }
+                        //    );
+                        //})).ToList();
+
+                        // Add to the promised patient
+                        this.m_patientPromise.TryAdd(p.Key.Value, currentProcessing);
+
+                    }
                 }
                 else if (!p.Key.HasValue) // Not persisted
                     currentProcessing = p.Clone() as Patient;
@@ -261,8 +261,10 @@ namespace OpenIZ.Core.Protocol
                 parmDict.Remove("runProtocols");
 
                 List<Act> protocolActs = new List<Act>();
-                lock (currentProcessing)
-                {
+                
+                // Not sure we need to lock current processing
+                //lock (currentProcessing)
+                //{
                     var thdPatient = currentProcessing.Copy() as Patient;
                     thdPatient.Participations = new List<ActParticipation>(currentProcessing.Participations.ToList().Where(o=>o.Act?.MoodConceptKey != ActMoodKeys.Propose && o.Act?.StatusConceptKey != StatusKeys.Nullified && o.Act?.StatusConceptKey != StatusKeys.Obsolete && o.Act?.StatusConceptKey != StatusKeys.Cancelled));
 
@@ -278,8 +280,8 @@ namespace OpenIZ.Core.Protocol
                                 itmPtcpt.LoadProperty<Entity>("PlayerEntity").LoadProperty<Concept>("MoodConcept");
                             };
                         }
-                    protocolActs = execProtocols.AsParallel().AsOrdered().WithDegreeOfParallelism(2).SelectMany(o => o.Calculate(thdPatient, parmDict)).OrderBy(o => o.StopTime - o.StartTime).ToList();
-                }
+                    protocolActs = execProtocols.AsParallel().AsOrdered().WithDegreeOfParallelism(Environment.ProcessorCount / 2).SelectMany(o => o.Calculate(thdPatient, parmDict)).OrderBy(o => o.StopTime - o.StartTime).ToList();
+                //}
 
                 // Current processing 
                 if (asEncounters)
@@ -369,7 +371,7 @@ namespace OpenIZ.Core.Protocol
             {
                 lock (m_patientPromise)
                     if(p.Key.HasValue && this.m_patientPromise.ContainsKey(p.Key.Value))
-                        m_patientPromise.Remove(p.Key.Value);
+                        m_patientPromise.TryRemove(p.Key.Value, out Patient value);
             }
         }
 

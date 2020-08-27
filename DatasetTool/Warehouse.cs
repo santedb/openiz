@@ -112,6 +112,10 @@ namespace OizDevTool
             [Description("Sets the number of concurrent plans to generate")]
             public String Concurrency { get; set; }
 
+            [Parameter("missing")]
+            [Description("Indicates that the care planner should only calculate for patients who don't have a care plan")]
+            public bool Missing { get; set; }
+
         }
 
         /// <summary>
@@ -589,7 +593,7 @@ namespace OizDevTool
             var warehousePatients = warehouseService.StoredQuery(dataMart.Id, "consistency", new { }, out tq);
             tq = 0;
             Guid queryId = Guid.NewGuid();
-            WaitThreadPool wtp = new WaitThreadPool(String.IsNullOrEmpty(parms.Concurrency) ? Environment.ProcessorCount : Int32.Parse(parms.Concurrency));
+            WaitThreadPool wtp = new WaitThreadPool(String.IsNullOrEmpty(parms.Concurrency) ? Environment.ProcessorCount  : Int32.Parse(parms.Concurrency));
             DateTime start = DateTime.Now;
 
             // Type filters
@@ -637,6 +641,15 @@ namespace OizDevTool
             });
             doodadTask.Start();
 
+            // Process missing patients
+            if(parms.Missing)
+            {
+                var missingPatients = warehouseService.AdhocQuery("SELECT DISTINCT pat_id FROM pat_tbl WHERE NOT EXISTS (SELECT 1 FROM oizcp WHERE patient_id = pat_id)");
+                parms.PatientId = new StringCollection();
+                parms.PatientId.AddRange(missingPatients.Select(o => $"{o.pat_id}").ToArray());
+            }
+
+            // Loop until we've read all patients
             var otr = tr;
             while (ofs < tr)
             {
@@ -653,22 +666,21 @@ namespace OizDevTool
                 if (!String.IsNullOrEmpty(parms.FacilityId))
                 {
                     Guid facId = Guid.Parse(parms.FacilityId);
-                    prodPatients = patientPersistence.Query(o => o.Relationships.Where(g => g.RelationshipType.Mnemonic == "DedicatedServiceDeliveryLocation").Any(r => r.TargetEntityKey == facId), queryId, ofs, 250, AuthenticationContext.SystemPrincipal, out tr);
+                    prodPatients = patientPersistence.Query(o => o.Relationships.Where(g => g.RelationshipType.Mnemonic == "DedicatedServiceDeliveryLocation").Any(r => r.TargetEntityKey == facId), queryId, ofs, Environment.ProcessorCount * 4, AuthenticationContext.SystemPrincipal, out tr);
                 }
                 else if (parms.PatientId?.Count > 0)
                 {
-                    prodPatients = parms.PatientId.OfType<String>().Select(o => patientPersistence.Get(new Identifier<Guid>(Guid.Parse(o)), AuthenticationContext.SystemPrincipal, false));
-                    ofs = parms.PatientId.Count;
+                    prodPatients = parms.PatientId.OfType<String>().Skip(ofs).Take(Environment.ProcessorCount * 4).Select(o => patientPersistence.Get(new Identifier<Guid>(Guid.Parse(o)), AuthenticationContext.SystemPrincipal, false)).ToArray();
                     tr = parms.PatientId.Count;
                 }
                 else
                 {
                     // New patients directly modified
                     if (!lastRefresh.HasValue)
-                        prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE", queryId, ofs, 250, AuthenticationContext.SystemPrincipal, out tr);
+                        prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE", queryId, ofs, Environment.ProcessorCount * 4, AuthenticationContext.SystemPrincipal, out tr);
                     else
                         // Patients who have had any participation which has modified them
-                        prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE" && o.Participations.Any(p => p.Act.ModifiedOn > lastRefresh), queryId, ofs, 250, AuthenticationContext.SystemPrincipal, out tr);
+                        prodPatients = patientPersistence.Query(o => o.StatusConcept.Mnemonic != "OBSOLETE" && o.Participations.Any(p => p.Act.ModifiedOn > lastRefresh), queryId, ofs, Environment.ProcessorCount * 4, AuthenticationContext.SystemPrincipal, out tr);
 
                 }
 

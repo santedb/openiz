@@ -277,6 +277,8 @@ namespace OpenIZ.Messaging.FHIR.Util
                 retVal.Value = new FhirString((String)(ext.Value ?? new StringExtensionHandler().DeSerialize(ext.Data)));
             else if (ext.Value is Boolean || eType.ExtensionHandler == typeof(BooleanExtensionHandler))
                 retVal.Value = new FhirBoolean((bool)(ext.Value ?? new BooleanExtensionHandler().DeSerialize(ext.Data)));
+            else if (ext.Value is Concept concept)
+                retVal.Value = ToFhirCodeableConcept(concept);
             else
                 retVal.Value = new FhirBase64Binary(ext.Data);
             return retVal;
@@ -536,12 +538,22 @@ namespace OpenIZ.Messaging.FHIR.Util
 			}
 
             if (String.IsNullOrEmpty(preferredCodeSystem))
-                return new FhirCodeableConcept
-                {
-                    Coding = concept.LoadCollection<ConceptReferenceTerm>(nameof(Concept.ReferenceTerms)).Select(o => DataTypeConverter.ToCoding(o.LoadProperty<ReferenceTerm>(nameof(ConceptReferenceTerm.ReferenceTerm)))).ToList(),
-                    Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
-                };
-            else {
+            {
+                var refTerms = concept.LoadCollection<ConceptReferenceTerm>(nameof(Concept.ReferenceTerms));
+                if (refTerms.Any())
+                    return new FhirCodeableConcept
+                    {
+                        Coding = refTerms.Select(o => DataTypeConverter.ToCoding(o.LoadProperty<ReferenceTerm>(nameof(ConceptReferenceTerm.ReferenceTerm)))).ToList(),
+                        Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
+                    };
+                else
+                    return new FhirCodeableConcept(new Uri("http://openiz.org/concept"), concept.Mnemonic)
+                    {
+                        Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
+                    };
+            }
+            else
+            {
                 var codeSystemService = ApplicationContext.Current.GetService<IConceptRepositoryService>();
                 var refTerm = codeSystemService.GetConceptReferenceTerm(concept.Key.Value, preferredCodeSystem);
                 if (refTerm == null) // No code in the preferred system, ergo, we will instead use our own
