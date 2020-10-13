@@ -276,19 +276,45 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Data\SQL\PSQL\openiz-vws.sql" />
-    <Content Include="Data\SQL\Updates\20180126-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20181113-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20190322-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20190522-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20180131-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171023-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171011-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171003-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20170913-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171016-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171124-PSQL.sql" />
-    <EmbeddedResource Include="Data\SQL\Updates\20171108-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\20180126-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20181113-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20190322-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20190522-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20180131-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171023-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171011-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171003-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20170913-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171016-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171124-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171108-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

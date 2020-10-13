@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>You e-mail address has changed!</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }},</strong></p>
+      <p>This is a notification to inform you that your e-mail address has been changed by {{ $authenticatedUser }} to this new address. You should receive an e-mail at your old address (<a href="mailto:{{ $Email }}">{{ $Email }}</a>)
+      which contains an activation link.</p>
+      <p>For security purposes, your account will not permit login until the owner of your previous e-mail re-activates the account.</p>
+      <p>If you did not change your e-mail address, please contact support personnel immediately</p>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

@@ -151,6 +151,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 tfaExpiry = claims.FirstOrDefault(o => o.ClaimType == OpenIzClaimTypes.OpenIZTfaSecretExpiry),
                                 noPassword = claims.FirstOrDefault(o => o.ClaimType == OpenIzClaimTypes.OpenIZPasswordlessAuth);
 
+                            
                             if (tfaClaim == null || tfaExpiry == null)
                                 throw new InvalidOperationException("Cannot find appropriate claims for TFA");
 
@@ -176,7 +177,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
                             // Now we want to fire authenticated
                             this.Authenticated?.Invoke(this, new AuthenticatedEventArgs(userName, retVal, true));
-
+                            
                             tx.Commit();
                             return retVal;
                         }
@@ -245,7 +246,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             user.PasswordHash = passwordHashingService.EncodePassword(newPassword);
                             user.SecurityHash = Guid.NewGuid().ToString();
                             user.UpdatedByKey = principal.GetUserKey(dataContext);
-
+                            user.UpdatedTime = DateTimeOffset.Now;
                             dataContext.Update(user);
                             tx.Commit();
                         }

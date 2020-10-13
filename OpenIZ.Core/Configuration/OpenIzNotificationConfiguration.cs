@@ -19,39 +19,23 @@
  */
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 
 namespace OpenIZ.Core.Configuration
 {
     /// <summary>
-    /// OpenIZ Security configuration
+    /// Notification configuration
     /// </summary>
-    public class OpenIzSecurityConfiguration 
+    public class OpenIzNotificationConfiguration
     {
 
         /// <summary>
-        /// Password regex
+        /// SMTP configuration
         /// </summary>
-        public string PasswordRegex { get; set; }
+        public OpenIzSmtpConfiguration Smtp { get; internal set; }
 
         /// <summary>
-        /// Allow unsigned applets to be installed
+        /// Administrative contacts
         /// </summary>
-        public bool AllowUnsignedApplets { get; set; }
-
-        /// <summary>
-        /// Basic authentication configuration
-        /// </summary>
-        public OpenIzBasicAuthorization BasicAuth { get; set; }
-
-        /// <summary>
-        /// Gets or sets the claims auth
-        /// </summary>
-        public OpenIzClaimsAuthorization ClaimsAuth { get; set; }
-
-        /// <summary>
-        /// Trusted publishers
-        /// </summary>
-        public ObservableCollection<string> TrustedPublishers { get; set; }
+        public List<String> AdminContacts { get; internal set; }
     }
 }

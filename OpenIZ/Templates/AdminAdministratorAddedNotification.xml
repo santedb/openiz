@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>New OpenIZ Administrators Added</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello,</strong></p>
+      <p>This is a notification informing you that the following users were assigned as <strong>ADMINISTRATORS</strong> by user {{ $authenticatedUser }} in OpenIZ:</p>
+      <ul>
+        {{ $users }}
+      </ul>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

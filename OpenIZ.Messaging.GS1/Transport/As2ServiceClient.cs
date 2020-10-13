@@ -30,6 +30,9 @@ using System.Xml.Serialization;
 using System.IO;
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Core.Model.Roles;
+using System.Linq.Expressions;
+using OpenIZ.Core.Model.Constants;
 
 namespace OpenIZ.Messaging.GS1.Transport.AS2
 {

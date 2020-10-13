@@ -138,7 +138,10 @@ namespace OpenIZ.Core.Model.Acts
             set
             {
                 this.m_player = value;
-                this.m_playerKey = value?.Key;
+                if (value?.Key != null)
+                    this.m_playerKey = value?.Key;
+                else if (value == null)
+                    this.m_playerKey = null;
             }
         }
 

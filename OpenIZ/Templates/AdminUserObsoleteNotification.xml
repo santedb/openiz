@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>OpenIZ Account {{ $UserName }} was Deleted</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello,</strong></p>
+      <p>This is a notification that the user account <strong>{{ $UserName}} </strong> was deleted by <strong>{{ $authenticatedUser }}</strong> on {{ $ObsoletionTime }}.</p>
+      <p>The system changes made to this object are attached to this e-mail message. These detail the exact fields changed, and the values changed from / to. To assist in reading the file:</p>
+      <ul>
+        <li>Lines beginning with <strong>#</strong> indicate a comment</li>
+        <li>Lines beginning with <strong>???</strong> indicates the system performed a query/check/validation against a field value</li>
+        <li>Lines beginning with <strong>===</strong> indicate that an existing value was replaced</li>
+        <li>Lines beginning with <strong>+++</strong> indicate an addition of information</li>
+        <li>Lines beginning with <strong>---</strong> indicate the removal of information</li>
+      </ul>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

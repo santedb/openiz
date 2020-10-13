@@ -40,5 +40,10 @@ namespace OpenIZ.Core.Configuration
         /// Thread pool size
         /// </summary>
         public int ThreadPoolSize { get; set; }
+
+        /// <summary>
+        /// Notification settings
+        /// </summary>
+        public OpenIzNotificationConfiguration Notification { get; internal set; }
     }
 }

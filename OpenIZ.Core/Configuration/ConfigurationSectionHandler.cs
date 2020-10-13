@@ -129,6 +129,25 @@ namespace OpenIZ.Core.Configuration
                     foreach(XmlNode all in allowedClaims)
                         retVal.Security.BasicAuth.AllowedClientClaims.Add(all.Value);
                 }
+
+                // Administrative contacts
+                var notificationNode = section.SelectSingleNode("./notification");
+                if (notificationNode != null)
+                {
+                    retVal.Notification = new OpenIzNotificationConfiguration();
+                    XmlElement smtp = notificationNode.SelectSingleNode("./smtp") as XmlElement;
+                    if (smtp == null)
+                        throw new ConfigurationErrorsException("Missing SMTP configuration", section);
+                    else
+                        retVal.Notification.Smtp = new OpenIzSmtpConfiguration(new Uri(smtp.Attributes["server"]?.Value ?? "smtp://localhost:25"), smtp.Attributes["username"]?.Value ?? string.Empty, smtp.Attributes["password"]?.Value ?? string.Empty, Boolean.Parse(smtp.Attributes["ssl"]?.Value ?? "false"), smtp.Attributes["from"]?.Value ?? "no-reply@openiz.org");
+
+                    var adminContacts = notificationNode.SelectNodes("./adminContacts/add");
+                    retVal.Notification.AdminContacts = new List<string>();
+                    foreach (XmlElement e in adminContacts.OfType<XmlElement>())
+                    {
+                        retVal.Notification.AdminContacts.Add(e.InnerText);
+                    }
+                }
             }
 
             return retVal;

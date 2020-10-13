@@ -150,7 +150,17 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var nonVersionedObect = context.FirstOrDefault<TDomainKey>(o => o.Key == data.Key);
 
             if (existingObject == null)
-                throw new KeyNotFoundException(data.Key.ToString());
+            {
+                if(nonVersionedObect != null) // There is just no active version - so - activate the last one
+                {
+                    currentVersionQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
+                        .Where(o => o.Key == data.Key)
+                        .OrderBy<TDomain>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
+                    existingObject = context.FirstOrDefault<TDomain>(currentVersionQuery); // Get the last version (current)
+                }
+                else
+                    throw new KeyNotFoundException(data.Key.ToString());
+            }
             else if ((existingObject as IDbReadonly)?.IsReadonly == true ||
                 (nonVersionedObect as IDbReadonly)?.IsReadonly == true)
                 throw new AdoFormalConstraintException(AdoFormalConstraintType.UpdatedReadonlyObject);

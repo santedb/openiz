@@ -1,6 +1,7 @@
 ﻿using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
 using MARC.HI.EHRS.SVC.Core.Services.Security;
+using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Core.Security;
 using OpenIZ.Core.Services;
@@ -40,10 +41,13 @@ namespace OizDevTool.Notifications
 
 
                 Dictionary<Guid, Material> productRefs = new Dictionary<Guid, Material>();
-                foreach (var itm in productService.Query(o => o.StatusConcept.Mnemonic == "ACTIVE" && o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal))
+                foreach (var itm in productService.Query(o => o.ClassConceptKey == EntityClassKeys.Material && o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal))
                 {
                     if (!productRefs.ContainsKey(itm.Key.Value))
+                    {
+                        Console.WriteLine("{0} => {1}", itm.Key, itm.Names.First().Component.First().Value);
                         productRefs.Add(itm.Key.Value, itm);
+                    }
                 }
 
                 Console.WriteLine("Getting defaulters due between {0:o} - {1:o}", fromDate, toDate);
@@ -78,10 +82,10 @@ namespace OizDevTool.Notifications
 		                INNER JOIN fac_vw ON (oizcp.location_id = fac_vw.fac_id)
 		                INNER JOIN facilities ON (facilities.fac_id = oizcp.location_id)
 	                WHERE
-		                act_date::DATE BETWEEN COALESCE('{1}')::DATE AND COALESCE('{2}')::DATE
+		                act_date::DATE BETWEEN '{1}'::DATE AND '{2}'::DATE
 		                AND act_date::DATE < CURRENT_DATE - '7 DAY'::INTERVAL 
 		            	AND NOT EXISTS (SELECT 1 FROM MSG_QUEUE_LOG_TBL WHERE REF_ID = UUID AND PROC_NAME = 'DefaultersNotification')
-                        AND NOT EXISTS (SELECT DISTINCT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
+                        AND NOT EXISTS (SELECT DISTINCT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE AND (act_utc at time zone '+03:00')::DATE > '{1}'::DATE - '1 MONTH'::INTERVAL)
 		                AND (
 			                dose_seq = 1
 			                OR
@@ -93,22 +97,29 @@ namespace OizDevTool.Notifications
 					                AND pat_id = patient_id
 					                AND mat_id = product_id
 					                AND COALESCE(neg_ind, FALSE) = FALSE
+                            AND (sbadm_tbl.act_utc at time zone '+03:00')::DATE > '{1}'::DATE - '1 MONTH'::INTERVAL
                           AND sbadm_tbl.type_mnemonic <> 'DrugTherapy'
                           AND enc_id IS NOT NULL
 			                )
-		                )
+		                ) 
 	                GROUP BY location_id, patient_id, given, alt_id, fac_vw.loc_name";
 
-                var defaulters = warehouseService.AdhocQuery(String.Format(query, facilityId ?? "6130e1ce-3ed1-467f-8c33-2f96e47674f7", fromDate, toDate));
+                var defaulters = warehouseService.AdhocQuery(String.Format(query, String.IsNullOrEmpty(facilityId) ? "6130e1ce-3ed1-467f-8c33-2f96e47674f7" : facilityId, fromDate, toDate));
 
                 Console.WriteLine("There are {0} defaulters during this time", defaulters.Count());
                 foreach (var defaulter in defaulters)
                 {
                     if (DBNull.Value.Equals(defaulter.tel))
                     {
-                        Console.WriteLine("Skipping for patient with barcode {0} because not telephone is present", defaulter.alt_id);
-                        Trace.TraceWarning("Skipping careplan entry {0} for patient with barcode {1} because not telephone is present", String.Join(",", new List<Guid>(defaulter.cp_id)), (string)defaulter.alt_id);
-                        continue;
+                        try
+                        {
+                            Console.WriteLine("Skipping for patient with barcode {0} because not telephone is present", defaulter.alt_id);
+                            Trace.TraceWarning("Skipping careplan entry {0} for patient with barcode {1} because not telephone is present", String.Join(",", new List<Guid>(defaulter.cp_id)), defaulter.alt_id);
+                            continue;
+                        }
+                        catch{
+                            continue;
+                        }
                     }
                     // First pre-req data for this patient
                     var products = new List<Guid>(defaulter.product).Select(o => productRefs[o]);

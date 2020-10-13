@@ -129,7 +129,7 @@ namespace OizDevTool
 
             [Parameter("facility")]
             [Description("Calculate care plan for the specified facility")]
-            public String FacilityId { get; set; }
+            public StringCollection FacilityId { get; set; }
 
             [Parameter("lang")]
             [Description("Sets the language of the messages")]
@@ -532,9 +532,17 @@ namespace OizDevTool
             DateTime date = String.IsNullOrEmpty(parms.Date) ? DateTime.Now : DateTime.Parse(parms.Date).Date;
 
             // TODO: Make this reflection
-            new SchedulingNotification().Process(date, parms.FacilityId, parms.Language);
-            new DefaultersNotification().Process(date, parms.FacilityId, parms.Language);
-
+            if (parms.FacilityId != null)
+                foreach (var fac in parms.FacilityId)
+                {
+                    new SchedulingNotification().Process(date, fac, parms.Language);
+                    new DefaultersNotification().Process(date, fac, parms.Language);
+                }
+            else
+            {
+                new SchedulingNotification().Process(date, String.Empty, parms.Language);
+                new DefaultersNotification().Process(date, String.Empty, parms.Language);
+            }
             return 0;
 
         }
@@ -670,7 +678,7 @@ namespace OizDevTool
                 }
                 else if (parms.PatientId?.Count > 0)
                 {
-                    prodPatients = parms.PatientId.OfType<String>().Skip(ofs).Take(Environment.ProcessorCount * 4).Select(o => patientPersistence.Get(new Identifier<Guid>(Guid.Parse(o)), AuthenticationContext.SystemPrincipal, false)).ToArray();
+                    prodPatients = parms.PatientId.OfType<String>().Skip(ofs).Take(Environment.ProcessorCount * 4).Select(o => patientPersistence.Get(new Identifier<Guid>(Guid.Parse(o)), AuthenticationContext.SystemPrincipal, false)).ToArray().OfType<Patient>();
                     tr = parms.PatientId.Count;
                 }
                 else
@@ -691,6 +699,7 @@ namespace OizDevTool
                 }
 
                 ofs += prodPatients.Count();
+                if (ofs == 0) break; // Done 
 
                 if (!lastRefresh.HasValue)
                 {

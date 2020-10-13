@@ -922,7 +922,9 @@ namespace OpenIZ.Reporting.Jasper
 		/// <returns>Returns the raw report.</returns>
 		public byte[] RunReport(Guid reportId, Guid reportFormatId, IEnumerable<ReportParameter> parameters)
 		{
-			var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ReportDefinition>>();
+
+            this.Authenticate(this.username, this.password);
+            var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ReportDefinition>>();
 
 			if (persistenceService == null)
 			{
@@ -1145,7 +1147,12 @@ namespace OpenIZ.Reporting.Jasper
 					{
 						Mnemonic = dictionary[keyPropertyName].ToString()
 					};
-				}
+
+                    if (valuePropertyName != null && dictionary.ContainsKey(valuePropertyName))
+                    {
+                        ((Concept)identifiedData).ConceptNames.Add(new ConceptName("en", dictionary[valuePropertyName].ToString()));
+                    }
+                }
 				else
 				{
 					identifiedData = new Entity

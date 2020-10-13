@@ -453,7 +453,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             };
             ApplicationContext.Current.GetService<IDataPersistenceService<Core.Model.Security.SecurityUser>>().Updating += (o, e) =>
             {
-                e.Data.SecurityHash = Guid.NewGuid().ToString();
+                if (String.IsNullOrEmpty(e.Data.SecurityHash)) 
+                    e.Data.SecurityHash = Guid.NewGuid().ToString();
             };
 
             // Attempt to cache concepts

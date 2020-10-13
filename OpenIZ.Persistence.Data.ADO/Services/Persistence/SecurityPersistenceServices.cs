@@ -456,7 +456,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 		{
 			var retVal = base.UpdateInternal(context, data, principal);
 
-			if (data.Roles == null)
+			if (data.Roles == null || data.Roles.Count == 0)
 			{
 				return retVal;
 			}

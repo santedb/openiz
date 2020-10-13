@@ -14,6 +14,8 @@ using OpenIZ.Core.Scheduling;
 using Newtonsoft.Json;
 using MARC.HI.EHRS.SVC.Core.Services.Security;
 using OpenIZ.Core.Notifications;
+using OpenIZ.Core.Model.Constants;
+using System.Diagnostics;
 
 namespace OizDevTool.Notifications
 {
@@ -54,10 +56,9 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
-	                                    (act_date at time zone '{2}')::DATE BETWEEN '{0:o}' AND '{1:o}'
+	                                    act_date BETWEEN '{0:o}' AND '{1:o}'
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
-	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
-	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
+	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE AND (sbadm_tbl.act_utc at time zone '+03:00')::DATE > '{0:o}'::DATE - '1 MONTH'::INTERVAL )
                                     GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, ctz);
                 if (!String.IsNullOrEmpty(facilityId))
                     query = String.Format(@"SELECT patient_id, given, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel) as tel, location_id, array_agg(product_id) as product, array_agg(act_date) as dates, fac_name
@@ -66,21 +67,23 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
-	                                    (act_date at time zone '{3}')::DATE BETWEEN '{0:o}' AND '{1:o}'
+	                                    act_date BETWEEN '{0:o}' AND '{1:o}'
                                         AND location_id = '{2}'
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
-	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  )
-	                                    AND coalesce(pat_vw.tel, mth_tel, nok_tel) IS NOT NULL
+	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  AND (sbadm_tbl.act_utc at time zone '+03:00')::DATE > '{0:o}'::DATE - '1 MONTH'::INTERVAL )
                                     GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, facilityId, ctz);
                 var plannedEvents = warehouseService.AdhocQuery(query);
 
                 Console.WriteLine("There are {0} planned events which can receive messages for this timeframe", plannedEvents.Count());
 
                 Dictionary<Guid, Material> productRefs = new Dictionary<Guid, Material>();
-                foreach (var itm in productService.Query(o => o.StatusConcept.Mnemonic == "ACTIVE" && o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal))
+                foreach (var itm in productService.Query(o => o.ClassConceptKey == EntityClassKeys.Material && o.TypeConcept.Mnemonic.Contains("VaccineType-*"), AuthenticationContext.SystemPrincipal))
                 {
                     if (!productRefs.ContainsKey(itm.Key.Value))
+                    {
+                        Console.WriteLine("{0} => {1}", itm.Key, itm.Names.First().Component.First().Value);
                         productRefs.Add(itm.Key.Value, itm);
+                    }
                 }
 
                 List<dynamic> problemAppointments = new List<dynamic>();
@@ -128,9 +131,26 @@ namespace OizDevTool.Notifications
                     // Process the appointments
                     foreach (var appt in loc)
                     {
+                        if(DBNull.Value.Equals(appt.tel) || String.IsNullOrEmpty((String)appt.tel))
+                        {
+                            Console.WriteLine($"Skipping notification for {appt.alt_id} as this patient has no contact information");
+                            Trace.TraceWarning($"Skipping notification for {appt.alt_id} as this patient has no contact information");
+                            continue;
+                        }
 
                         // First pre-req data for this patient
-                        var products = new List<Guid>(appt.product).Select(o => productRefs[o]);
+                        var products = new List<Guid>(appt.product).Select(o =>
+                        {
+                            try
+                            {
+                                return productRefs[o];
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Error referencing {0} - {1}", o, e.Message);
+                                throw;
+                            }
+                        });
                         var scheduleDate = new List<DateTime>(appt.dates).First();
 
                         // Next we want to find an available time slot

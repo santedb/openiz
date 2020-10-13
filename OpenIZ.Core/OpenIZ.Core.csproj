@@ -83,7 +83,9 @@
     <Reference Include="System.Xml.Serialization" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Configuration\OpenIzNotificationConfiguration.cs" />
     <Compile Include="Configuration\ServiceTool.cs" />
+    <Compile Include="Configuration\OpenIzSmtpConfiguration.cs" />
     <Compile Include="Configuration\UI\CoreConfigurationPanel.cs" />
     <Compile Include="Configuration\UI\ServiceConfigurationPanel.cs" />
     <Compile Include="Configuration\UI\ucCoreSettings.cs">
@@ -110,6 +112,7 @@
     <Compile Include="Model\EntityLoader\PersistenceServiceEntitySource.cs" />
     <Compile Include="Model\ModelExtensions.cs" />
     <Compile Include="Configuration\OpenIZConfiguration.cs" />
+    <Compile Include="Notification\EMailNotificationRelay.cs" />
     <Compile Include="OpenIZConstants.cs" />
     <Compile Include="Persistence\DataInitializationService.cs" />
     <Compile Include="Persistence\DatasetInstall.cs" />
@@ -125,6 +128,8 @@
     <Compile Include="Security\DefaultTfaRelayService.cs" />
     <Compile Include="Security\DeviceIdentity.cs" />
     <Compile Include="Security\DevicePrincipal.cs" />
+    <Compile Include="Notification\NotificationTemplate.cs" />
+    <Compile Include="Notification\UserEventNotifier.cs" />
     <Compile Include="Security\LocalPasswordValidationService.cs" />
     <Compile Include="Security\Permission\PolicyPermissionAttribute.cs" />
     <Compile Include="Security\AuthenticationContext.cs" />

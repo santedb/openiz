@@ -1,16 +1,16 @@
 ﻿using System;
 
-namespace OpenIZ.Persistence.Diagnostics.Email.Configuration
+namespace OpenIZ.Core.Configuration
 {
 	/// <summary>
 	/// Configuration for SMTP
 	/// </summary>
-	public class SmtpConfiguration
+	public class OpenIzSmtpConfiguration
 	{
 		/// <summary>
 		/// SMTP configuration
 		/// </summary>
-		public SmtpConfiguration(Uri server, String userName, String password, bool ssl, String from)
+		public OpenIzSmtpConfiguration(Uri server, String userName, String password, bool ssl, String from)
 		{
 			this.Server = server;
 			this.Username = userName;

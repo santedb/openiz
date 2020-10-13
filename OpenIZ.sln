@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.705
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29509.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Persistence", "Persistence", "{2914F4AD-4661-4C73-ADB6-B1D91C11C569}"
 EndProject
@@ -152,6 +152,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenIZ.Persistence.Auditing.ADO", "OpenIZ.Persistence.Auditing.ADO\OpenIZ.Persistence.Auditing.ADO.csproj", "{45EA67A6-48F6-4906-84EC-5C13C80C9CC4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenIZ.Messaging.Discovery.Swagger", "OpenIZ.Messaging.Discovery.Swagger\OpenIZ.Messaging.Discovery.Swagger.csproj", "{0F7DE7F9-1398-45D2-B52C-0FA08638F277}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Notification", "Notification", "{7C8F14FC-904D-4173-873B-AF8F3377ED3B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -1133,6 +1135,7 @@ Global
 		{3940D5CB-A34C-4BA5-A1F1-984DBC7CEFF6} = {2914F4AD-4661-4C73-ADB6-B1D91C11C569}
 		{45EA67A6-48F6-4906-84EC-5C13C80C9CC4} = {3940D5CB-A34C-4BA5-A1F1-984DBC7CEFF6}
 		{0F7DE7F9-1398-45D2-B52C-0FA08638F277} = {034029A9-C588-4CD7-9FF3-69CD4F82DB8E}
+		{7C8F14FC-904D-4173-873B-AF8F3377ED3B} = {A1C82EDF-C27A-4A7A-A186-09E88BF63F36}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3B46A352-0E5A-4FDE-8007-A38A32E22D8D}

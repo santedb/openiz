@@ -1,7 +1,8 @@
 ﻿using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Core;
+using OpenIZ.Core.Configuration;
 using OpenIZ.Core.Notifications;
-using OpenIZ.Persistence.Diagnostics.Email.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,7 +13,7 @@ using System.Net.Mail;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OpenIZ.Persistence.Diagnostics.Email
+namespace OpenIZ.Notification
 {
     /// <summary>
     /// Notification relay
@@ -24,7 +25,7 @@ namespace OpenIZ.Persistence.Diagnostics.Email
         private TraceSource m_traceSource = new TraceSource("OpenIZ.Persistence.Diagnostics.Email");
 
         // Configuration
-        private DiagnosticEmailServiceConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("openiz.persistence.diagnostics.email") as DiagnosticEmailServiceConfiguration;
+        private OpenIzConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection(OpenIzConstants.OpenIZConfigurationName) as OpenIzConfiguration;
 
         /// <summary>
         /// Get the scheme
@@ -40,32 +41,35 @@ namespace OpenIZ.Persistence.Diagnostics.Email
             {
                 // Setup message
                 var toUri = new Uri(toAddress);
-                MailMessage bugMessage = new MailMessage();
-                bugMessage.From = new MailAddress(this.m_configuration.Smtp.From, $"OpenIZ Notification Service");
-                bugMessage.To.Add(toAddress.Replace("mailto:",""));
-                bugMessage.Subject = subject;
-                bugMessage.Body = body;
+                MailMessage mailMessage = new MailMessage();
+                mailMessage.From = new MailAddress(this.m_configuration.Notification.Smtp.From);
+                mailMessage.To.Add(toAddress.Replace("mailto:",""));
+                mailMessage.Subject = subject;
+                mailMessage.Body = body;
 
+                if(body.Contains("<html"))
+                    mailMessage.IsBodyHtml = true;
                 // Add attachments
-                foreach (var itm in attachments)
-                {
-                    bugMessage.Attachments.Add(new Attachment(new MemoryStream(Encoding.UTF8.GetBytes(itm.Value)), itm.Key, "text/plain"));
-                }
+                if(attachments != null)
+                    foreach (var itm in attachments)
+                    {
+                        mailMessage.Attachments.Add(new Attachment(new MemoryStream(Encoding.UTF8.GetBytes(itm.Value)), itm.Key, "text/plain"));
+                    }
 
-                SmtpClient smtpClient = new SmtpClient(this.m_configuration.Smtp.Server.Host, this.m_configuration.Smtp.Server.Port);
-                smtpClient.UseDefaultCredentials = String.IsNullOrEmpty(this.m_configuration.Smtp.Username);
-                smtpClient.EnableSsl = this.m_configuration.Smtp.Ssl;
+                SmtpClient smtpClient = new SmtpClient(this.m_configuration.Notification.Smtp.Server.Host, this.m_configuration.Notification.Smtp.Server.Port);
+                smtpClient.UseDefaultCredentials = String.IsNullOrEmpty(this.m_configuration.Notification.Smtp.Username);
+                smtpClient.EnableSsl = this.m_configuration.Notification.Smtp.Ssl;
                 if (!(smtpClient.UseDefaultCredentials))
-                    smtpClient.Credentials = new NetworkCredential(this.m_configuration.Smtp.Username, this.m_configuration.Smtp.Password);
+                    smtpClient.Credentials = new NetworkCredential(this.m_configuration.Notification.Smtp.Username, this.m_configuration.Notification.Smtp.Password);
                 smtpClient.SendCompleted += (o, e) =>
                 {
-                    this.m_traceSource.TraceInformation("Successfully sent message to {0}", bugMessage.To);
+                    this.m_traceSource.TraceInformation("Successfully sent message to {0}", mailMessage.To);
                     if (e.Error != null)
                         this.m_traceSource.TraceEvent(TraceEventType.Error, 0, e.Error.ToString());
                     (o as IDisposable).Dispose();
                 };
-                this.m_traceSource.TraceInformation("Sending notification email message to {0}", bugMessage.To);
-                smtpClient.Send(bugMessage);
+                this.m_traceSource.TraceInformation("Sending notification email message to {0}", mailMessage.To);
+                smtpClient.Send(mailMessage);
                 return Guid.Empty;
             }
             catch (Exception ex)

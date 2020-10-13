@@ -33,6 +33,7 @@ using SwaggerWcf.Attributes;
 using System;
 using System.Data;
 using System.Linq;
+using System.Security;
 using System.ServiceModel.Web;
 
 namespace OpenIZ.Messaging.AMI.Wcf
@@ -196,7 +197,24 @@ namespace OpenIZ.Messaging.AMI.Wcf
 			if (!Guid.TryParse(rawUserId, out userId))
 				throw new ArgumentException(nameof(rawUserId));
 			var userRepository = ApplicationContext.Current.GetService<ISecurityRepositoryService>();
-			return new SecurityUserInfo(userRepository.GetUser(userId));
+            var user = userRepository.GetUser(userId);
+            if(WebOperationContext.Current.IncomingRequest.Headers["If-Match"] != null)
+            {
+                var ifMatch = WebOperationContext.Current.IncomingRequest.Headers["If-Match"];
+                var hash = ApplicationContext.Current.GetService<IPasswordHashingService>().EncodePassword(ifMatch);
+                if(user.SecurityHash != hash)
+                {
+                    WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NotModified;
+                    return null;
+                }
+
+                var expiration = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(DateTime.MaxValue.Subtract(user.Lockout.Value.ToUniversalTime()).TotalSeconds).ToLocalTime();
+                if (DateTime.Now > expiration)
+                    throw new SecurityException("Period for token has expired");
+
+
+            }
+            return new SecurityUserInfo(user);
 		}
 
 		/// <summary>
@@ -277,16 +295,16 @@ namespace OpenIZ.Messaging.AMI.Wcf
 				// Alter identity DEMAND
 				new PolicyPermission(System.Security.Permissions.PermissionState.Unrestricted, PermissionPolicyIdentifiers.AlterIdentity).Demand();
 
-				var irps = ApplicationContext.Current.GetService<IRoleProviderService>();
 
-				var roles = irps.GetAllRoles(info.UserName);
+                // Roles? We want to update
+                if (info.Roles != null && info.Roles.Count > 0)
+                {
+                    var irps = ApplicationContext.Current.GetService<IRoleProviderService>();
+                    var exsitingRoles = irps.GetAllRoles(info.UserName);
+                    irps.RemoveUsersFromRoles(new String[] { info.UserName }, exsitingRoles.Where(o => !info.Roles.Any(r=>r.Name.Equals(o, StringComparison.OrdinalIgnoreCase))).ToArray(), AuthenticationContext.Current.Principal);
+                    irps.AddUsersToRoles(new string[] { info.UserName }, info.Roles.Where(o => !exsitingRoles.Contains(o.Name)).Select(o=>o.Name).ToArray(), AuthenticationContext.Current.Principal);
+                }
 
-				// if the roles provided are not equal to the current roles of the user, only then change the roles of the user
-				if (roles != info.Roles.Select(r => r.Name).ToArray())
-				{
-					irps.RemoveUsersFromRoles(new String[] { info.UserName }, info.Roles.Select(o => o.Name).ToArray(), AuthenticationContext.Current.Principal);
-					irps.AddUsersToRoles(new String[] { info.UserName }, info.Roles.Select(o => o.Name).ToArray(), AuthenticationContext.Current.Principal);
-				}
 			}
 
 			return info;
