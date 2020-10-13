@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>Your account will be de-activated</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }}</strong></p>
+      <p>We've noticed that you haven't logged into the OpenIZ instance in a while. Your account will be deactived in {{ $days }} days unless you log into OpenIZ</p>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

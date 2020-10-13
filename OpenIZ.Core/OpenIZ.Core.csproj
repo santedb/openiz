@@ -130,6 +130,7 @@
     <Compile Include="Security\DevicePrincipal.cs" />
     <Compile Include="Notification\NotificationTemplate.cs" />
     <Compile Include="Notification\UserEventNotifier.cs" />
+    <Compile Include="Services\Jobs\UserPruneJob.cs" />
     <Compile Include="Security\LocalPasswordValidationService.cs" />
     <Compile Include="Security\Permission\PolicyPermissionAttribute.cs" />
     <Compile Include="Security\AuthenticationContext.cs" />
@@ -200,6 +201,7 @@
     <Compile Include="Wcf\Serialization\WcfMessageDispatchFormatter.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Security\Jobs\" />
     <Folder Include="Security\Wcf\" />
   </ItemGroup>
   <ItemGroup>

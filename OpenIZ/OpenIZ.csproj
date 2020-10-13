@@ -231,6 +231,8 @@
     <Content Include="PasswordSeed.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Templates\AccountAutoDeleted.xml" />
+    <Content Include="Templates\AccountInactivityNotify.xml" />
     <Content Include="Templates\AdminAdministratorRemovedNotification.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

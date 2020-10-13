@@ -38,8 +38,6 @@ namespace OpenIZ.Core.Security.Notification
         // Random seed
         private Random m_random = new Random();
 
-        private Regex m_bindingRegex = new Regex("{{\\s?\\$([A-Za-z0-9_]*?)\\s?}}");
-
         private OpenIzConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection(OpenIzConstants.OpenIZConfigurationName) as OpenIzConfiguration;
 
         // Trace source
@@ -122,7 +120,7 @@ namespace OpenIZ.Core.Security.Notification
         private void UserEventNotifier_Obsoleted(object sender, PostPersistenceEventArgs<SecurityUser> e)
         {
             var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:");
-            var fields = this.GetTemplateFields(e.Data);
+            var fields = NotificationTemplate.GetTemplateFields(e.Data);
 
             // Notify an administrator 
             var diff = new Patch()
@@ -136,7 +134,7 @@ namespace OpenIZ.Core.Security.Notification
                     new PatchOperation(PatchOperationType.Replace, "ObsoletedBy", e.Data.ObsoletedByKey)
                 }
             };
-            var adminMessage = this.FillTemplate("AdminUserObsoleteNotification", fields);
+            var adminMessage = NotificationTemplate.FillTemplate("AdminUserObsoleteNotification", fields);
             foreach (var contact in this.m_configuration.Notification.AdminContacts)
                 relay.Send($"mailto:{contact}", adminMessage.SubjectLine, adminMessage.BodyText, null, new Dictionary<String, String>() { { "changelog.txt", diff.ToString() } });
         }
@@ -148,7 +146,7 @@ namespace OpenIZ.Core.Security.Notification
         {
             var currentVersion = this.m_securityService.GetUser(e.Data.Key.Value);
             var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:{currentVersion.Email}");
-            var fields = this.GetTemplateFields(currentVersion);
+            var fields = NotificationTemplate.GetTemplateFields(currentVersion);
 
             // Email has changed, notify the user on the old e-mail and new e-mail
             if (currentVersion.Email != e.Data.Email)
@@ -170,9 +168,9 @@ namespace OpenIZ.Core.Security.Notification
                 // did the user change their own address?
                 if (currentVersion.LastLoginTime.HasValue) // user has logged in and e-mail is changing 
                 {
-                    var message = this.FillTemplate("EmailChangedNotification", fields);
+                    var message = NotificationTemplate.FillTemplate("EmailChangedNotification", fields);
                     relay.Send($"mailto:{currentVersion.Email}", message.SubjectLine, message.BodyText);
-                    message = this.FillTemplate("EmailChanged", fields);
+                    message = NotificationTemplate.FillTemplate("EmailChanged", fields);
                     relay.Send($"mailto:{e.Data.Email}", message.SubjectLine, message.BodyText);
                 }
                 else
@@ -182,7 +180,7 @@ namespace OpenIZ.Core.Security.Notification
                     this.m_identityService.ChangePassword(e.Data.UserName, tPassword, AuthenticationContext.SystemPrincipal);
                     fields.Add("password", tPassword);
                     e.Data.PasswordHash = null;
-                    var message = this.FillTemplate("AccountActivation", fields);
+                    var message = NotificationTemplate.FillTemplate("AccountActivation", fields);
                     relay.Send($"mailto:{e.Data.Email}", message.SubjectLine, message.BodyText);
                 }
 
@@ -195,7 +193,7 @@ namespace OpenIZ.Core.Security.Notification
                 var diff = ApplicationContext.Current.GetService<IPatchService>().Diff(currentVersion, e.Data, "securityStamp", "passwordHash", "obsoletedBy", "id", "lastLoginTime", "updatedTime", "creationTime", "obsoletionTime", "createdBy", "updatedBy");
                 if (diff.Operation.Any(o => o.OperationType != PatchOperationType.Test))
                 {
-                    var adminMessage = this.FillTemplate("AdminUserChangeNotification", fields);
+                    var adminMessage = NotificationTemplate.FillTemplate("AdminUserChangeNotification", fields);
                     foreach (var contact in this.m_configuration.Notification.AdminContacts)
                         relay.Send($"mailto:{contact}", adminMessage.SubjectLine, adminMessage.BodyText, null, new Dictionary<String, String>() { { "changelog.txt", diff.ToString() } });
                 }
@@ -213,42 +211,7 @@ namespace OpenIZ.Core.Security.Notification
         /// </summary>
         private void M_identityService_Authenticated(object sender, AuthenticatedEventArgs e) => this.Authenticated?.Invoke(this, e);
 
-        /// <summary>
-        /// Security user fields 
-        /// </summary>
-        private IDictionary<String, String> GetTemplateFields(SecurityUser e)
-        {
-            var retVal = new Dictionary<String, String>();
-            foreach (var p in typeof(SecurityUser).GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                retVal.Add(p.Name, p.GetValue(e, null)?.ToString());
-            }
-            return retVal;
-        }
-
-        /// <summary>
-        /// Fill the specified template
-        /// </summary>
-        private NotificationTemplate FillTemplate(String templateName, IDictionary<String, String> templateFields)
-        {
-            NotificationTemplate retVal = null;
-            using (var fs = File.OpenRead(Path.ChangeExtension(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "templates", templateName), "xml")))
-                retVal = NotificationTemplate.Load(fs);
-
-            // Process headers
-            retVal.SubjectLine = this.ReplaceTemplate(retVal.SubjectLine, templateFields);
-            retVal.BodyText = this.ReplaceTemplate(retVal.BodyText, templateFields);
-
-            return retVal;
-        }
-
-        /// <summary>
-        /// Replace template
-        /// </summary>
-        private string ReplaceTemplate(string source, IDictionary<string, string> templateFields)
-        {
-            return this.m_bindingRegex.Replace(source, (m) => templateFields.TryGetValue(m.Groups[1].Value, out string v) ? v : m.ToString());
-        }
+       
 
         /// <summary>
         /// Get the specified identity
@@ -311,9 +274,9 @@ namespace OpenIZ.Core.Security.Notification
             if (!String.IsNullOrEmpty(user.Email) && authContext != AuthenticationContext.SystemPrincipal) // Notify the user that their password was changed
             {
                 // Now send an email
-                var templateFields = this.GetTemplateFields(user);
+                var templateFields = NotificationTemplate.GetTemplateFields(user);
                 templateFields.Add("authenticatedUser", authContext.Identity.Name);
-                var message = this.FillTemplate("AccountPasswordChanged", templateFields);
+                var message = NotificationTemplate.FillTemplate("AccountPasswordChanged", templateFields);
                 var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:{user.Email}");
                 relay.Send($"mailto:{user.Email}", message.SubjectLine, message.BodyText);
             }
@@ -346,9 +309,9 @@ namespace OpenIZ.Core.Security.Notification
             if (lockout && !user.Lockout.HasValue) // notify admin contacts of lockout condition
             {
                 user = this.m_securityService.GetUser(userName);
-                var templateFields = this.GetTemplateFields(user);
+                var templateFields = NotificationTemplate.GetTemplateFields(user);
                 templateFields.Add("authenticatedUser", authContext.Identity.Name);
-                var message = this.FillTemplate("AccountLocked", templateFields);
+                var message = NotificationTemplate.FillTemplate("AccountLocked", templateFields);
                 var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:{user.Email}");
                 relay.Send($"mailto:{user.Email}", message.SubjectLine, message.BodyText);
             }
@@ -384,7 +347,7 @@ namespace OpenIZ.Core.Security.Notification
                 var templateFields = new Dictionary<String, String>();
                 templateFields.Add("users", String.Join("</li><li>", users));
                 templateFields.Add("authenticatedUser", authPrincipal.Identity.Name);
-                var message = this.FillTemplate("AdminAdministratorAddedNotification", templateFields);
+                var message = NotificationTemplate.FillTemplate("AdminAdministratorAddedNotification", templateFields);
                 var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:");
                 foreach (var contact in this.m_configuration.Notification.AdminContacts)
                     relay.Send($"mailto:{contact}", message.SubjectLine, message.BodyText);
@@ -403,7 +366,7 @@ namespace OpenIZ.Core.Security.Notification
                 var templateFields = new Dictionary<String, String>();
                 templateFields.Add("users", String.Join("</li><li> ", users));
                 templateFields.Add("authenticatedUser", authPrincipal.Identity.Name);
-                var message = this.FillTemplate("AdminAdministratorRemovedNotification", templateFields);
+                var message = NotificationTemplate.FillTemplate("AdminAdministratorRemovedNotification", templateFields);
                 var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:");
                 foreach (var contact in this.m_configuration.Notification.AdminContacts)
                     relay.Send($"mailto:{contact}", message.SubjectLine, message.BodyText);

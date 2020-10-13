@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>Your account was deactivated</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }}</strong></p>
+      <p>Your account has been inactive for over 4 weeks and has been disabled. If you would like to re-activate your account, please contact a system administrator.</p>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>
