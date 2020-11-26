@@ -82,7 +82,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             // Duplicate check 
             var existing = context.FirstOrDefault<DbActRelationship>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.TargetActKey && r.RelationshipTypeKey == data.RelationshipTypeKey && !r.ObsoleteVersionSequenceId.HasValue);
-            if (existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
+            if (existing != null && existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
             {
                 existing.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence;
                 if (existing.ObsoleteVersionSequenceId.HasValue)

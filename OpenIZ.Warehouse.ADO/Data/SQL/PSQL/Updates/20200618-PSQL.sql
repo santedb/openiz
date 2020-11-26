@@ -51,3 +51,14 @@ CREATE TABLE REF_AGE_RG_TBL (
 INSERT INTO REF_AGE_RG_TBL (FROM_DAY, TO_DAY, AGE_NAME) VALUES (0, 42, '< 6 WKS');
 INSERT INTO REF_AGE_RG_TBL (FROM_DAY, TO_DAY, AGE_NAME) VALUES (42, 279, '6 WKS - 9 MO');
 INSERT INTO REF_AGE_RG_TBL (FROM_DAY, TO_DAY, AGE_NAME) VALUES (279, 36500, '> 9 MO');
+
+CREATE TABLE act_list_mat_tbl
+(
+	act_id UUID NOT NULL,
+	mmat_id UUID NOT NULL,
+	qty INT NOT NULL,
+	vvm_cs VARCHAR(32),
+	CONSTRAINT pk_act_list_mat_tbl PRIMARY KEY (act_id, mmat_id),
+	CONSTRAINT fk_act_list_mat_list FOREIGN KEY (act_id) REFERENCES act_list_tbl(act_id),
+	CONSTRAINT fk_act_list_mat_mat FOREIGN KEY (mmat_id) REFERENCES mmat_tbl(mmat_id)
+);

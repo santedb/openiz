@@ -43,6 +43,7 @@ using OpenIZ.Core.Diagnostics;
 using System.Threading;
 using System.Text.RegularExpressions;
 using OpenIZ.Core.Model.Json.Formatter;
+using Jint.Runtime;
 
 namespace OpenIZ.BusinessRules.JavaScript.JNI
 {
@@ -256,10 +257,19 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                         {
                             itms[i] = instance.InvokeRaw(trigger, itms[i]);
                         }
-                        catch (Exception e)
+                        catch (JavaScriptException e)
                         {
-                            //if (System.Diagnostics.Debugger.IsAttached)
-                            throw;
+                            if(itms[i] is IDictionary<String, Object> obj)
+                            {
+                                try
+                                {
+                                    if (!obj.ContainsKey("tag"))
+                                        obj["tag"] = new ExpandoObject();
+                                    var tagData = obj["tag"] as IDictionary<String, Object>;
+                                    tagData.Add("$bre.error", e.Message);
+                                }
+                                catch { }
+                            }
                             //else
                             //    Tracer.GetTracer(typeof(BusinessRulesBridge)).TraceError("Error applying rule for {0}: {1}", itms[i], e);
                         }

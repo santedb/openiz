@@ -291,6 +291,7 @@
     <Content Include="Data\SQL\Updates\20180131-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\SQL\Updates\20201023-PSQL.sql" />
     <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>

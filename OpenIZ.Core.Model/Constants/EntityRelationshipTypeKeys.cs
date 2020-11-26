@@ -646,5 +646,10 @@ namespace OpenIZ.Core.Model.Constants
         /// Relates the target entity to a source location
         /// </summary>
         public static readonly Guid LocatedEntity = Guid.Parse("4F6273D3-8223-4E18-8596-C718AD029DEB");
+
+        /// <summary>
+        /// Duplicate
+        /// </summary>
+        public static readonly Guid Duplicate = Guid.Parse("1A19732C-C6BD-4DBA-8931-C6D666C06BAA");
     }
 }

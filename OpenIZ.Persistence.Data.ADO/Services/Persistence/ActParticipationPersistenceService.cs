@@ -45,7 +45,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
             int tr = 0;
-            return this.QueryInternal(context, base.BuildSourceQuery<ActParticipation>(id, versionSequenceId), Guid.Empty, 0, null, out tr, principal, false).ToList();
+            return this.QueryInternal(context, base.BuildSourceQuery<ActParticipation>(id, versionSequenceId), Guid.Empty, 0, 1000, out tr, principal, false).ToList();
 
         }
 
@@ -131,7 +131,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             // Duplicate check 
             var existing = context.FirstOrDefault<DbActParticipation>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.PlayerEntityKey && r.ParticipationRoleKey == data.ParticipationRoleKey && !r.ObsoleteVersionSequenceId.HasValue);
-            if (existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
+            if (existing != null && existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
             {
                 existing.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence;
                 if (existing.ObsoleteVersionSequenceId.HasValue)

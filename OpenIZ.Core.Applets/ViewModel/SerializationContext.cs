@@ -230,7 +230,7 @@ namespace OpenIZ.Core.Applets.ViewModel
         public bool ShouldSerialize(String childProperty)
         {
             var retVal = true;
-            if (childProperty == "id") return retVal;
+            if (childProperty == "id" || childProperty == "mnemonic") return retVal;
             var propertyDescription = this.ElementDescription?.FindProperty(childProperty) as PropertyModelDescription;
             if (propertyDescription?.Action == SerializationBehaviorType.Never || // Never serialize
                 this.ElementDescription == null ||

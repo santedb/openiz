@@ -103,9 +103,7 @@ namespace OpenIZ.Core.Model
         {
             var other = obj as VersionedAssociation<TSourceType>;
             if (other == null) return false;
-            return base.SemanticEquals(obj) &&
-                this.EffectiveVersionSequenceId == other.EffectiveVersionSequenceId &&
-                this.ObsoleteVersionSequenceId == other.ObsoleteVersionSequenceId;
+            return base.SemanticEquals(obj);
         }
     }
 }

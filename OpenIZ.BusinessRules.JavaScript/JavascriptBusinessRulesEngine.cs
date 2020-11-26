@@ -485,15 +485,8 @@ namespace OpenIZ.BusinessRules.JavaScript
                 }
                 catch (JavaScriptException e)
                 {
-                    this.m_tracer.TraceError("JAVASCRIPT ERROR RUNNING {0} OBJECT :::::> {3}@{2}\r\n{1}", action, this.ProduceLiteral(data), e.LineNumber, e);
-                    throw new DetectedIssueException(new List<DetectedIssue>()
-                    {
-                        new DetectedIssue()
-                        {
-                            Priority = DetectedIssuePriorityType.Error,
-                            Text = $"{e.Error.ToString()} @ {e.Location.Start.Line} - {e.Location.End.Line}"
-                        }
-                    });
+                    this.m_tracer.TraceWarning("JAVASCRIPT ERROR RUNNING {0} OBJECT :::::> {3}@{2}\r\n{1}", action, this.ProduceLiteral(data), e.LineNumber, e);
+                    throw;
 
                 }
                 catch (Exception e)
@@ -546,7 +539,7 @@ namespace OpenIZ.BusinessRules.JavaScript
                 catch (JavaScriptException e)
                 {
                     this.m_tracer.TraceError("Javascript Exception running {0} for {1} : {2}", action, data, e);
-                    throw new BusinessRulesExecutionException($"Error running business rule {action} for {data} @ {e.LineNumber}:{e.Column} - ({e.Location.Start}:{e.Location.End}) - {e.Source}", e);
+                    throw;
                 }
                 catch (Exception e)
                 {
@@ -585,7 +578,7 @@ namespace OpenIZ.BusinessRules.JavaScript
                 {
                     new DetectedIssue()
                     {
-                        Priority = DetectedIssuePriorityType.Error,
+                        Priority = DetectedIssuePriorityType.Warning,
                         Text = $"{e.Message} @ {e.LineNumber} - {e.CallStack}"
                     }
                 };
@@ -598,7 +591,7 @@ namespace OpenIZ.BusinessRules.JavaScript
                     {
                         new DetectedIssue()
                         {
-                            Priority = DetectedIssuePriorityType.Error,
+                            Priority = DetectedIssuePriorityType.Warning,
                             Text = e.Message
                         }
                     };

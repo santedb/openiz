@@ -78,8 +78,10 @@ namespace OpenIZ.Core.Model.Query
             foreach (var itm in qstring.Split('&'))
             {
                 var expr = itm.Split('=');
-                expr[0] = Uri.UnescapeDataString(expr[0]);
-                expr[1] = Uri.UnescapeDataString(expr[1]);
+                if(!String.IsNullOrEmpty(expr[0]))
+                    expr[0] = Uri.UnescapeDataString(expr[0]);
+                if(!String.IsNullOrEmpty(expr[1]))
+                    expr[1] = Uri.UnescapeDataString(expr[1]);
                 var value = expr[1].Replace('+', ' ').
                     Replace("%3A", ":").
                     Replace("%2F", "/").

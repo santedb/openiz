@@ -56,7 +56,9 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
+                                        -- BETWEEN START
 	                                    act_date BETWEEN '{0:o}' AND '{1:o}'
+                                        -- BETWEEN END
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
 	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE AND (sbadm_tbl.act_utc at time zone '+03:00')::DATE > '{0:o}'::DATE - '1 MONTH'::INTERVAL )
                                     GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, ctz);
@@ -67,8 +69,10 @@ namespace OizDevTool.Notifications
 	                                    INNER JOIN pat_vw ON (patient_id = pat_id)
 	                                    INNER JOIN fac_vw ON (fac_vw.fac_id = location_id)
                                     WHERE
+                                        -- BETWEEN START
 	                                    act_date BETWEEN '{0:o}' AND '{1:o}'
                                         AND location_id = '{2}'
+                                        -- BETWEEN END
 	                                    AND class_id = '932a3c7e-ad77-450a-8a1f-030fc2855450'
 	                                    AND NOT EXISTS (SELECT TRUE FROM sbadm_tbl WHERE pat_id = patient_id AND mat_id = product_id AND seq_id = dose_seq AND COALESCE(neg_ind, FALSE) = FALSE  AND (sbadm_tbl.act_utc at time zone '+03:00')::DATE > '{0:o}'::DATE - '1 MONTH'::INTERVAL )
                                     GROUP BY patient_id, alt_id, coalesce(pat_vw.tel, mth_tel, nok_tel), given,  location_id, fac_name", fromDate, toDate, facilityId, ctz);
@@ -102,13 +106,53 @@ namespace OizDevTool.Notifications
 
                     // Load the capacity schedule
                     var serviceInformation = placeData.LoadCollection<PlaceService>(nameof(Place.Services)).FirstOrDefault(o => o.ServiceConceptKey == Guid.Parse("f5304ED0-6C9F-411B-B008-A1E1561B7963"));
+                    ClinicServiceScheduleInfo capacityConfiguration = null;
+
                     if (serviceInformation == null)
                     {
-                        Console.WriteLine("\tThis facility does not have a capacity schedule for General Services");
-                        continue;
-                    }
+                        // HACK: Update and re-query for all events this week and use that as the default for the plan
+                        Console.WriteLine("\tThis facility does not have a capacity schedule - will use weekly plan");
+                        int spos = query.IndexOf("-- BETWEEN START"), epos = query.IndexOf("-- BETWEEN END");
+                        query = query.Substring(0, spos) +
+                            $"act_date BETWEEN '{fromDate:o}'::TIMESTAMP AND '{toDate:o}'::TIMESTAMP + '5 DAY'::INTERVAL " +
+                            $" AND location_id = '{loc.Key}'" +
+                            query.Substring(epos + 14);
 
-                    var capacityConfiguration = JsonConvert.DeserializeObject<ClinicServiceScheduleInfo>(serviceInformation.ServiceSchedule);
+                        var count = warehouseService.AdhocQuery($"SELECT COUNT(DISTINCT patient_id) AS C FROM ({query}) i").FirstOrDefault();
+                        if (count.c < 200)
+                            capacityConfiguration = new ClinicServiceScheduleInfo()
+                            {
+                                Schedule = new List<ClinicScheduleInfo>()
+                                {
+                                    new ClinicScheduleInfo()
+                                    {
+                                        Capacity = 40,
+                                        Days = new List<DayOfWeek>() { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
+                                        StartXml = "09:00",
+                                        StopXml = "15:30"
+                                    }
+                                }
+                            };
+                        else
+                            // Balance the load out over the week 
+                            capacityConfiguration = new ClinicServiceScheduleInfo()
+                            {
+                                Schedule = new List<ClinicScheduleInfo>()
+                                {
+                                    new ClinicScheduleInfo()
+                                    {
+                                        Capacity = (int)count.c / (int)7,
+                                        Days = new List<DayOfWeek>() { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
+                                        StartXml = "09:00",
+                                        StopXml = "15:30"
+                                    }
+                                }
+                            };
+
+                        
+                    }
+                    else 
+                        capacityConfiguration = JsonConvert.DeserializeObject<ClinicServiceScheduleInfo>(serviceInformation.ServiceSchedule);
                     var scheduledSlots = new Dictionary<DateTime, Int32>();
                     for (var d = 0; d <= toDate.Subtract(fromDate).TotalDays + 7; d++)
                     {

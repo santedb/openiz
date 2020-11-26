@@ -278,12 +278,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 foreach (var p in data.Protocols)
                 {
                     var proto = p.Protocol?.EnsureExists(context, principal);
-                    if (proto == null) // maybe we can retrieve the protocol from the protocol repository?
+
+                    try
                     {
-                        int t = 0;
-                        proto = ApplicationContext.Current.GetService<IClinicalProtocolRepositoryService>().FindProtocol(o => o.Key == p.ProtocolKey, 0, 1, out t).FirstOrDefault();
-                        proto = proto.EnsureExists(context, principal);
+                        if (proto == null) // maybe we can retrieve the protocol from the protocol repository?
+                        {
+                            int t = 0;
+                            proto = ApplicationContext.Current.GetService<IClinicalProtocolRepositoryService>().FindProtocol(o => o.Key == p.ProtocolKey, 0, 1, out t).FirstOrDefault();
+                            proto = proto.EnsureExists(context, principal);
+                        }
                     }
+                    catch(Exception e)
+                    {
+                        this.m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Warning, 0, "Could not find protocol{0} - ignoring", p.ProtocolKey);
+                    }
+
                     if (proto != null)
                         context.Insert(new DbActProtocol()
                         {
@@ -350,14 +359,26 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     // Now we want to re-point to correct the issue
                     foreach (var itm in context.Query<DbActParticipation>(o => o.SourceKey == retVal.Key && o.ParticipationRoleKey == ActParticipationKey.Consumable && o.ObsoleteVersionSequenceId == retVal.VersionSequence).ToArray())
                     {
-
                         var dItm = data.Participations.Find(o => o.Key == itm.Key);
                         if(dItm != null)
                             itm.TargetKey = dItm.PlayerEntityKey.Value;
                         itm.ObsoleteVersionSequenceId = null;
-                        context.Update(itm);
+
+                        if(!context.Any<DbActParticipation>(o=>o.TargetKey == itm.TargetKey && o.ParticipationRoleKey == itm.ParticipationRoleKey && o.ObsoleteVersionSequenceId == null))
+                            context.Update(itm);
                     }
                 }
+
+                // Was author removed?
+                var existingPtcpt = context.FirstOrDefault<DbActParticipation>(o => o.SourceKey == retVal.Key && o.ParticipationRoleKey == ActParticipationKey.Authororiginator);
+                var newPtcpt = data.Participations.FirstOrDefault(o => o.ParticipationRoleKey == ActParticipationKey.Authororiginator);
+                if (existingPtcpt != null && newPtcpt == null)
+                    data.Participations.Add(new ActParticipation(ActParticipationKey.Authororiginator, existingPtcpt.TargetKey));
+                existingPtcpt = context.FirstOrDefault<DbActParticipation>(o => o.SourceKey == retVal.Key && o.ParticipationRoleKey == ActParticipationKey.Location);
+                newPtcpt = data.Participations.FirstOrDefault(o => o.ParticipationRoleKey == ActParticipationKey.Location);
+                if (existingPtcpt != null && newPtcpt == null)
+                    data.Participations.Add(new ActParticipation(ActParticipationKey.Location, existingPtcpt.TargetKey));
+
 
                 // Update versioned association items
                 base.UpdateVersionedAssociatedItems<Core.Model.Acts.ActParticipation, DbActParticipation>(

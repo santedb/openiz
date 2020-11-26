@@ -62,7 +62,7 @@ namespace OpenIZ.Core.Extensions
                     if (obj is JArray)
                         return (obj as JArray).Values<dynamic>().ToArray();
                     else if (obj is JObject)
-                        return (obj as JObject).Value<dynamic>();
+                        return (obj as JObject).Value<object>();
 		        }
 			}
 	        catch

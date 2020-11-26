@@ -17,9 +17,14 @@
  * User: fyfej
  * Date: 2017-9-1
  */
+using Jint.Runtime;
 using Newtonsoft.Json;
+using OpenIZ.Core.Diagnostics;
 using OpenIZ.Core.Model;
+using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Collection;
+using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Services;
 using System;
 using System.Collections.Generic;
@@ -37,6 +42,10 @@ namespace OpenIZ.BusinessRules.JavaScript
     /// </summary>
     public class RuleServiceBase<TBinding> : IBusinessRulesService<TBinding> where TBinding : IdentifiedData
     {
+
+        // Tracer
+        private Tracer m_tracer = Tracer.GetTracer(typeof(RuleServiceBase<TBinding>));
+
         /// <summary>
         /// Invokes the specified trigger if one is registered
         /// </summary>
@@ -45,11 +54,27 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// <returns>The result of the trigger</returns>
         private TBinding InvokeTrigger(String triggerName, TBinding data)
         {
-            if (JavascriptBusinessRulesEngine.Current.HasRule<TBinding>(triggerName, data?.GetType()))
-                using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
-                    return instance.Invoke(triggerName, data);
-            else
+            try
+            {
+                if (JavascriptBusinessRulesEngine.Current.HasRule<TBinding>(triggerName, data?.GetType()))
+                    using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                        return instance.Invoke(triggerName, data);
+                else
+                    return data;
+            }
+            catch (JavaScriptException e)
+            {
+                try
+                {
+                    if (data is Entity entity)
+                        entity.Tags.Add(new Core.Model.DataTypes.EntityTag("$bre.error", e.Message));
+                    else if (data is Act act)
+                        act.Tags.Add(new Core.Model.DataTypes.ActTag("$bre.error", e.Message));
+
+                }
+                catch { }
                 return data;
+            }
         }
 
         /// <summary>
@@ -132,6 +157,7 @@ namespace OpenIZ.BusinessRules.JavaScript
         {
             using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
                 return instance.Validate(data);
+
         }
 
     }

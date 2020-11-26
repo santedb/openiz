@@ -24,6 +24,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
+using Newtonsoft.Json.Serialization;
 
 namespace OpenIZ.Core.Model.Serialization
 {
@@ -35,7 +36,7 @@ namespace OpenIZ.Core.Model.Serialization
 
         private static Dictionary<String, Type> s_typeCache = new Dictionary<string, Type>();
         private static object s_lock = new object();
-
+       
         /// <summary>
         /// Bind to type
         /// </summary>

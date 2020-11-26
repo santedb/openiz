@@ -92,7 +92,6 @@
     <Compile Include="CsdImport.PlaceService.cs" />
     <Compile Include="CsdImport.Provider.cs" />
     <Compile Include="Dataset.cs" />
-    <None Include="app.config" />
     <None Include="DefaulterNotification.sms">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
