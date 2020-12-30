@@ -74,6 +74,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 							query.Where(o => o.Key == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityDevicePolicy>>(query)
+                                                    .ToArray()
                                                     .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
                                                     .ToList();
 					}
@@ -84,6 +85,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             .Where(o => o.SourceKey == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityRolePolicy>>(query)
+                            .ToArray()
                             .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
                             .ToList();
                     }
@@ -99,6 +101,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             query.Where(o => o.Key == (securable as IdentifiedData).Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbSecurityApplicationPolicy>>(query)
+                            .ToArray()
                             .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
                             .ToList();
                     }
@@ -117,7 +120,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             .InnerJoin<DbSecurityUserRole>(o => o.SourceKey, o => o.RoleKey)
                             .Where<DbSecurityUserRole>(o => o.UserKey == user.Key);
 
-                        retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityRolePolicy>>(query).Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
+                        retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityRolePolicy>>(query).ToArray().Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
 
                         // Claims principal, then we want device and app SID
                         if (securable is ClaimsPrincipal)
@@ -135,7 +138,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                    .InnerJoin<DbSecurityPolicy, DbSecurityApplicationPolicy>()
                                    .Where(o => o.SourceKey == claim);
 
-                                retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityApplicationPolicy>>(query).Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
+                                retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityApplicationPolicy>>(query).ToArray().Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
                             }
                             // There is an device claim so we want to add the device policies - most restrictive
                             if (devClaim != null)
@@ -146,7 +149,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                    .InnerJoin<DbSecurityPolicy, DbSecurityDevicePolicy>()
                                    .Where(o => o.SourceKey == claim);
 
-                                retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityDevicePolicy>>(query).Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
+                                retVal.AddRange(context.Query<CompositeResult<DbSecurityPolicy, DbSecurityDevicePolicy>>(query).ToArray().Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, user)));
                             }
                         }
 
@@ -162,6 +165,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                   .Where(o => o.SourceKey == pAct.Key);
 
                         return context.Query<CompositeResult<DbSecurityPolicy, DbActSecurityPolicy>>(query)
+                            .ToArray()
                             .Select(o => new AdoSecurityPolicyInstance(o.Object2, o.Object1, securable))
                             .ToList();
                     }
@@ -188,7 +192,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                 try
                 {
                     dataContext.Open();
-                    return dataContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null).Select(o => new AdoSecurityPolicy(o)).ToList();
+                    return dataContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null).ToArray().Select(o => new AdoSecurityPolicy(o)).ToList();
                 }
                 catch (Exception e)
                 {

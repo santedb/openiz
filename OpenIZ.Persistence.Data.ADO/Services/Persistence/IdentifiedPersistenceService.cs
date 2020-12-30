@@ -180,6 +180,73 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             }
         }
 
+
+        /// <summary>
+        /// Obsolete the specified objects 
+        /// </summary>
+        protected override void BulkObsoleteInternal(DataContext context, IPrincipal principal, Guid[] keysToObsolete)
+        {
+            context.Delete<TDomain>(o => keysToObsolete.Contains(o.Key));
+        }
+
+        /// <summary>
+        /// Purge the specified object 
+        /// </summary>
+        protected override void BulkPurgeInternal(DataContext connection, IPrincipal principal, Guid[] keysToPurge)
+        {
+            // TODO: CASCADE DELETE - SCAN THE CONTEXT DOMAIN FOR TABLES WHICH POINT AT TDOMAIN 
+            // AND CASCADE THE DELETION TO THEM WHERE THE FK THAT POINTS AT MY TABLE 
+            // IS IN THE KEYS PROVIDED
+            var ofs = 0;
+            while (ofs < keysToPurge.Length)
+            {
+                var keys = keysToPurge.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+                connection.Delete<TDomain>(o => keys.Contains(o.Key));
+            }
+        }
+
+        /// <summary>
+        /// Perform the query for bulk keys with an open context
+        /// </summary>
+        protected override IEnumerable<Guid> QueryKeysInternal(DataContext context, Expression<Func<TModel, bool>> query, int offset, int? count, out int totalResults)
+        {
+            // Construct the SQL query
+            var pk = TableMapping.Get(typeof(TDomain)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+            var domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pk);
+
+            var results = context.Query<Guid>(domainQuery);
+
+            count = count ?? 100;
+            if (m_configuration.UseFuzzyTotals)
+            {
+                // Skip and take
+                results = results.Skip(offset).Take(count.Value + 1);
+                totalResults = offset + results.Count();
+            }
+            else
+            {
+                totalResults = results.Count();
+                results = results.Skip(offset).Take(count.Value);
+            }
+
+            return results.ToList(); // exhaust the results and continue
+        }
+
+        /// <summary>
+        /// Copy the specified keys
+        /// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+            var ofs = 0;
+            while (ofs < keysToCopy.Length)
+            {
+                var keys = keysToCopy.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+                toContext.InsertOrUpdate(fromContext.Query<TDomain>(o => keys.Contains(o.Key)));
+            }
+        }
+
         #endregion
     }
 }

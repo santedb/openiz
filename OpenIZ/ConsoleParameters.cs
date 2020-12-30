@@ -51,5 +51,25 @@ namespace OpenIZ
         [Parameter("test-start")]
         public bool StartupTest { get; set; }
 
+        /// <summary>
+        /// Install the service
+        /// </summary>
+        [Parameter("install")]
+        [Description("Register the service in Windows")]
+        public bool Install { get; set; }
+
+        /// <summary>
+        /// Uninstall the service
+        /// </summary>
+        [Parameter("uninstall")]
+        [Description("Unregister the service in Windows")]
+        public bool UnInstall { get; set; }
+
+        /// <summary>
+        /// Gets or sets the instance name
+        /// </summary>
+        [Parameter("name")]
+        [Description("Sets the instance name")]
+        public string InstanceName { get; set; }
     }
 }

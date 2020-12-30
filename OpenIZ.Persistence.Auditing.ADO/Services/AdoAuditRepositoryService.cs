@@ -422,7 +422,7 @@ namespace OpenIZ.Persistence.Auditing.ADO.Services
                             sql.Offset(offset);
                     }
                     sql = sql.Build();
-                    var itm = context.Query<CompositeResult<DbAuditData, DbAuditCode>>(sql);
+                    var itm = context.Query<CompositeResult<DbAuditData, DbAuditCode>>(sql).ToArray();
                     AuditUtil.AuditAuditLogUsed(ActionType.Read, OutcomeIndicator.Success, sql.ToString(), itm.Select(o => o.Object1.Key).ToArray());
                     var results = itm.Select(o => this.ToModelInstance(context, o)).ToList().AsQueryable();
 

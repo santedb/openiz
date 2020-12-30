@@ -47,7 +47,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityApplicationPolicy>(o => o.SourceKey == application.Key);
 
-				application.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				application.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return application;
@@ -87,7 +87,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityApplicationPolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			return retVal;
 		}
 
@@ -148,7 +148,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityDevicePolicy>(o => o.SourceKey == device.Key);
 
-				device.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				device.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return device;
@@ -188,7 +188,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityDevicePolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			return retVal;
 		}
 
@@ -266,7 +266,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityRolePolicy>(o => o.SourceKey == role.Key);
 
-				role.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				role.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return role;
@@ -309,13 +309,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityRolePolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 
 			var rolesQuery = context.CreateSqlStatement<DbSecurityUserRole>().SelectFrom()
 				.InnerJoin<DbSecurityUser>(o => o.UserKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.RoleKey == retVal.Key);
 
-			retVal.Users = context.Query<DbSecurityUser>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityUser, Core.Model.Security.SecurityUser>(o)).ToList();
+			retVal.Users = context.Query<DbSecurityUser>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityUser, Core.Model.Security.SecurityUser>(o)).ToList();
 
 			return retVal;
 		}
@@ -414,7 +414,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 					.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 					.Where<DbSecurityUserRole>(o => o.UserKey == user.Key);
 
-				user.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
+				user.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
 
 				users.Add(user);
 			}
@@ -441,7 +441,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.UserKey == dbUser.Key);
 
-			retVal.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, Core.Model.Security.SecurityRole>(o)).ToList();
+			retVal.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, Core.Model.Security.SecurityRole>(o)).ToList();
 			return retVal;
 		}
 
@@ -490,7 +490,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.UserKey == key);
 
-			user.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
+			user.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
 
 			return user;
 		}

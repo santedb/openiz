@@ -287,7 +287,7 @@ namespace OpenIZ.Core.Model.Acts
     {
 
         // Value key
-        private Guid? m_valueKey;
+        private Guid m_valueKey;
         // Value
         private Concept m_value;
 
@@ -310,7 +310,7 @@ namespace OpenIZ.Core.Model.Acts
         [XmlElement("value"), JsonProperty("value")]
         [EditorBrowsable(EditorBrowsableState.Never)]
         
-        public Guid? ValueKey
+        public Guid ValueKey
         {
             get { return this.m_valueKey; }
             set
@@ -338,7 +338,7 @@ namespace OpenIZ.Core.Model.Acts
             set
             {
                 this.m_value = value;
-                this.m_valueKey = value?.Key;
+                this.m_valueKey = (value?.Key).GetValueOrDefault();
             }
         }
 

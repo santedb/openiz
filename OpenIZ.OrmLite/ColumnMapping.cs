@@ -31,6 +31,15 @@ namespace OpenIZ.OrmLite
     public class ColumnMapping
     {
 
+        /// <summary>
+        /// A column mapping representing 1 (for using in SELECT 1 FROM)
+        /// </summary>
+        public static readonly ColumnMapping One = new ColumnMapping()
+        {
+            Name = "1",
+            SourceProperty = null
+        };
+
         // Column mapping
         private static Dictionary<PropertyInfo, ColumnMapping> s_columnCache = new Dictionary<PropertyInfo, ColumnMapping>();
 
@@ -77,6 +86,11 @@ namespace OpenIZ.OrmLite
         /// Identifies the column must always have a value even if 0
         /// </summary>
         public bool IsNonNull { get; private set; }
+
+        /// <summary>
+        /// Column mapping
+        /// </summary>
+        private ColumnMapping() { }
 
         /// <summary>
         /// Create a column mapping

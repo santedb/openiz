@@ -92,5 +92,11 @@ namespace OpenIZ.Core.Model.Constants
 		/// Indicates that the entity or act did exist at one point, however it no longer exists
 		/// </summary>
 		public static readonly Guid Obsolete = Guid.Parse("BDEF5F90-5497-4F26-956C-8F818CCE2BD2");
-	}
+
+
+        /// <summary>
+        /// Indicates that the entity or act did exist at one point, however it no longer exists
+        /// </summary>
+        public static readonly Guid Purged = Guid.Parse("39995C08-0A5C-4549-8BA7-D187F9B3C4FD");
+    }
 }

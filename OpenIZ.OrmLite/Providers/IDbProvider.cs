@@ -125,5 +125,10 @@ namespace OpenIZ.OrmLite.Providers
         /// Map datatype
         /// </summary>
         string MapDatatype(SchemaPropertyType type);
+
+        /// <summary>
+        /// Reset the sequence
+        /// </summary>
+        SqlStatement GetResetSequence(string sequenceName, object sequenceValue);
     }
 }

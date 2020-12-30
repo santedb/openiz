@@ -59,6 +59,12 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
                     retVal.ReadonlyConnectionString = connectionNode.Attributes["readonlyConnection"].Value;
                 else
                     retVal.ReadonlyConnectionString = retVal.ReadWriteConnectionString;
+
+                if (connectionNode.Attributes["archiveConnection"] != null)
+                {
+                    retVal.ArchiveConnectionString = connectionNode.Attributes["archiveConnection"].Value;
+                }
+
                 if (connectionNode.Attributes["insertUpdate"] != null)
                     retVal.AutoUpdateExisting = bool.Parse(connectionNode.Attributes["insertUpdate"].Value);
                 if(connectionNode.Attributes["autoInsertChildren"] != null)
@@ -90,6 +96,12 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
                     retVal.Provider.ReadonlyConnectionString = ApplicationContext.Current.GetService<IConfigurationManager>().ConnectionStrings[retVal.ReadonlyConnectionString]?.ConnectionString;
                     retVal.Provider.ConnectionString = ApplicationContext.Current.GetService<IConfigurationManager>().ConnectionStrings[retVal.ReadWriteConnectionString]?.ConnectionString;
                     retVal.Provider.TraceSql = retVal.TraceSql;
+
+                    if(!String.IsNullOrEmpty(retVal.ArchiveConnectionString))
+                    {
+                        retVal.ArchiveProvider = Activator.CreateInstance(providerType) as IDbProvider;
+                        retVal.ArchiveProvider.ReadonlyConnectionString = retVal.ArchiveProvider.ConnectionString = ApplicationContext.Current.GetService<IConfigurationManager>().ConnectionStrings[retVal.ArchiveConnectionString]?.ConnectionString;
+                    }
                 }
                 else
                     throw new ConfigurationErrorsException("ADO.NET persistence provider requires a [provider] attribute");

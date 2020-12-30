@@ -46,6 +46,11 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         public String ReadWriteConnectionString { get; set; }
 
         /// <summary>
+        /// Archive connection string
+        /// </summary>
+        public String ArchiveConnectionString { get; set; }
+
+        /// <summary>
         /// Readonly connection string
         /// </summary>
         public String ReadonlyConnectionString { get; set; }
@@ -79,6 +84,12 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         /// Provider type
         /// </summary>
         public IDbProvider Provider { get; set; }
+
+
+        /// <summary>
+        /// Provider type
+        /// </summary>
+        public IDbProvider ArchiveProvider { get; set; }
 
         /// <summary>
         /// Gets a list of data corrections to apply

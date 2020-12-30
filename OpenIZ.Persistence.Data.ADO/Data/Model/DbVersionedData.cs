@@ -87,6 +87,12 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Model
         /// </summary>
         [Column("rplc_vrsn_id")]
         public Guid? ReplacesVersionKey { get; set; }
+
+        /// <summary>
+        /// True if setting rplc_vrsn to null
+        /// </summary>
+        public bool ReplacesVersionKeySpecified { get; internal set; }
+
     }
 
 }

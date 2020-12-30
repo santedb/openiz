@@ -159,6 +159,61 @@ namespace OpenIZ.OrmLite
         private IDbCommand m_lastCommand = null;
 
         /// <summary>
+        /// Determines if <paramref name="obj"/> exists in the database
+        /// </summary>
+        public bool Exists<TModel>(TModel obj)
+        {
+            var sqlStatement = this.CreateSqlStatement();
+            foreach (var cm in TableMapping.Get(typeof(TModel)).Columns.Where(o => o.IsPrimaryKey))
+                sqlStatement.And($"{cm.Name} = ?", cm.SourceProperty.GetValue(obj));
+            sqlStatement = this.CreateSqlStatement<TModel>().SelectFrom(ColumnMapping.One).Where(sqlStatement);
+            return this.Any(sqlStatement);
+        }
+
+        /// <summary>
+        /// Returns only if only one result is available
+        /// </summary>
+        public TReturn ExecuteScalar<TReturn>(SqlStatement sqlStatement)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, sqlStatement);
+                    try
+                    {
+                        return (TReturn)dbc.ExecuteScalar();
+                    }
+                    catch (TimeoutException)
+                    {
+                        try { dbc.Cancel(); } catch { }
+                        throw;
+                    }
+                    finally
+                    {
+#if DBPERF
+                        this.PerformanceMonitor(stmt, sw);
+#endif
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("SCALAR {0} executed in {1} ms", sqlStatement, sw.ElapsedMilliseconds);
+            }
+#endif
+        }
+
+        /// <summary>
         /// Execute a stored procedure transposing the result set back to <typeparamref name="TModel"/>
         /// </summary>
         public IEnumerable<TModel> Query<TModel>(String spName, params object[] arguments)
@@ -249,7 +304,15 @@ namespace OpenIZ.OrmLite
                 return (TModel)retVal;
             }
             else if (BaseTypes.Contains(typeof(TModel)))
-                return (TModel)rdr[0];
+            {
+                var obj = rdr[0];
+                if (obj == DBNull.Value)
+                    return default(TModel);
+                else if (typeof(TModel).IsAssignableFrom(obj.GetType()))
+                    return (TModel)obj;
+                else
+                    return (TModel)this.m_provider.ConvertValue(obj, typeof(TModel));
+            }
             else if (typeof(ExpandoObject).IsAssignableFrom(typeof(TModel)))
                 return this.MapExpando<TModel>(rdr);
             else
@@ -299,6 +362,43 @@ namespace OpenIZ.OrmLite
                 this.m_tracer.TraceInfo("Type {0} does not implement IAdoLoadedData", tModel);
             return result;
 
+        }
+
+        /// <summary>
+        /// Delete from the database
+        /// </summary>
+        public void Delete<TModel>(SqlStatement keyFilter)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                var keyColumnName = TableMapping.Get(typeof(TModel)).Columns.First(o => o.IsPrimaryKey);
+                var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where($"{keyColumnName.Name} IN (").Append(keyFilter).Append(")");
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
+                    try
+                    {
+                        dbc.ExecuteNonQuery();
+                    }
+                    finally
+                    {
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("DELETE executed in {0} ms", sw.ElapsedMilliseconds);
+            }
+#endif
         }
 
         /// <summary>
@@ -979,10 +1079,11 @@ namespace OpenIZ.OrmLite
                     var itmValue = itm.SourceProperty.GetValue(value);
 
                     if (itmValue == null ||
+                        !itm.IsNonNull && (
                         itmValue.Equals(default(Guid)) ||
                         itmValue.Equals(default(DateTime)) ||
                         itmValue.Equals(default(DateTimeOffset)) ||
-                        itmValue.Equals(default(Decimal)))
+                        itmValue.Equals(default(Decimal))))
                         itmValue = null;
 
                     query.Append($"{itm.Name} = ? ", itmValue);
@@ -1053,6 +1154,72 @@ namespace OpenIZ.OrmLite
             {
                 sw.Stop();
                 this.m_tracer.TraceVerbose("EXECUTE NON QUERY executed in {0} ms", sw.ElapsedMilliseconds);
+            }
+#endif
+        }
+
+        /// <summary>
+        /// Bulk insert data
+        /// </summary>
+        public IEnumerable<TModel> InsertOrUpdate<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Exists(o) ? this.Update(o) : this.Insert(o)).ToList();
+        }
+
+        /// <summary>
+        /// Bulk insert data
+        /// </summary>
+        public IEnumerable<TModel> Insert<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Insert(o)).ToList();
+        }
+
+        /// <summary>
+        /// Bulk update data
+        /// </summary>
+        public IEnumerable<TModel> Update<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Update(o)).ToList();
+        }
+
+        /// <summary>
+        /// Resets the specified sequence according to the logic in the provider
+        /// </summary>
+        public void ResetSequence(string sequenceName, object sequenceValue)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, this.m_provider.GetResetSequence(sequenceName, sequenceValue));
+                    try
+                    {
+                        dbc.ExecuteNonQuery();
+                    }
+                    catch (TimeoutException)
+                    {
+                        try { dbc.Cancel(); } catch { }
+                        throw;
+                    }
+                    finally
+                    {
+#if DBPERF
+                        this.PerformanceMonitor(stmt, sw);
+#endif
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("RESET SEQUENCE{0} to {1}", sequenceName, sequenceValue);
             }
 #endif
         }

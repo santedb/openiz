@@ -72,7 +72,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 			if (!loadFast)
 			{
-				reportDefinition.Parameters = context.Query<ReportParameter>(r => r.ReportId == key).Select(r => new Core.Model.RISI.ReportParameter
+				reportDefinition.Parameters = context.Query<ReportParameter>(r => r.ReportId == key).ToArray().Select(r => new Core.Model.RISI.ReportParameter
 				{
 					Key = r.Key,
 					Name = r.Name,

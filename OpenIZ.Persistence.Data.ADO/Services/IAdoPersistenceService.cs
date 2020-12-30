@@ -61,6 +61,20 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         /// Determine if existing object exists
         /// </summary>
         bool Exists(DataContext context, Guid guid);
+
+      
+    }
+
+    /// <summary>
+    /// Interface for copy provider
+    /// </summary>
+    public interface IAdoCopyPersistenceService : IAdoPersistenceService
+    {
+        /// <summary>
+        /// Copy keys to the archive connection 
+        /// </summary>
+        void CopyToArchive(Guid[] keysToBeArchived);
+
     }
 
     /// <summary>

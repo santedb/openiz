@@ -63,12 +63,29 @@ namespace OpenIZ.Core.Model.Query
         }
 
         /// <summary>
+        /// Build expression for specified type
+        /// </summary>
+        public static Expression BuildLinqExpression(Type modelType, NameValueCollection httpQueryParameters)
+        {
+            var methodInfo = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { modelType }, new Type[] { typeof(NameValueCollection) });
+            return methodInfo.Invoke(null, new object[] { httpQueryParameters }) as Expression;
+        }
+
+        /// <summary>
+        /// Build expression for specified type
+        /// </summary>
+        public static Expression BuildLinqExpression(Type modelType, NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables)
+        {
+            var methodInfo = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { modelType }, new Type[] { typeof(NameValueCollection), typeof(Dictionary<String, Delegate>) });
+            return methodInfo.Invoke(null, new object[] { httpQueryParameters, variables }) as Expression;
+        }
+
+        /// <summary>
         /// Build a LINQ expression
         /// </summary>
         public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables)
         {
             return BuildLinqExpression<TModelType>(httpQueryParameters, variables, true, false);
-
         }
 
         /// <summary>
@@ -140,9 +157,9 @@ namespace OpenIZ.Core.Model.Query
                     var pMember = rawMember;
                     String guard = String.Empty,
                         cast = String.Empty;
-                    
+
                     // Guard token incomplete?
-                    if(pMember.Contains("[") && !pMember.Contains("]"))
+                    if (pMember.Contains("[") && !pMember.Contains("]"))
                     {
                         while (!pMember.Contains("]") && i < memberPath.Length)
                             pMember += "." + memberPath[++i];
@@ -185,7 +202,7 @@ namespace OpenIZ.Core.Model.Query
                     {
                         memberInfo = accessExpression.Type.GetRuntimeProperties().FirstOrDefault(p => p.GetCustomAttributes<XmlElementAttribute>()?.Any(a => a.ElementName == pMember) == true || p.GetCustomAttribute<QueryParameterAttribute>()?.ParameterName == pMember);
                         if (memberInfo == null)
-                            throw new ArgumentOutOfRangeException(currentValue.Key, $"Property {currentValue.Key} could not be found on {accessExpression.Type.FullName}"); 
+                            throw new ArgumentOutOfRangeException(currentValue.Key, $"Property {currentValue.Key} could not be found on {accessExpression.Type.FullName}");
 
                         // Member cache
                         lock (memberCache)
@@ -223,7 +240,7 @@ namespace OpenIZ.Core.Model.Query
                             memberInfo = backingFor;
                     }
 
-                    
+
                     if (forceLoad)
                     {
                         if (typeof(IList).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
@@ -231,7 +248,7 @@ namespace OpenIZ.Core.Model.Query
                             var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadCollection), new Type[] { memberInfo.PropertyType.GenericTypeArguments[0] }, new Type[] { typeof(IdentifiedData), typeof(String) });
                             accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
                         }
-                        else if(typeof(IIdentifiedEntity).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
+                        else if (typeof(IIdentifiedEntity).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
                         {
                             var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadProperty), new Type[] { memberInfo.PropertyType }, new Type[] { typeof(IdentifiedData), typeof(String) });
                             accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
@@ -239,7 +256,7 @@ namespace OpenIZ.Core.Model.Query
                         else
                             accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
                     }
-                    else 
+                    else
                         accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
 
                     if (!String.IsNullOrEmpty(cast))
@@ -344,7 +361,7 @@ namespace OpenIZ.Core.Model.Query
                         accessExpression.Type.GetTypeInfo().IsGenericType)
                     {
 
-                       
+
                         Type itemType = accessExpression.Type.GenericTypeArguments[0];
                         Type predicateType = typeof(Func<,>).MakeGenericType(itemType, typeof(bool));
 

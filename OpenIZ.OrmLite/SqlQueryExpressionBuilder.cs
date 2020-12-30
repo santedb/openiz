@@ -19,6 +19,7 @@
  */
 using OpenIZ.OrmLite.Providers;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -255,11 +256,44 @@ namespace OpenIZ.OrmLite
                     this.Visit(node.Arguments[0]);
                     break;
                 case "Contains":
-                    this.Visit(node.Object);
-                    this.m_sqlStatement.Append(this.m_provider.CreateSqlKeyword(SqlKeyword.ILike));
-                    this.m_sqlStatement.Append(" '%' || ");
-                    this.Visit(node.Arguments[0]);
-                    this.m_sqlStatement.Append(" || '%' ");
+                    // Determine the defining type
+                    if (node.Method.DeclaringType == typeof(Enumerable)) // is a LINQ CONTAINS() 
+                    {
+                        Expression enumerable = node.Arguments[0],
+                            contained = node.Arguments[1];
+
+                        var value = this.GetConstantValue(enumerable) as IEnumerable;
+                        if (value.OfType<Object>().Count() == 0)
+                            this.m_sqlStatement.Append("FALSE");
+                        else
+                        {
+                            this.Visit(contained);
+                            this.m_sqlStatement.Append(" IN (");
+
+                            this.m_sqlStatement.Append(String.Join(",", value.OfType<Object>().Select(o => "?")), value.OfType<Object>().ToArray());
+
+                            this.m_sqlStatement.Append(")");
+                        }
+                    }
+                    else if (node.Method.DeclaringType == typeof(String)) // is a STRING contains()
+                    {
+                        this.Visit(node.Object);
+                        this.m_sqlStatement.Append(this.m_provider.CreateSqlKeyword(SqlKeyword.ILike));
+
+                        this.m_sqlStatement.Append(" '%' || ");
+
+                        if (node.Object?.NodeType == ExpressionType.Call &&
+                            (node.Object as MethodCallExpression).Method.Name == "ToLower") // We must apply the same call
+                        {
+                            this.m_sqlStatement.Append(this.m_provider.CreateSqlKeyword(SqlKeyword.Lower)).Append("(");
+                            this.Visit(node.Arguments[0]);
+                            this.m_sqlStatement.Append(")");
+                        }
+                        else
+                            this.Visit(node.Arguments[0]);
+
+                        this.m_sqlStatement.Append(" || '%' ");
+                    }
                     break;
                 case "ToLower":
                     this.m_sqlStatement.Append(this.m_provider.CreateSqlKeyword(SqlKeyword.Lower));
@@ -360,41 +394,63 @@ namespace OpenIZ.OrmLite
                 default:
                     if (node.Expression != null)
                     {
-                        var expr = node.Expression;
-                        while (expr.NodeType == ExpressionType.Convert)
-                            expr = (expr as UnaryExpression)?.Operand;
-                        // Ignore typeas
-                        switch (expr.NodeType)
+                        if (node.Expression.Type.IsGenericType &&
+                       node.Expression.Type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                            this.Visit(node.Expression);
+                        else
                         {
-                            case ExpressionType.Parameter:
-                                // Translate
-                                var tableMap = TableMapping.Get(expr.Type);
-                                var columnMap = tableMap.GetColumn(node.Member);
-                                this.Visit(expr);
-                                // Now write out the expression
-                                this.m_sqlStatement.Append($".{columnMap.Name}");
-                                break;
-                            case ExpressionType.Constant:
-                            case ExpressionType.TypeAs:
-                            case ExpressionType.MemberAccess:
-                                var cons = this.GetConstantValue(expr);
-
-                                try
-                                {
+                            var expr = node.Expression;
+                            while (expr.NodeType == ExpressionType.Convert)
+                                expr = (expr as UnaryExpression)?.Operand;
+                            // Ignore typeas
+                            switch (expr.NodeType)
+                            {
+                                case ExpressionType.Parameter:
+                                    // Translate
+                                    var tableMap = TableMapping.Get(expr.Type);
+                                    var columnMap = tableMap.GetColumn(node.Member);
+                                    this.Visit(expr);
+                                    this.m_sqlStatement.Append($".{columnMap.Name}");
+                                    break;
+                                case ExpressionType.Constant:
+                                case ExpressionType.TypeAs:
+                                case ExpressionType.MemberAccess:
                                     // Ok, this is a constant member access.. so ets get the value
+                                    var cons = this.GetConstantValue(expr);
                                     if (node.Member is PropertyInfo)
-                                        this.m_sqlStatement.Append(" ? ", (node.Member as PropertyInfo).GetValue(cons));
+                                    {
+                                        var value = (node.Member as PropertyInfo).GetValue(cons);
+                                        if (value == null)
+                                        {
+                                            var stmt = this.m_sqlStatement.RemoveLast().SQL.Trim();
+                                            if (stmt == "<>")
+                                                this.m_sqlStatement.Append(" IS NOT NULL ");
+                                            else if (stmt == "=")
+                                                this.m_sqlStatement.Append(" IS NULL ");
+                                            else
+                                                throw new InvalidOperationException($"Cannot determine how to convert {node} in SQL");
+                                        }
+                                        else
+                                            this.m_sqlStatement.Append(" ? ", value);
+                                    }
                                     else if (node.Member is FieldInfo)
-                                        this.m_sqlStatement.Append(" ? ", (node.Member as FieldInfo).GetValue(cons));
+                                    {
+                                        var value = (node.Member as FieldInfo).GetValue(cons);
+                                        if (value == null)
+                                        {
+                                            var stmt = this.m_sqlStatement.RemoveLast().SQL.Trim();
+                                            if (stmt == "<>")
+                                                this.m_sqlStatement.Append(" IS NOT NULL ");
+                                            else
+                                                this.m_sqlStatement.Append(" IS NULL ");
+                                        }
+                                        else
+                                            this.m_sqlStatement.Append(" ? ", value);
+                                    }
                                     else
                                         throw new NotSupportedException();
                                     break;
-                                }
-                                catch (Exception e)
-                                {
-                                    Trace.TraceError("Error making member access: {0} on {1} ({2})", node.Member.Name, cons, expr);
-                                    throw;
-                                }
+                            }
                         }
                     }
                     else // constant expression

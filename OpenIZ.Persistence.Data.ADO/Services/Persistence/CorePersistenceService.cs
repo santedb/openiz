@@ -38,13 +38,16 @@ using System.Threading.Tasks;
 using MARC.HI.EHRS.SVC.Core.Data;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Data.Common;
+using OpenIZ.Core.Diagnostics;
+using OpenIZ.Core.Exceptions;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
     /// <summary>
     /// Core persistence service which contains helpful functions
     /// </summary>
-    public abstract class CorePersistenceService<TModel, TDomain, TQueryReturn> : AdoBasePersistenceService<TModel>
+    public abstract class CorePersistenceService<TModel, TDomain, TQueryReturn> : AdoBasePersistenceService<TModel>, IBulkDataPersistenceService, IAdoCopyPersistenceService
         where TModel : IdentifiedData, new()
         where TDomain : class, new()
     {
@@ -457,6 +460,154 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
         }
 
+        /// <summary>
+        /// Obsolete the specified keys
+        /// </summary>
+        public virtual void Obsolete(TransactionMode transactionMode, IPrincipal principal, params Guid[] keysToObsolete)
+        {
+            // Obsolete object
+            using (var connection = m_configuration.Provider.GetWriteConnection())
+            {
+                connection.Open();
+                using (var tx = connection.BeginTransaction())
+                    try
+                    {
+                        this.BulkObsoleteInternal(connection, principal, keysToObsolete);
+
+                        if (transactionMode == TransactionMode.Commit)
+                            tx.Commit();
+                    }
+                    catch (DbException e)
+                    {
+                        tx?.Rollback();
+                        this.TranslateDbException(e);
+                    }
+                    catch (Exception e)
+                    {
+                        tx?.Rollback();
+                        throw new DataPersistenceException($"Error bulk obsoleting data", e);
+                    }
+            }
+        }
+
+        /// <summary>
+        /// Purge the specified objects from the database
+        /// </summary>
+        public virtual void Purge(TransactionMode transactionMode, IPrincipal principal, params Guid[] keysToPurge)
+        {
+            // Purge object
+            using (var connection = m_configuration.Provider.GetWriteConnection())
+            {
+                connection.Open();
+                using (var tx = connection.BeginTransaction())
+                    try
+                    {
+                        this.BulkPurgeInternal(connection, principal, keysToPurge);
+                        if (transactionMode == TransactionMode.Commit)
+                            tx.Commit();
+                    }
+                    catch (DbException e)
+                    {
+                        tx?.Rollback();
+                        this.TranslateDbException(e);
+                    }
+                    catch (Exception e)
+                    {
+                        tx?.Rollback();
+                        throw new DataPersistenceException($"Error bulk obsoleting data", e);
+                    }
+            }
+        }
+
+        /// <summary>
+        /// Query the specified keys matching the specified expression
+        /// </summary>
+        public virtual IEnumerable<Guid> QueryKeys(Expression query, int offset, int? count, out int totalResults)
+        {
+            if (query is Expression<Func<TModel, bool>> castQuery)
+                using (var connection = m_configuration.Provider.GetWriteConnection())
+                {
+                    connection.Open();
+                    try
+                    {
+                        return this.QueryKeysInternal(connection, castQuery, offset, count, out totalResults);
+                    }
+                    catch (DbException e)
+                    {
+                        this.TranslateDbException(e);
+                        throw;
+                    }
+                    catch (Exception e)
+                    {
+                        throw new DataPersistenceException($"Error bulk query data", e);
+                    }
+                }
+            else
+                throw new ArgumentException($"Expression must be of type Expression<Func<{typeof(TModel).Name},bool>>", nameof(query));
+        }
+
+        /// <summary>
+        /// Copy the specified keys to the archive
+        /// </summary>
+        /// <param name="keysToBeArchived"></param>
+        public virtual void CopyToArchive(Guid[] keysToBeArchived)
+        {
+            try
+            {
+                using (var fromContext = m_configuration.Provider.GetReadonlyConnection())
+                {
+                    fromContext.Open();
+                    using (var toContext = m_configuration.ArchiveProvider.GetWriteConnection())
+                    {
+                        toContext.Open();
+                        using (var tx = toContext.BeginTransaction())
+                        {
+                            try
+                            {
+                                this.Copy(keysToBeArchived, fromContext, toContext);
+                                tx.Commit();
+                            }
+                            catch
+                            {
+                                tx.Rollback();
+                                throw;
+                            }
+                        }
+                    }
+                }
+            }
+            catch(DbException e)
+            {
+                TranslateDbException(e);
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceError("Error copying keys : {0}", e);
+                throw new Exception("Error copying keys to archive", e);
+            }
+        }
+
+        /// <summary>
+        /// Perform the bulk obsoletion operation
+        /// </summary>
+        protected abstract void BulkObsoleteInternal(DataContext context, IPrincipal principal, Guid[] keysToObsolete);
+
+
+        /// <summary>
+        /// Purge the specified object 
+        /// </summary>
+        protected abstract void BulkPurgeInternal(DataContext connection, IPrincipal principal, Guid[] keysToPurge);
+
+
+        /// <summary>
+        /// Perform the query for bulk keys with an open context
+        /// </summary>
+        protected abstract IEnumerable<Guid> QueryKeysInternal(DataContext context, Expression<Func<TModel, bool>> query, int offset, int? count, out int totalResults);
+
+        /// <summary>
+        /// Copy the data from <paramref name="fromContext"/> to <paramref name="toContext"/>
+        /// </summary>
+        public abstract void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext);
 
     }
 }

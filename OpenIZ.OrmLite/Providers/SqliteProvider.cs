@@ -326,5 +326,14 @@ namespace OpenIZ.OrmLite.Providers
                     return null;
             }
         }
+
+        /// <summary>
+        /// Get reset sequence command
+        /// </summary>
+        public SqlStatement GetResetSequence(string sequenceName, object sequenceValue)
+        {
+            throw new NotSupportedException();
+        }
+
     }
 }

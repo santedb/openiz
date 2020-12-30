@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OizDevTool</RootNamespace>
     <AssemblyName>oizdt</AssemblyName>
-    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile />
@@ -35,6 +35,10 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ExpressionEvaluator, Version=2.0.4.0, Culture=neutral, PublicKeyToken=90d9f15d622e2348, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Solution Items\ExpressionEvaluator.dll</HintPath>
+    </Reference>
     <Reference Include="GIIS.DataLayer">
       <HintPath>..\Solution Items\GIIS.DataLayer.dll</HintPath>
     </Reference>
@@ -91,7 +95,9 @@
     <Compile Include="CsdImport.Place.cs" />
     <Compile Include="CsdImport.PlaceService.cs" />
     <Compile Include="CsdImport.Provider.cs" />
+    <Compile Include="DbUtility.cs" />
     <Compile Include="Dataset.cs" />
+    <None Include="App.config" />
     <None Include="DefaulterNotification.sms">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -104,6 +110,7 @@
     <Compile Include="ImsiServiceClient.cs" />
     <Compile Include="InteractiveBase.cs" />
     <Compile Include="LogUtil.cs" />
+    <Compile Include="Model\RetentionConfiguration.cs" />
     <Compile Include="Notifications\DefaultersNotification.cs" />
     <Compile Include="Notifications\INotificationProcess.cs" />
     <Compile Include="Notifications\NotificationUtils.cs" />
@@ -127,6 +134,9 @@
     <Compile Include="JsProxy.cs" />
     <Compile Include="SvsImport.cs" />
     <Compile Include="Svs.cs" />
+    <None Include="retention.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\OpenIZ.licenseheader">

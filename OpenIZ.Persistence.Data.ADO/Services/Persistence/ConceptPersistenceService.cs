@@ -34,6 +34,7 @@ using OpenIZ.Persistence.Data.ADO.Data;
 using OpenIZ.OrmLite;
 using System.Collections;
 using OpenIZ.Core.Interfaces;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Security;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -42,6 +43,15 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     /// </summary>
     public class ConceptPersistenceService : VersionedDataPersistenceService<Core.Model.DataTypes.Concept, DbConceptVersion, DbConcept>
     {
+
+        // Status set keys
+        private static readonly Guid[] s_statusSets = new Guid[]
+        {
+            ConceptSetKeys.ActStatus,
+            ConceptSetKeys.EntityStatus,
+            ConceptSetKeys.ConceptStatus
+        };
+
         /// <summary>
         /// To morel instance
         /// </summary>
@@ -67,7 +77,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             else
             {
                 retVal.LoadState = Core.Model.LoadState.PartialLoad;
-                retVal.ConceptNames = context.Query<DbConceptName>(o => o.SourceKey == retVal.Key).Select(o => new ConceptName(o.Language, o.Name)).ToList();
+                retVal.ConceptNames = context.Query<DbConceptName>(o => o.SourceKey == retVal.Key).ToArray().Select(o => new ConceptName(o.Language, o.Name)).ToList();
             }
             return retVal;
         }
@@ -181,6 +191,133 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             return base.UpdateInternal(context, data, principal);
         }
 
+        /// <summary>
+        /// Purge the context information
+        /// </summary>
+        protected override void BulkPurgeInternal(DataContext context, IPrincipal principal, Guid[] keysToPurge)
+        {
+
+            // Purge the related fields
+            int ofs = 0;
+            while (ofs < keysToPurge.Length)
+            {
+                var batchKeys = keysToPurge.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+                context.Delete<DbConceptName>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbConceptReferenceTerm>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbConceptRelationship>(o => batchKeys.Contains(o.SourceKey));
+
+                context.Delete<DbConceptSetConceptAssociation>(o => batchKeys.Contains(o.ConceptKey) && !s_statusSets.Contains(o.ConceptSetKey));
+
+                // Now delete the versions but keep the mnemonic
+                var cvers = context.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key) && o.ObsoletionTime == null).ToArray();
+                var versionKeys = context.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key)).Select(o => o.VersionKey).ToArray();
+                // Detach keys which are being deleted will need to be removed from the version heirarchy
+                foreach (var rpl in context.Query<DbConceptVersion>(o => versionKeys.Contains(o.ReplacesVersionKey.Value)))
+                {
+                    rpl.ReplacesVersionKey = null;
+                    rpl.ReplacesVersionKeySpecified = true;
+                    context.Update(rpl);
+                }
+
+                context.Delete<DbConceptVersion>(o => batchKeys.Contains(o.Key));
+                context.Insert(cvers.Select(o => new DbConceptVersion()
+                {
+                    Key = o.Key,
+                    ClassKey = o.ClassKey,
+                    CreatedByKey = principal.GetUserKey(context).GetValueOrDefault(),
+                    Mnemonic = o.Mnemonic,
+                    StatusConceptKey = StatusKeys.Purged,
+                    CreationTime = DateTimeOffset.Now
+                })); // Ensure there is a current version that has been PURGED
+            }
+
+            context.ResetSequence("CD_VRSN_SEQ",
+                context.Query<DbConceptVersion>(o => true).Max(o => o.VersionSequenceId));
+        }
+
+        /// <summary>
+        /// Archive the specified keys
+        /// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+            // Copy all code systems
+            toContext.InsertOrUpdate(fromContext.Query<DbCodeSystem>(o => o.ObsoletionTime == null));
+
+            // Purge the related fields
+            int ofs = 0;
+            while (ofs < keysToCopy.Length)
+            {
+                var batchKeys = keysToCopy.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+
+                // copy core concepts
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => batchKeys.Contains(o.Key)));
+
+                // Additional concept sreferenced
+                var extraKeys = fromContext.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key))
+                    .Select(o => o.StatusConceptKey)
+                    .Distinct()
+                    .Union(
+                        fromContext.Query<DbConceptReferenceTerm>(o => batchKeys.Contains(o.SourceKey))
+                        .Select(o => o.RelationshipTypeKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbConceptRelationship>(o => batchKeys.Contains(o.SourceKey))
+                        .Select(o => o.TargetKey)
+                        .Distinct()
+                    )
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => extraKeys.Contains(o.Key)));
+
+                // Users 
+                extraKeys = fromContext.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key))
+                    .Select(o => o.CreatedByKey)
+                    .Distinct()
+                    .Union(
+                        fromContext.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key))
+                        .Select(o => o.ObsoletedByKey)
+                        .Distinct()
+                        .ToArray()
+                        .Where(o => o.HasValue)
+                        .Select(o => o.Value)
+                    )
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => extraKeys.Contains(o.Key)));
+                var extraSequence = fromContext.Query<DbConceptName>(o => batchKeys.Contains(o.SourceKey)).Select(o => o.EffectiveVersionSequenceId).Distinct().ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptVersion>(o => batchKeys.Contains(o.Key)));
+
+                // Insert names
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptName>(o => batchKeys.Contains(o.SourceKey)));
+
+                // Grab reference terms
+                extraKeys = fromContext.Query<DbConceptReferenceTerm>(o => batchKeys.Contains(o.SourceKey))
+                    .Select(o => o.TargetKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbReferenceTerm>(o => extraKeys.Contains(o.Key)));
+
+                // Insert Reference term link
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptReferenceTerm>(o => batchKeys.Contains(o.SourceKey)));
+
+                // Insert relationship
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptRelationshipType>(o => o.ObsoletionTime != null));
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptRelationship>(o => batchKeys.Contains(o.SourceKey)));
+
+                // Insert sets
+                extraKeys = fromContext.Query<DbConceptSetConceptAssociation>(o => batchKeys.Contains(o.ConceptKey))
+                    .Select(o => o.ConceptSetKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptSet>(o => extraKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbConceptSetConceptAssociation>(o => batchKeys.Contains(o.ConceptKey)));
+
+            }
+
+            toContext.ResetSequence("CD_VRSN_SEQ",
+                toContext.Query<DbConceptVersion>(o => true).Max(o => o.VersionSequenceId));
+
+        }
     }
 
     /// <summary>

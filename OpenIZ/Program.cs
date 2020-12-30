@@ -85,10 +85,28 @@ namespace OpenIZ
             {
                 var parameters = parser.Parse(args);
                 EntitySource.Current = new EntitySource(new PersistenceServiceEntitySource());
+                var instanceSuffix = !String.IsNullOrEmpty(parameters.InstanceName) ? $"-{parameters.InstanceName}" : null;
 
                 // What to do?
                 if (parameters.ShowHelp)
                     parser.WriteHelp(Console.Out);
+                else if (parameters.Install)
+                {
+                    if (!ServiceTools.ServiceInstaller.ServiceIsInstalled($"OpenIZ{instanceSuffix}"))
+                    {
+                        Console.WriteLine("Installing Service...");
+                        ServiceTools.ServiceInstaller.Install($"OpenIZ{instanceSuffix}", "SanteDB Host Process", Assembly.GetEntryAssembly().Location, null, null, ServiceTools.ServiceBootFlag.AutoStart);
+                    }
+                }
+                else if (parameters.UnInstall)
+                {
+                    if (ServiceTools.ServiceInstaller.ServiceIsInstalled($"OpenIZ{instanceSuffix}"))
+                    {
+                        Console.WriteLine("Un-Installing Service...");
+                        ServiceTools.ServiceInstaller.StopService($"OpenIZ{instanceSuffix}");
+                        ServiceTools.ServiceInstaller.Uninstall($"OpenIZ{instanceSuffix}");
+                    }
+                }
                 else if(parameters.ConsoleMode)
                 {
 #if DEBUG

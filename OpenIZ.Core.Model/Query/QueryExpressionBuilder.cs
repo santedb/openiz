@@ -40,11 +40,11 @@ namespace OpenIZ.Core.Model.Query
         {
             // The dictionary
             private List<KeyValuePair<String, Object>> m_query;
-			/// <summary>
-			/// Initializes a new instance of the <see cref="HttpQueryExpressionVisitor"/> class.
-			/// </summary>
-			/// <param name="workingDictionary">The working dictionary.</param>
-			public HttpQueryExpressionVisitor(List<KeyValuePair<String, Object>> workingDictionary)
+            /// <summary>
+            /// Initializes a new instance of the <see cref="HttpQueryExpressionVisitor"/> class.
+            /// </summary>
+            /// <param name="workingDictionary">The working dictionary.</param>
+            public HttpQueryExpressionVisitor(List<KeyValuePair<String, Object>> workingDictionary)
             {
                 this.m_query = workingDictionary;
             }
@@ -54,7 +54,7 @@ namespace OpenIZ.Core.Model.Query
             /// </summary>
             private void AddCondition(String key, Object value)
             {
-                var cvalue = this.m_query.FirstOrDefault(o=>o.Key == key);
+                var cvalue = this.m_query.FirstOrDefault(o => o.Key == key);
                 if (cvalue.Value == null)
                     this.m_query.Add(new KeyValuePair<string, object>(key, value));
                 else if (cvalue.Value is IList)
@@ -116,7 +116,7 @@ namespace OpenIZ.Core.Model.Query
             /// </summary>
             protected override Expression VisitUnary(UnaryExpression node)
             {
-                switch(node.NodeType)
+                switch (node.NodeType)
                 {
                     case ExpressionType.Not:
                         var parmName = this.ExtractPath(node.Operand, true);
@@ -168,7 +168,7 @@ namespace OpenIZ.Core.Model.Query
                             }
                             else
                                 return null;
-                           
+
                         }
                     default:
                         return base.VisitMethodCall(node);
@@ -253,7 +253,18 @@ namespace OpenIZ.Core.Model.Query
 
                     this.AddCondition(parmName, fParmValue);
                 }
-                
+
+                return node;
+            }
+
+            /// <summary>
+            /// Strips a Convert() to get the internal
+            /// </summary>
+            private Expression StripConvert(Expression node)
+            {
+                while (node.NodeType == ExpressionType.Convert ||
+                    node.NodeType == ExpressionType.ConvertChecked)
+                    node = (node as UnaryExpression).Operand;
                 return node;
             }
 
@@ -266,6 +277,9 @@ namespace OpenIZ.Core.Model.Query
             {
                 if (access == null)
                     return null;
+
+                access = this.StripConvert(access);
+
                 if (access.NodeType == ExpressionType.Parameter)
                     return ((ParameterExpression)access).Name;
                 else if (access.NodeType == ExpressionType.Constant)
@@ -278,21 +292,70 @@ namespace OpenIZ.Core.Model.Query
                     var expressionValue = this.ExtractValue(expr.Expression);
                     if (expr.Member is PropertyInfo)
                     {
-	                    try
-	                    {
-							return (expr.Member as PropertyInfo).GetValue(expressionValue);
-						}
-	                    catch
-	                    {
-		                    return null;
-	                    }
+                        try
+                        {
+                            return (expr.Member as PropertyInfo).GetValue(expressionValue);
+                        }
+                        catch
+                        {
+                            return null;
+                        }
                     }
                     else if (expr.Member is FieldInfo)
                     {
                         return (expr.Member as FieldInfo).GetValue(expressionValue);
                     }
                 }
+                else if (access.NodeType == ExpressionType.Coalesce)
+                    return this.ExtractValue((access as BinaryExpression).Left);
+                else if (access.NodeType == ExpressionType.Invoke)
+                    return this.ExtractValue(this.VisitInvocation(access as InvocationExpression));
                 return null;
+            }
+
+            /// <summary>
+            /// Visit the invocation expression (expand this and compile the expression if it is a lambda and invoke / dynamic invoke , capturing the results)
+            /// </summary>
+            /// <param name="node"></param>
+            /// <returns></returns>
+            protected override Expression VisitInvocation(InvocationExpression node)
+            {
+                if (node.Expression is LambdaExpression)
+                {
+                    var callee = (node.Expression as LambdaExpression).Compile();
+                    var args = node.Arguments.Select(o =>
+                    {
+                        o = this.StripConvert(o);
+                        switch (o.NodeType)
+                        {
+                            case ExpressionType.Constant:
+                                return (o as ConstantExpression).Value;
+                            case ExpressionType.Call:
+                                {
+                                    var ie = o as MethodCallExpression;
+                                    var obj = (ie.Object as ConstantExpression)?.Value;
+                                    return ie.Method.Invoke(obj, new object[0]);
+                                }
+                            default:
+                                throw new InvalidOperationException($"Cannot expand parameter {o} ({o.NodeType})");
+                        }
+                    });
+                    return Expression.Constant(callee.DynamicInvoke(args.ToArray()));
+                }
+                else if (node.Expression is ConstantExpression constant)
+                {
+                    var retVal = this.ExtractValue(constant);
+                    if (retVal is MethodInfo mi)
+                        retVal = mi.Invoke(null, new object[0]);
+                    else if (retVal is Func<dynamic> fn)
+                        retVal = fn();
+                    return Expression.Constant(retVal);
+
+                }
+                else
+                {
+                    throw new InvalidOperationException("Cannot invoke a non-Lambda expression");
+                }
             }
 
             /// <summary>
@@ -324,7 +387,7 @@ namespace OpenIZ.Core.Model.Query
                     var memberXattribute = memberInfo.GetCustomAttributes<XmlElementAttribute>().FirstOrDefault();
                     if (memberXattribute == null && queryParameterAttribute != null)
                         memberXattribute = new XmlElementAttribute(queryParameterAttribute.ParameterName); // We don't serialize but it does exist
-                    else if(memberXattribute == null)
+                    else if (memberXattribute == null)
                         return null; // TODO: When this occurs?
 
                     // Return path
@@ -351,19 +414,19 @@ namespace OpenIZ.Core.Model.Query
                             throw new InvalidOperationException("Cannot translate non-binary expression guards");
 
                         // Is the expression the guard?
-                        String guardString = this.BuildGuardExpression(binaryExpression); 
+                        String guardString = this.BuildGuardExpression(binaryExpression);
                         return String.Format("{0}[{1}]", path, guardString);
 
                     }
-                    
+
                 }
-                else if(access.NodeType == ExpressionType.Convert ||
+                else if (access.NodeType == ExpressionType.Convert ||
                     access.NodeType == ExpressionType.ConvertChecked)
                 {
                     UnaryExpression ua = (UnaryExpression)access;
                     return this.ExtractPath(ua.Operand, false);
-                } 
-                else if(access.NodeType == ExpressionType.TypeAs)
+                }
+                else if (access.NodeType == ExpressionType.TypeAs)
                 {
                     UnaryExpression ua = (UnaryExpression)access;
                     return String.Format("{0}@{1}", this.ExtractPath(ua.Operand, false), ua.Type.GetTypeInfo().GetCustomAttribute<XmlTypeAttribute>().TypeName);
@@ -408,7 +471,7 @@ namespace OpenIZ.Core.Model.Query
             List<KeyValuePair<String, Object>> retVal = new List<KeyValuePair<string, Object>>();
             var visitor = new HttpQueryExpressionVisitor(retVal);
             visitor.Visit(model);
-            if(stripNullChecks)
+            if (stripNullChecks)
                 retVal.RemoveAll(o => retVal.Any(c => c.Key == o.Key && c.Value != o.Value) && o.Value.Equals("!null"));
             return retVal;
         }

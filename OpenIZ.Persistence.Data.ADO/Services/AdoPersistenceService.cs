@@ -43,6 +43,10 @@ using System.Collections;
 using OpenIZ.OrmLite;
 using OpenIZ.Persistence.Data.ADO.Data.Hax;
 using OpenIZ.Core.Interfaces;
+using OpenIZ.Core.Security;
+using OpenIZ.Core.Security.Attribute;
+using System.Data;
+using OpenIZ.Core.Diagnostics;
 
 namespace OpenIZ.Persistence.Data.ADO.Services
 {
@@ -51,7 +55,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
     /// <summary>
     /// Represents a dummy service which just adds the persistence services to the context
     /// </summary>
-    public class AdoPersistenceService : IDaemonService
+    public class AdoPersistenceService : IDaemonService, ISqlDataPersistenceService,IDataArchiveService
     {
 
         private static ModelMapper s_mapper;
@@ -61,6 +65,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
         // Query builder
         private static QueryBuilder s_queryBuilder;
+
+        /// <summary>
+        /// Gets the invariant name
+        /// </summary>
+        public string InvariantName => s_configuration.Provider.Name;
 
         /// <summary>
         /// Get configuration
@@ -466,6 +475,43 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         }
 
         /// <summary>
+        /// Execute the SQL provided
+        /// </summary>
+        public void ExecuteNonQuery(string sql)
+        {
+
+            if (AuthenticationContext.Current.Principal != AuthenticationContext.SystemPrincipal)
+                new PolicyPermission(System.Security.Permissions.PermissionState.Unrestricted, PermissionPolicyIdentifiers.UnrestrictedAdministration).Demand();
+
+            using (var conn = s_configuration.Provider.GetWriteConnection())
+            {
+                IDbTransaction tx = null;
+                try
+                {
+                    conn.Open();
+                    tx = conn.BeginTransaction();
+                    var rsql = sql;
+                    while (rsql.Contains(";"))
+                    {
+                        conn.ExecuteNonQuery(conn.CreateSqlStatement(rsql.Substring(0, rsql.IndexOf(";"))));
+                        rsql = rsql.Substring(rsql.IndexOf(";") + 1);
+                    }
+
+                    if (!String.IsNullOrEmpty(rsql) && !String.IsNullOrWhiteSpace(rsql))
+                        conn.ExecuteNonQuery(conn.CreateSqlStatement(rsql));
+
+                    tx.Commit();
+                }
+                catch (Exception e)
+                {
+                    tx.Rollback();
+                    this.m_tracer.TraceError("Could not execute SQL: {0}", e);
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
         /// Stop the service
         /// </summary>
         public bool Stop()
@@ -475,6 +521,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             this.Stopped?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+        /// <summary>
+        /// Archives the specified keys
+        /// </summary>
+        public void Archive(Type modelType, params Guid[] keysToBeArchived)
+        {
+            (AdoPersistenceService.GetPersister(modelType) as IAdoCopyPersistenceService).CopyToArchive(keysToBeArchived);
+        }
+
+      
     }
 }
 
