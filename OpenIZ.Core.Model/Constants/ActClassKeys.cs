@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 
@@ -96,12 +96,18 @@ namespace OpenIZ.Core.Model.Constants
         /// The physical transporting of materials or people from one place to another.
         /// </summary>
         public const String  Transport = "61677F76-DC05-466D-91DE-47EFC8E7A3E6";
+
+        /// <summary>
+        /// List
+        /// </summary>
+        public const string List = "b0323489-9a09-411a-bb55-ff283830ea1a";
+
     }
 
-	/// <summary>
-	/// Represents a series of class keys for use on acts.
-	/// </summary>
-	public static class ActClassKeys
+    /// <summary>
+    /// Represents a series of class keys for use on acts.
+    /// </summary>
+    public static class ActClassKeys
 	{
 		/// <summary>
 		/// The act represents generic account management such as adjudications, financial adjustments, stock counting, etc.
@@ -172,5 +178,10 @@ namespace OpenIZ.Core.Model.Constants
 		/// The physical transporting of materials or people from one place to another.
 		/// </summary>
 		public static readonly Guid Transport = Guid.Parse(ActClassKeyStrings.Transport);
-	}
+
+        /// <summary>
+        /// Represents a list of other acts
+        /// </summary>
+        public static readonly Guid List = Guid.Parse(ActClassKeyStrings.List);
+    }
 }

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -29,6 +29,7 @@ using System.Linq;
 using OpenIZ.Core.Interfaces;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -37,6 +38,8 @@ namespace OpenIZ.Core.Services.Impl
 	/// </summary>
 	public class LocalBatchRepositoryService : IBatchRepositoryService, IRepositoryService<Bundle>
 	{
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
+
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataDisclosureEventArgs> DataDisclosed;
         public event EventHandler<AuditDataEventArgs> DataObsoleted;
@@ -79,6 +82,8 @@ namespace OpenIZ.Core.Services.Impl
 			bundle = breService?.BeforeInsert(bundle) ?? bundle;
 			bundle = persistence.Insert(bundle, AuthenticationContext.Current.Principal, TransactionMode.Commit);
 			breService?.AfterInsert(bundle);
+
+            this.DataCreated?.Invoke(this, new AuditDataEventArgs(bundle.Item));
 			return bundle;
 		}
 
@@ -105,7 +110,9 @@ namespace OpenIZ.Core.Services.Impl
 			bundle = persistence.Obsolete(bundle, AuthenticationContext.Current.Principal, TransactionMode.Commit);
 			bundle = breService?.AfterObsolete(bundle) ?? bundle;
 
-			return bundle;
+            this.DataObsoleted?.Invoke(this, new AuditDataEventArgs(bundle.Item));
+
+            return bundle;
 		}
 
         /// <summary>
@@ -143,6 +150,9 @@ namespace OpenIZ.Core.Services.Impl
 				bundle = persistence.Update(bundle, AuthenticationContext.Current.Principal, TransactionMode.Commit);
 
                 breService?.AfterUpdate(bundle);
+
+                this.DataUpdated?.Invoke(this, new AuditDataEventArgs(bundle.Item));
+
                 return bundle;
 			}
 			catch (DataPersistenceException)
@@ -152,6 +162,9 @@ namespace OpenIZ.Core.Services.Impl
 				bundle = persistence.Insert(bundle, AuthenticationContext.Current.Principal, TransactionMode.Commit);
 
                 breService?.AfterInsert(bundle);
+
+                this.DataCreated?.Invoke(this, new AuditDataEventArgs(bundle.Item));
+
                 return bundle;
 			}
 
@@ -173,9 +186,13 @@ namespace OpenIZ.Core.Services.Impl
 			var issues = breService?.Validate(bundle);
 			if (issues?.Any(i => i.Priority == DetectedIssuePriorityType.Error) == true)
 				throw new DetectedIssueException(issues);
-
-			// Bundle items
-			for (int i = 0; i < bundle.Item.Count; i++)
+            else
+                foreach (var itm in issues)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
+            // Bundle items
+            for (int i = 0; i < bundle.Item.Count; i++)
 			{
 				var itm = bundle.Item[i];
 				if (itm is Patient)

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -33,6 +33,8 @@ using Newtonsoft.Json;
 using System.Collections;
 using OpenIZ.Core.Model.Attributes;
 using System.Diagnostics;
+using OpenIZ.Core.Applets.ViewModel.Json;
+using OpenIZ.Core.Applets.ViewModel;
 
 namespace OpenIZ.Core.Applets.ViewModel.Json
 {
@@ -60,6 +62,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
         // Reloated load association
         private Dictionary<Type, MethodInfo> m_relatedLoadAssociations = new Dictionary<Type, MethodInfo>();
         private Dictionary<Guid, IEnumerable> m_loadedAssociations = new Dictionary<Guid, IEnumerable>();
+        private Dictionary<Guid, IdentifiedData> m_loadedObjects = new Dictionary<Guid, IdentifiedData>();
 
         /// <summary>
         /// Creates a json view model serializer
@@ -240,6 +243,8 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                                     return Convert.ToDecimal(r.Value);
                                 else if (t.StripNullable() == typeof(Int32))
                                     return Convert.ToInt32(r.Value);
+                                else if (t.StripNullable().GetTypeInfo().IsEnum)
+                                    return Enum.ToObject(t.StripNullable(), Convert.ToInt32(r.Value));
                                 else
                                     return (Double)r.Value;
                             case JsonToken.Date:
@@ -252,8 +257,8 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                                     return new DateTimeOffset((DateTime)r.Value);
                             case JsonToken.Integer:
                                 t = t.StripNullable();
-                                if (t.GetTypeInfo().IsEnum)
-                                    return Enum.ToObject(t, r.Value);
+                                if (t.StripNullable().GetTypeInfo().IsEnum)
+                                    return Enum.ToObject(t.StripNullable(), r.Value);
                                 return Convert.ChangeType(r.Value, t);
                             case JsonToken.String:
                                 if (String.IsNullOrEmpty((string)r.Value))
@@ -275,6 +280,15 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 default:
                     throw new JsonSerializationException("Invalid serialization");
             }
+        }
+
+        /// <summary>
+        /// Attempts to get the loaded object
+        /// </summary>
+        public object GetLoadedObject(Guid key)
+        {
+            this.m_loadedObjects.TryGetValue(key, out IdentifiedData value);
+            return value;
         }
 
         /// <summary>
@@ -348,8 +362,15 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
 #if DEBUG
             this.m_tracer.TraceVerbose("Delay loading related object : {0}", objectKey);
 #endif
-            if (objectKey.HasValue)
-                return EntitySource.Current.Provider.Get<TRelated>(objectKey);
+            IdentifiedData value = null;
+            if (objectKey.HasValue && !this.m_loadedObjects.TryGetValue(objectKey.Value, out value))
+            {
+                value = EntitySource.Current.Provider.Get<TRelated>(objectKey);
+                this.m_loadedObjects.Add(objectKey.Value, value);
+                return (TRelated)value;
+            }
+            else if (value != default(TRelated))
+                return (TRelated)value;
             else
                 return default(TRelated);
         }
@@ -382,7 +403,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 IJsonViewModelTypeFormatter typeFormatter = this.GetFormatter(instance.GetType());
 
                 var simpleValue = typeFormatter.GetSimpleValue(instance);
-                if (simpleValue != null && propertyName != "$other") // Special case for $other
+                if (simpleValue != null && propertyName != "$other" && context != null) // Special case for $other
                     w.WriteValue(simpleValue);
                 else
                 {
@@ -421,7 +442,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                     w.WriteStartObject();
                     foreach (var cls in classifier.Classify(instance as IList))
                     {
-                        Object value = new List<Object>(cls.Value as IEnumerable<Object>);
+                        Object value = cls.Value as IEnumerable<Object>;
                         if (cls.Value.Count == 1)
                             value = cls.Value[0];
                         // Now write
@@ -431,7 +452,9 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 }
             }
             else
+            {
                 w.WriteValue(instance);
+            }
 
         }
 
@@ -445,7 +468,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
             {
                 var classifierAtt = type.StripGeneric().GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
                 if (classifierAtt != null)
-                    retVal = new JsonReflectionClassifier(type);
+                    retVal = new Json.JsonReflectionClassifier(type, this);
                 lock (this.m_syncLock)
                     if (!this.m_classifiers.ContainsKey(type))
                         this.m_classifiers.Add(type, retVal);
@@ -561,6 +584,26 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 this.m_tracer.TraceVerbose("PERF >>> SERIALIZED {0} IN {1} ms", data, sw.ElapsedMilliseconds);
 #endif
             }
+        }
+
+        /// <summary>
+        /// Add a loaded object
+        /// </summary>
+        public void AddLoadedObject(Guid key, IdentifiedData classifierObj)
+        {
+            if (!this.m_loadedObjects.ContainsKey(key))
+                this.m_loadedObjects.Add(key, classifierObj);
+        }
+        
+        /// <summary>
+        /// Dispose of this object
+        /// </summary>
+        public void Dispose()
+        {
+            this.m_loadedAssociations.Clear();
+            this.m_loadedObjects.Clear();
+            this.m_loadedObjects = null;
+            this.m_loadedAssociations = null;
         }
     }
 }

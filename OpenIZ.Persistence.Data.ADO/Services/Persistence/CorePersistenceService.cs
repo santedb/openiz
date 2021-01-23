@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -38,13 +38,16 @@ using System.Threading.Tasks;
 using MARC.HI.EHRS.SVC.Core.Data;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Data.Common;
+using OpenIZ.Core.Diagnostics;
+using OpenIZ.Core.Exceptions;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
     /// <summary>
     /// Core persistence service which contains helpful functions
     /// </summary>
-    public abstract class CorePersistenceService<TModel, TDomain, TQueryReturn> : AdoBasePersistenceService<TModel>
+    public abstract class CorePersistenceService<TModel, TDomain, TQueryReturn> : AdoBasePersistenceService<TModel>, IBulkDataPersistenceService, IAdoCopyPersistenceService
         where TModel : IdentifiedData, new()
         where TDomain : class, new()
     {
@@ -70,7 +73,6 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var dInstance = (dataInstance as CompositeResult)?.Values.OfType<TDomain>().FirstOrDefault() ?? dataInstance as TDomain;
             var retVal = m_mapper.MapDomainInstance<TDomain, TModel>(dInstance);
             retVal.LoadAssociations(context, principal);
-            this.m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Verbose, 0, "Model instance {0} created", dataInstance);
 
             return retVal;
         }
@@ -131,15 +133,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public override IEnumerable<TModel> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
         {
             int resultCount = 0;
-            var results = this.QueryInternal(context, query, queryId, offset, count, out resultCount, countResults).ToList();
+            var results = this.DoQueryInternal(context, query, queryId, offset, count, out resultCount, countResults).ToList();
             totalResults = resultCount;
 
             if (!AdoPersistenceService.GetConfiguration().SingleThreadFetch)
-                return results.AsParallel().Select(o =>
+            {
+                return results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o =>
                 {
                     var subContext = context;
                     var newSubContext = results.Count() > 1;
-
+                    var idx = results.IndexOf(o);
                     try
                     {
                         if (newSubContext) subContext = subContext.OpenClonedContext();
@@ -151,15 +154,20 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     }
                     catch (Exception e)
                     {
-                        this.m_tracer.TraceEvent(TraceEventType.Error, e.HResult, "Error performing sub-query: {0}", e);
+                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error performing sub-query: {0}", e);
                         throw;
                     }
                     finally
                     {
                         if (newSubContext)
+                        {
+                            foreach (var i in subContext.CacheOnCommit)
+                                context.AddCacheCommit(i);
                             subContext.Dispose();
+                        }
                     }
                 });
+            }
             else
                 return results.Select(o =>
                 {
@@ -169,11 +177,10 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                         return this.CacheConvert(o, context, principal);
                 });
         }
-
         /// <summary>
         /// Perform the query 
         /// </summary>
-        protected virtual IEnumerable<Object> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool incudeCount = true)
+        protected virtual IEnumerable<Object> DoQueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool includeCount = true)
         {
 #if DEBUG
             Stopwatch sw = new Stopwatch();
@@ -186,21 +193,28 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
                 // Query has been registered?
                 if (queryId != Guid.Empty && this.m_queryPersistence?.IsRegistered(queryId.ToString()) == true)
-                {
-                    totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
-                    var resultKeys = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value);
-                    return resultKeys.Select(p => p.Id).OfType<Object>();
-                }
+                    return this.GetStoredQueryResults(queryId, offset, count, out totalResults);
 
                 // Is obsoletion time already specified?
                 if (!query.ToString().Contains("ObsoletionTime") && typeof(BaseEntityData).IsAssignableFrom(typeof(TModel)))
                 {
                     var obsoletionReference = Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(BaseEntityData.ObsoletionTime))), Expression.Constant(null));
+                    //var obsoletionReference = Expression.MakeUnary(ExpressionType.Not, Expression.MakeMemberAccess(Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(BaseEntityData.ObsoletionTime))), typeof(Nullable<DateTimeOffset>).GetProperty("HasValue")), typeof(bool));
+                    query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
+                }
+                else if(!query.ToString().Contains("ObsoleteVersionSequenceId") && typeof(IVersionedAssociation).IsAssignableFrom(typeof(TModel)))
+                {
+                    var obsoletionReference = Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(IVersionedAssociation.ObsoleteVersionSequenceId))), Expression.Constant(null));
+                    //var obsoletionReference = Expression.MakeUnary(ExpressionType.Not, Expression.MakeMemberAccess(Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(IVersionedAssociation.ObsoleteVersionSequenceId))), typeof(Nullable<decimal>).GetProperty("HasValue")), typeof(bool));
                     query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
                 }
 
                 // Domain query
-                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom();
+                Type[] selectTypes = { typeof(TQueryReturn) };
+                if (selectTypes[0].IsConstructedGenericType)
+                    selectTypes = selectTypes[0].GenericTypeArguments;
+
+                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom(selectTypes);
                 var expression = m_mapper.MapModelExpression<TModel, TDomain>(query, false);
                 if (expression != null)
                 {
@@ -218,75 +232,51 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 }
                 else
                 {
-                    m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Verbose, 0, "Will use slow query construction due to complex mapped fields");
+                    m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Will use slow query construction due to complex mapped fields");
                     domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query);
                 }
 
                 // Count = 0 means we're not actually fetching anything so just hit the db
                 if (count != 0)
                 {
+
                     domainQuery = this.AppendOrderBy(domainQuery);
+                    
+                    // Only one is requested, or there is no future query coming back so no savings in querying the entire dataset
+                    var retVal = this.DomainQueryInternal<TQueryReturn>(context, domainQuery);
 
-                    // Query id just get the UUIDs in the db
-                    if (queryId != Guid.Empty && count != 0)
+
+                    // We have a query identifier and this is the first frame, freeze the query identifiers
+                    if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                     {
-                        ColumnMapping pkColumn = null;
-                        if (typeof(CompositeResult).IsAssignableFrom(typeof(TQueryReturn)))
-                        {
-                            foreach (var p in typeof(TQueryReturn).GenericTypeArguments.Select(o => AdoPersistenceService.GetMapper().MapModelType(o)))
-                                if (!typeof(DbSubTable).IsAssignableFrom(p) && !typeof(IDbVersionedData).IsAssignableFrom(p))
-                                {
-                                    pkColumn = TableMapping.Get(p).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-                                    break;
-                                }
-                        }
-                        else
-                            pkColumn = TableMapping.Get(typeof(TQueryReturn)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
-
-                        var keyQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pkColumn).Build();
-
-                        var resultKeys = context.Query<Guid>(keyQuery.Build());
-
-                        //ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(a => this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Select(o => new Identifier<Guid>(o)).ToArray(), query), null);
-                        // Another check
-                        this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Count(), resultKeys.Select(o => new Identifier<Guid>(o)).Take(1000).ToArray(), query);
-
-                        ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(o =>
-                        {
-                            int ofs = 1000;
-                            var rkeys = o as Guid[];
-                            while (ofs < rkeys.Length)
-                            {
-                                this.m_queryPersistence?.AddResults(queryId.ToString(), rkeys.Skip(ofs).Take(1000).Select(k => new Identifier<Guid>(k)).ToArray());
-                                ofs += 1000;
-                            }
-                        }, resultKeys.ToArray());
-
-                        if (incudeCount)
-                            totalResults = (int)resultKeys.Count();
-                        else
-                            totalResults = 0;
-
-                        var retVal = resultKeys.Skip(offset);
-                        if (count.HasValue)
-                            retVal = retVal.Take(count.Value);
-                        return retVal.OfType<Object>();
+                        var keys = retVal.Keys<Guid>().ToArray();
+                        totalResults = keys.Length;
+                        this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
+                        if (totalResults == 0)
+                            return new List<Object>();
                     }
-                    else if (incudeCount)
+                    else if (count.HasValue && includeCount && !m_configuration.UseFuzzyTotals)
                     {
-                        totalResults = context.Count(domainQuery);
+                        totalResults = retVal.Count();
                         if (totalResults == 0)
                             return new List<Object>();
                     }
                     else
                         totalResults = 0;
 
-                    if (offset > 0)
-                        domainQuery.Offset(offset);
                     if (count.HasValue)
-                        domainQuery.Limit(count.Value);
-
-                    return this.DomainQueryInternal<TQueryReturn>(context, domainQuery, ref totalResults).OfType<Object>();
+                    {
+                        if (m_configuration.UseFuzzyTotals && totalResults == 0)
+                        {
+                            var fuzzResults = retVal.Skip(offset).Take(count.Value + 1).OfType<Object>().ToList();
+                            totalResults = fuzzResults.Count();
+                            return fuzzResults.Take(count.Value);
+                        }
+                        else
+                            return retVal.Skip(offset).Take(count.Value).OfType<Object>();
+                    }
+                    else
+                        return retVal.Skip(offset).OfType<Object>();
                 }
                 else
                 {
@@ -296,7 +286,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             }
             catch (Exception ex)
             {
-                if(domainQuery != null)
+                if (domainQuery != null)
                     this.m_tracer.TraceEvent(TraceEventType.Error, ex.HResult, context.GetQueryLiteral(domainQuery.Build()));
                 context.Dispose(); // No longer important
 
@@ -311,28 +301,61 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         }
 
         /// <summary>
+        /// Get stored query results
+        /// </summary>
+        protected IEnumerable<object> GetStoredQueryResults(Guid queryId, int offset, int? count, out int totalResults)
+        {
+            totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
+            var keyResults = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value).Select(o=>o.Id);
+            return keyResults.OfType<Object>();
+        }
+
+        /// <summary>
+        /// Add query results
+        /// </summary>
+        protected void AddQueryResults(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, IEnumerable<Guid> initialResults, int totalResults)
+        {
+
+            this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), totalResults, initialResults.Select(o=>new Identifier<Guid>(o)).ToArray(), query);
+
+            //int step = initialResults.Count();
+
+            //// Build query for additional keys to query store if needed
+            //if (initialResults.Count() < totalResults)
+            //    ApplicationServiceContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem((parm) =>
+            //    {
+            //        var keyQuery = this.m_persistenceService.GetQueryBuilder().CreateQuery(query, orderBy, pkColumn);
+            //        keyQuery = this.AppendOrderBy(keyQuery, orderBy);
+            //        int ofs = offset == 0 ? step : 0;
+            //        //while (ofs < totalResults)
+            //        //{
+            //        this.m_tracer.TraceVerbose("Hydrating query {0} ({1}..{2})", queryId, ofs, totalResults);
+            //        var resultKeys = (parm as DataContext).Query<Guid>(keyQuery.Build().Offset(ofs));
+            //        ofs = 0;
+            //        while(ofs< totalResults) { 
+            //            this.m_tracer.TraceVerbose("Registering results {0} ({1}..{2})", queryId, ofs, ofs + step);
+            //            this.m_queryPersistence?.AddResults(queryId, resultKeys.Skip(ofs).Take(step).ToArray());
+            //            ofs += step;
+            //        }
+            //    }, context.OpenClonedContext());
+
+        }
+
+        /// <summary>
         /// Perform a domain query
         /// </summary>
-        protected IEnumerable<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery, ref int totalResults)
+        protected OrmResultSet<TResult> DomainQueryInternal<TResult>(DataContext context, SqlStatement domainQuery)
         {
 
             // Build and see if the query already exists on the stack???
             domainQuery = domainQuery.Build();
-            var cachedQueryResults = context.CacheQuery(domainQuery);
-            if (cachedQueryResults != null)
-            {
-                totalResults = cachedQueryResults.Count();
-                return cachedQueryResults.OfType<TResult>();
-            }
 
-            var results = context.Query<TResult>(domainQuery).ToList();
+            var results = context.Query<TResult>(domainQuery);
 
             // Cache query result
-            context.AddQuery(domainQuery, results.OfType<Object>());
             return results;
 
         }
-
 
         /// <summary>
         /// Build source query
@@ -419,7 +442,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     itm.SourceEntityKey = source.Key;
 
             // Get existing
-            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key);
+            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key).ToList();
             // Remove old associations
             var obsoleteRecords = existing.Where(o => !storage.Any(ecn => ecn.Key == o.Key));
             foreach (var del in obsoleteRecords) // Obsolete records = delete as it is non-versioned association
@@ -437,6 +460,154 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
         }
 
+        /// <summary>
+        /// Obsolete the specified keys
+        /// </summary>
+        public virtual void Obsolete(TransactionMode transactionMode, IPrincipal principal, params Guid[] keysToObsolete)
+        {
+            // Obsolete object
+            using (var connection = m_configuration.Provider.GetWriteConnection())
+            {
+                connection.Open();
+                using (var tx = connection.BeginTransaction())
+                    try
+                    {
+                        this.BulkObsoleteInternal(connection, principal, keysToObsolete);
+
+                        if (transactionMode == TransactionMode.Commit)
+                            tx.Commit();
+                    }
+                    catch (DbException e)
+                    {
+                        tx?.Rollback();
+                        this.TranslateDbException(e);
+                    }
+                    catch (Exception e)
+                    {
+                        tx?.Rollback();
+                        throw new DataPersistenceException($"Error bulk obsoleting data", e);
+                    }
+            }
+        }
+
+        /// <summary>
+        /// Purge the specified objects from the database
+        /// </summary>
+        public virtual void Purge(TransactionMode transactionMode, IPrincipal principal, params Guid[] keysToPurge)
+        {
+            // Purge object
+            using (var connection = m_configuration.Provider.GetWriteConnection())
+            {
+                connection.Open();
+                using (var tx = connection.BeginTransaction())
+                    try
+                    {
+                        this.BulkPurgeInternal(connection, principal, keysToPurge);
+                        if (transactionMode == TransactionMode.Commit)
+                            tx.Commit();
+                    }
+                    catch (DbException e)
+                    {
+                        tx?.Rollback();
+                        this.TranslateDbException(e);
+                    }
+                    catch (Exception e)
+                    {
+                        tx?.Rollback();
+                        throw new DataPersistenceException($"Error bulk obsoleting data", e);
+                    }
+            }
+        }
+
+        /// <summary>
+        /// Query the specified keys matching the specified expression
+        /// </summary>
+        public virtual IEnumerable<Guid> QueryKeys(Expression query, int offset, int? count, out int totalResults)
+        {
+            if (query is Expression<Func<TModel, bool>> castQuery)
+                using (var connection = m_configuration.Provider.GetWriteConnection())
+                {
+                    connection.Open();
+                    try
+                    {
+                        return this.QueryKeysInternal(connection, castQuery, offset, count, out totalResults);
+                    }
+                    catch (DbException e)
+                    {
+                        this.TranslateDbException(e);
+                        throw;
+                    }
+                    catch (Exception e)
+                    {
+                        throw new DataPersistenceException($"Error bulk query data", e);
+                    }
+                }
+            else
+                throw new ArgumentException($"Expression must be of type Expression<Func<{typeof(TModel).Name},bool>>", nameof(query));
+        }
+
+        /// <summary>
+        /// Copy the specified keys to the archive
+        /// </summary>
+        /// <param name="keysToBeArchived"></param>
+        public virtual void CopyToArchive(Guid[] keysToBeArchived)
+        {
+            try
+            {
+                using (var fromContext = m_configuration.Provider.GetReadonlyConnection())
+                {
+                    fromContext.Open();
+                    using (var toContext = m_configuration.ArchiveProvider.GetWriteConnection())
+                    {
+                        toContext.Open();
+                        using (var tx = toContext.BeginTransaction())
+                        {
+                            try
+                            {
+                                this.Copy(keysToBeArchived, fromContext, toContext);
+                                tx.Commit();
+                            }
+                            catch
+                            {
+                                tx.Rollback();
+                                throw;
+                            }
+                        }
+                    }
+                }
+            }
+            catch(DbException e)
+            {
+                TranslateDbException(e);
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceError("Error copying keys : {0}", e);
+                throw new Exception("Error copying keys to archive", e);
+            }
+        }
+
+        /// <summary>
+        /// Perform the bulk obsoletion operation
+        /// </summary>
+        protected abstract void BulkObsoleteInternal(DataContext context, IPrincipal principal, Guid[] keysToObsolete);
+
+
+        /// <summary>
+        /// Purge the specified object 
+        /// </summary>
+        protected abstract void BulkPurgeInternal(DataContext connection, IPrincipal principal, Guid[] keysToPurge);
+
+
+        /// <summary>
+        /// Perform the query for bulk keys with an open context
+        /// </summary>
+        protected abstract IEnumerable<Guid> QueryKeysInternal(DataContext context, Expression<Func<TModel, bool>> query, int offset, int? count, out int totalResults);
+
+        /// <summary>
+        /// Copy the data from <paramref name="fromContext"/> to <paramref name="toContext"/>
+        /// </summary>
+        public abstract void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext);
 
     }
 }

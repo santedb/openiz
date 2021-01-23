@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-5
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using GIIS.DataLayer;
 using MARC.HI.EHRS.SVC.Core;
@@ -337,7 +337,7 @@ namespace OizDevTool
         private static List<SubstanceAdministration> MapSubstanceAdministrations(Patient patient, Child child, int defaultFacilityId)
         {
 
-            return VaccinationEvent.GetChildVaccinationEvent(child.Id).Where(o => o.NonvaccinationReasonId != 0 || o.VaccinationStatus).AsParallel().Select(o =>
+            return VaccinationEvent.GetChildVaccinationEvent(child.Id).Where(o => o.NonvaccinationReasonId != 0 || o.VaccinationStatus).AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o =>
             {
 
                 try
@@ -917,7 +917,24 @@ namespace OizDevTool
 
                 var children = Child.GetChildByHealthFacilityId(giisHf.Id);
 
-                var dbFacility = placePersister.Query(o => o.Identifiers.Any(i => i.Value == facId && i.Authority.DomainName == "GIIS_FACID"), AuthenticationContext.AnonymousPrincipal).FirstOrDefault();
+                var dbFacility = placePersister.Query(o => o.Identifiers.Any(i => i.Value == facId && i.Authority.DomainName == "GIIS_FACID" && i.ObsoleteVersionSequenceId == null), AuthenticationContext.AnonymousPrincipal).FirstOrDefault();
+
+                // Confirm creation
+                if (dbFacility == null && parms.ConfirmCreate)
+                {
+                    Console.WriteLine("Facility with GIIS_FACID #{0} not found", facId);
+                    var createUpdate = Prompt("Do you want to (c)reate a new facility or (f)ind another or (a)bort?", new string[] { "c", "f", "a" });
+                    switch (createUpdate)
+                    {
+                        case "a":
+                            return;
+                        case "f":
+                            dbFacility = MergeFind(giisHf.Name);
+                            if (dbFacility == null)
+                                return;
+                            break;
+                    }
+                }
 
                 // Confirm creation
                 if (dbFacility == null && parms.ConfirmCreate)

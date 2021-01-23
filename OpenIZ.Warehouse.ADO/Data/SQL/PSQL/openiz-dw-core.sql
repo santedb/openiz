@@ -245,6 +245,7 @@ CREATE TABLE FAC_MAT_LDGR_TBL (
 	TX_UTC TIMESTAMPTZ NOT NULL, -- THE DATE OF TE TRANSACTION
 	RSN_DESC VARCHAR(64), -- THE REASON FOR THE TRANSACTION
 	USR_NAME VARCHAR(64) NOT NULL, -- THE USER NAME OF THE USER THAT CAUSED THIS
+	SEQ_ID NUMERIC(20) NOT NULL, -- THE SEQUENCE OF THE OBJECT
 	CONSTRAINT PK_FAC_MAT_LDGR_TBL PRIMARY KEY (REF_ID, FAC_ID, MMAT_ID),
 	CONSTRAINT FK_FAC_MAT_LDGR_FAC_ID FOREIGN KEY (FAC_ID) REFERENCES FAC_TBL(FAC_ID),
 	CONSTRAINT FK_FAC_MAT_LDGR_MMAT_ID FOREIGN KEY (MMAT_ID) REFERENCES MMAT_TBL(MMAT_ID),
@@ -309,12 +310,11 @@ CREATE TABLE SBADM_TBL (
 );
 
 -- SBADM TAG TABL
-CREATE TABLE SBADM_TAG_TBL (
+CREATE TABLE ACT_TAG_TBL (
 	ACT_ID UUID NOT NULL,
 	TAG_NAME VARCHAR(128) NOT NULL,
 	TAG_VALUE VARCHAR(64) NOT NULL,
-	CONSTRAINT PK_SBADM_TAG_TBL PRIMARY KEY (ACT_ID, TAG_NAME),
-	CONSTRAINT FK_SBADM_TAG_ACT_TBL FOREIGN KEY (ACT_ID) REFERENCES SBADM_TBL(ACT_ID)
+	CONSTRAINT PK_TAG_TBL PRIMARY KEY (ACT_ID, TAG_NAME)
 );
 
 -- OBSERVATIONS TABLE FOR QUANTITY
@@ -515,10 +515,12 @@ CREATE MATERIALIZED VIEW fac_vw AS
     addr.censustract,
     addr.country,
     addr.postalcode,
-    addr.additionallocator
+    addr.additionallocator,
+    parent.value AS parent_name
    FROM fac_tbl
      LEFT JOIN ent_name_pivot_vw name ON name.ent_id = fac_tbl.fac_id
-     LEFT JOIN ent_addr_pivot_vw addr ON addr.ent_id = fac_tbl.fac_id;
+     LEFT JOIN ent_addr_pivot_vw addr ON addr.ent_id = fac_tbl.fac_id
+     LEFT JOIN name_cmp_tbl parent ON parent_id = parent.ent_id;
 
 -- PERSON VIEW
 DROP MATERIALIZED VIEW IF EXISTS psn_vw;
@@ -595,3 +597,34 @@ CREATE MATERIALIZED VIEW pat_vw AS
      LEFT JOIN psn_vw nok ON nok.psn_id = pat_tbl.nok_id
      LEFT JOIN fac_vw asgn ON asgn.fac_id = pat_tbl.asgn_fac_id
      LEFT JOIN fac_vw parent ON asgn.parent_id = parent.fac_id;
+
+
+CREATE INDEX cd_tbl_mnemonic_idx ON cd_tbl(cd_mnemonic);
+CREATE INDEX name_cmp_use_idx ON name_cmp_tbl(use_cs);
+CREATE INDEX name_cmp_ent_idx ON name_cmp_tbl(ent_id);
+CREATE INDEX fac_parent_id_idx ON fac_tbl(parent_id);
+CREATE INDEX sbadm_fac_id_idx ON sbadm_tbl(fac_id);
+CREATE INDEX act_tag_tag_name_idx ON act_tag_tbl(tag_name);
+CREATE INDEX fac_vw_fac_id_idx ON fac_vw(fac_id);
+CREATE INDEX addr_cmp_ent_idx ON addr_cmp_tbl(ent_id);
+CREATE INDEX sbadm_enc_id_idx ON sbadm_tbl(enc_id);
+CREATE INDEX enc_fac_id_idx ON enc_tbl(fac_id);
+create index act_tag_act_id_idx on act_tag_tbl(act_id);
+CREATE INDEX fac_mat_ldgr_fac_id ON fac_mat_ldgr_tbl(fac_id);
+CREATE INDEX enc_act_utc_idx ON enc_tbl(act_utc);
+CREATE INDEX sbadm_act_utc_idx ON sbadm_tbl(act_utc);
+CREATE INDEX qty_obs_fac_id ON qty_obs_tbl(fac_id);
+CREATE INDEX pat_vw_census_tract_idx ON pat_vw (censustract);
+-- Create a function that always returns the first non-NULL item
+CREATE OR REPLACE FUNCTION public.first_agg ( anyelement, anyelement )
+RETURNS anyelement AS $$
+        SELECT $1;
+$$ LANGUAGE SQL IMMUTABLE STRICT ;
+
+-- And then wrap an aggregate around it
+CREATE AGGREGATE public.FIRST (
+        sfunc    = public.first_agg,
+        basetype = anyelement,
+        stype    = anyelement
+);
+ 

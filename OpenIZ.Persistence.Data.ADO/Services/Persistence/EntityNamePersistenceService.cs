@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.Core.Model.Constants;
@@ -57,14 +57,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
-            int tr = 0;
             var addrLookupQuery = context.CreateSqlStatement<DbEntityNameComponent>().SelectFrom()
                 .InnerJoin<DbEntityName>(o => o.SourceKey, o => o.Key)
                 .InnerJoin<DbPhoneticValue>(o => o.ValueSequenceId, o => o.SequenceId)
                 .Where<DbEntityName>(o => o.SourceKey == id && o.ObsoleteVersionSequenceId == null);
 
             /// Yowza! But it appears to be faster than the other way 
-            return this.DomainQueryInternal<CompositeResult<DbEntityNameComponent, DbEntityName, DbPhoneticValue>>(context, addrLookupQuery, ref tr)
+            return this.DomainQueryInternal<CompositeResult<DbEntityNameComponent, DbEntityName, DbPhoneticValue>>(context, addrLookupQuery)
                 .GroupBy(o => o.Object2.Key)
                 .Select(o =>
                     new EntityName()
@@ -97,6 +96,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             // Ensure exists
             if (data.NameUse != null) data.NameUse = data.NameUse?.EnsureExists(context, principal) as Concept;
             data.NameUseKey = data.NameUse?.Key ?? data.NameUseKey;
+            
             var retVal = base.InsertInternal(context, data, principal);
 
             // Data component
@@ -121,8 +121,6 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.NameUseKey = data.NameUse?.Key ?? data.NameUseKey;
 
             var retVal = base.UpdateInternal(context, data, principal);
-
-            var sourceKey = data.Key.Value.ToByteArray();
 
             // Data component
             if (data.Component != null)
@@ -223,7 +221,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
             int tr = 0;
-            return this.QueryInternal(context, base.BuildSourceQuery<EntityNameComponent>(id), Guid.Empty, 0, null, out tr, false).Select(o => this.CacheConvert(o, context, principal)).ToList();
+            return this.DoQueryInternal(context, base.BuildSourceQuery<EntityNameComponent>(id), Guid.Empty, 0, null, out tr, false).Select(o => this.CacheConvert(o, context, principal)).ToList();
         }
     }
 }

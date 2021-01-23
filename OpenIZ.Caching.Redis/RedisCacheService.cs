@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-29
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -28,6 +28,7 @@ using OpenIZ.Core.Model.Attributes;
 using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Model.Serialization;
 using OpenIZ.Core.Services;
 using StackExchange.Redis;
@@ -82,7 +83,7 @@ namespace OpenIZ.Caching.Redis
                 return this.m_connection != null;
             }
         }
-        
+
         // Data was added to the cache
         public event EventHandler<DataCacheEventArgs> Added;
         // Data was removed from the cache
@@ -283,20 +284,20 @@ namespace OpenIZ.Caching.Redis
                 // Add
 
                 var redisDb = this.m_connection.GetDatabase();
-                var existing = redisDb.KeyExists(data.Key.Value.ToString());
-                redisDb.HashSet(data.Key.Value.ToString(), this.SerializeObject(data));
+                //var existing = redisDb.KeyExists(data.Key.Value.ToString());
+                redisDb.HashSet(data.Key.Value.ToString(), this.SerializeObject(data), CommandFlags.FireAndForget);
 #if DEBUG
-                this.m_tracer.TraceVerbose("HashSet {0} (EXIST: {1}; @: {2})", data, existing, new System.Diagnostics.StackTrace(true).GetFrame(1));
+                this.m_tracer.TraceVerbose("HashSet {0} (EXIST: {1}; @: {2})", data, false, new System.Diagnostics.StackTrace(true).GetFrame(1));
 #endif 
-
+                redisDb.KeyExpire(data.Key.Value.ToString(), new TimeSpan(1, 0, 0), CommandFlags.FireAndForget);
                 this.EnsureCacheConsistency(new DataCacheEventArgs(data));
-                if (existing)
-                    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
-                else
-                    this.m_connection.GetSubscriber().Publish("oiz.events", $"POST http://{Environment.MachineName}/cache/{data.Key.Value}");
+                //if (existing)
+                //    this.m_connection.GetSubscriber().Publish("oiz.events", $"PUT http://{Environment.MachineName}/cache/{data.Key.Value}");
+                //else
+                this.m_connection.GetSubscriber().Publish("oiz.events", $"POST http://{Environment.MachineName}/cache/{data.Key.Value}");
                 //}
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceWarning("REDIS CACHE ERROR (CACHING SKIPPED): {0}", e);
             }
@@ -307,27 +308,29 @@ namespace OpenIZ.Caching.Redis
         /// </summary>
         public object GetCacheItem(Guid key)
         {
-            try { 
+            try
+            {
                 // We want to add
                 if (this.m_connection == null)
                     return null;
 
                 // Add
                 var redisDb = this.m_connection.GetDatabase();
+                redisDb.KeyExpire(key.ToString(), new TimeSpan(1, 0, 0), CommandFlags.FireAndForget);
                 return this.DeserializeObject(redisDb.HashGetAll(key.ToString()));
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceWarning("REDIS CACHE ERROR (FETCHING SKIPPED): {0}", e);
                 return null;
             }
 
-}
+        }
 
-/// <summary>
-/// Get cache item of type
-/// </summary>
-public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
+        /// <summary>
+        /// Get cache item of type
+        /// </summary>
+        public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         {
             var retVal = this.GetCacheItem(key);
             if (retVal is TData)
@@ -346,7 +349,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
             // Add
             var existing = this.GetCacheItem(key);
             var redisDb = this.m_connection.GetDatabase();
-            redisDb.KeyDelete(key.ToString());
+            redisDb.KeyDelete(key.ToString(), CommandFlags.FireAndForget);
             this.EnsureCacheConsistency(new DataCacheEventArgs(existing), true);
 
             this.m_connection.GetSubscriber().Publish("oiz.events", $"DELETE http://{Environment.MachineName}/cache/{key}");
@@ -365,6 +368,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
 
                 var configuration = new ConfigurationOptions()
                 {
+                    AbortOnConnectFail = false,
                     Password = this.m_configuration.Password
                 };
                 foreach (var itm in this.m_configuration.Servers)
@@ -373,7 +377,8 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
                 this.m_connection = ConnectionMultiplexer.Connect(configuration);
                 this.m_subscriber = this.m_connection.GetSubscriber();
                 // Look for non-cached types
-                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null || o.GetCustomAttribute<XmlRootAttribute>() == null))
+                foreach (var itm in typeof(IdentifiedData).Assembly.GetTypes().Where(o => o.GetCustomAttribute<NonCachedAttribute>() != null ||
+                    (o.GetCustomAttribute<XmlRootAttribute>() == null && !typeof(IVersionedAssociation).IsAssignableFrom(o))))
                     this.m_nonCached.Add(itm);
 
                 // Subscribe to OpenIZ events
@@ -406,7 +411,7 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
                 this.Started?.Invoke(this, EventArgs.Empty);
                 return true;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.m_tracer.TraceError("Error starting REDIS caching, will switch to no-caching : {0}", e);
                 ApplicationContext.Current.RemoveServiceProvider(typeof(RedisCacheService));
@@ -432,13 +437,21 @@ public TData GetCacheItem<TData>(Guid key) where TData : IdentifiedData
         /// </summary>
         public void Clear()
         {
-            this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            try
+            {
+                this.m_connection.GetServer(this.m_configuration.Servers.First()).FlushAllDatabases();
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Could not flush REDIS database: {0}", e);
+            }
         }
 
         /// <summary>
         /// Size of the database
         /// </summary>
-        public long Size {
+        public long Size
+        {
             get
             {
                 return this.m_connection.GetServer(this.m_configuration.Servers.First()).DatabaseSize();

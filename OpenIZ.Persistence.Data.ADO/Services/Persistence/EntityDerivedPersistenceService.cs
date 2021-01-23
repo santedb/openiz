@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Persistence.Data.ADO.Data.Model;
@@ -30,6 +30,15 @@ using OpenIZ.Persistence.Data.ADO.Data;
 using OpenIZ.Persistence.Data.ADO.Data.Model.Entities;
 using OpenIZ.OrmLite;
 using OpenIZ.Core.Model;
+using OpenIZ.Core.Model.Constants;
+using System.Linq.Expressions;
+using System.Collections.Generic;
+using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Concepts;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Security;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Roles;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Extensibility;
+using OpenIZ.Persistence.Data.ADO.Data.Model.DataType;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -42,14 +51,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     /// <summary>
     /// Entity derived persistence services
     /// </summary>
-    public class EntityDerivedPersistenceService<TModel, TData, TQueryReturn> : SimpleVersionedEntityPersistenceService<TModel, TData, TQueryReturn, DbEntityVersion>
+    public class EntityDerivedPersistenceService<TModel, TData, TQueryReturn> : SimpleVersionedEntityPersistenceService<TModel, TData, TQueryReturn, DbEntityVersion>, IReportProgressChanged
         where TModel : Core.Model.Entities.Entity, new()
         where TData : DbEntitySubTable, new()
         where TQueryReturn : CompositeResult
     {
 
         // Entity persister
-        protected EntityPersistenceService m_entityPersister = new EntityPersistenceService();
+        protected EntityPersistenceService m_entityPersister;
+
+        /// <summary>
+        /// Fire when progress has changed
+        /// </summary>
+
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
+        /// Entity derived persistence service
+        /// </summary>
+        public EntityDerivedPersistenceService()
+        {
+             this.m_entityPersister = new EntityPersistenceService();
+            this.m_entityPersister.ProgressChanged += (o, e) => this.ProgressChanged?.Invoke(o, e);
+
+        }
 
         /// <summary>
         /// From model instance
@@ -90,6 +115,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             }
             return base.InsertInternal(context, data, principal);
 
+        }
+
+        /// <summary>
+        /// If the linked act exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return this.m_entityPersister.Exists(context, key);
         }
 
         /// <summary>
@@ -138,5 +171,101 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             return base.InsertInternal(context, data, principal);
         }
 
+
+        /// <summary>
+        /// Bulk obsolete
+        /// </summary>
+        protected override void BulkObsoleteInternal(DataContext context, IPrincipal principal, Guid[] keysToObsolete)
+        {
+            foreach (var k in keysToObsolete)
+            {
+                // Get the current version
+                var currentVersion = context.SingleOrDefault<DbEntityVersion>(o => o.ObsoletionTime == null && o.Key == k);
+                // Create a new version
+                var newVersion = new DbEntityVersion();
+                newVersion.CopyObjectData(currentVersion);
+
+                // Create a new version which has a status of obsolete
+                newVersion.StatusConceptKey = StatusKeys.Obsolete;
+                // Update the old version
+                currentVersion.ObsoletedByKey = principal.GetUserKey(context);
+                currentVersion.ObsoletionTime = DateTimeOffset.Now;
+                context.Update(currentVersion);
+                // Provenance data
+                newVersion.VersionSequenceId = null;
+                newVersion.ReplacesVersionKey = currentVersion.VersionKey;
+                newVersion.CreatedByKey = principal.GetUserKey(context).GetValueOrDefault();
+                newVersion.CreationTime = DateTimeOffset.Now;
+                newVersion.VersionKey = Guid.Empty;
+                newVersion = context.Insert(newVersion);
+
+                // Finally, insert a new version of sub data
+                var cversion = context.SingleOrDefault<TData>(o => o.ParentKey == currentVersion.VersionKey);
+                var newSubVersion = new TData();
+                newSubVersion.CopyObjectData(cversion);
+                newSubVersion.ParentKey = newVersion.VersionKey;
+                context.Insert(newSubVersion);
+
+            }
+        }
+
+        /// <summary>
+        /// Query for all keys
+        /// </summary>
+        protected override IEnumerable<Guid> QueryKeysInternal(DataContext context, Expression<Func<TModel, bool>> query, int offset, int? count, out int totalResults)
+        {
+            if (!query.ToString().Contains("ObsoletionTime") && !query.ToString().Contains("VersionKey"))
+            {
+                var obsoletionReference = Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(BaseEntityData.ObsoletionTime))), Expression.Constant(null));
+                query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
+            }
+
+            // Construct the SQL query
+            var pk = TableMapping.Get(typeof(DbEntity)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+            var domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pk);
+
+            var results = context.Query<Guid>(domainQuery);
+
+            count = count ?? 100;
+            if (m_configuration.UseFuzzyTotals)
+            {
+                // Skip and take
+                results = results.Skip(offset).Take(count.Value + 1);
+                totalResults = offset + results.Count();
+            }
+            else
+            {
+                totalResults = results.Count();
+                results = results.Skip(offset).Take(count.Value);
+            }
+
+            return results.ToList(); // exhaust the results and continue
+        }
+
+        /// <summary>
+        /// Purge the specified records (redirects to the entity persister)
+        /// </summary>
+        public override void Purge(TransactionMode transactionMode, IPrincipal principal, params Guid[] keysToPurge)
+        {
+            this.m_entityPersister.Purge(transactionMode, principal, keysToPurge);
+        }
+
+        /// <summary>
+        /// Bulk purge
+        /// </summary>
+        protected override void BulkPurgeInternal(DataContext connection, IPrincipal principal, Guid[] keysToPurge)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Copy specified keys
+        /// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+            this.m_entityPersister.Copy(keysToCopy, fromContext, toContext);
+        }
+
+      
     }
 }

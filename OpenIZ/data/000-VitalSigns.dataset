@@ -12,11 +12,9 @@
   <update insertIfNotExists="true">
     <ReferenceTerm xmlns="http://openiz.org/model">
       <id>996ce03b-913e-44ea-895a-8a74d0e2f819</id>
-      
       <mnemonic>9279-1</mnemonic>
       <codeSystem>08C59397-706B-456A-AEB1-9E7D5A2ADC94</codeSystem>
       <name>
-        
         <language>en</language>
         <value>RESPIRATION RATE</value>
         <phoneticAlgorithm xsi:nil="true" />
@@ -404,7 +402,6 @@
   <update insertIfNotExists="true">
     <Concept xmlns="http://openiz.org/model">
       <id>a261f8cd-69b0-49aa-91f4-e6d3e5c612ed</id>
-      
       <previousVersion xsi:nil="true" />
       <version xsi:nil="true" />
       <sequence xsi:nil="true" />

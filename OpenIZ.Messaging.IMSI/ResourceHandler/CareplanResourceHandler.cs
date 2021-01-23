@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-22
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -146,7 +146,7 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
 
             // Create care plan for the patients
             IConceptRepositoryService conceptService = ApplicationContext.Current.GetService<IConceptRepositoryService>();
-            return patients.AsParallel().Select(o => {
+            return patients.Select(o => {
                 var plan = carePlanner.CreateCarePlan(o);
                 foreach (var p in plan.Action)
                     p.Participations.ForEach(x => x.ParticipationRoleKey = x.ParticipationRoleKey ?? conceptService.GetConcept(x.ParticipationRole?.Mnemonic).Key);

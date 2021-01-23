@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using OpenIZ.Core.Model.Acts;
@@ -35,7 +35,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     /// <summary>
     /// Persistence class for observations
     /// </summary>
-    internal class ObservationPersistenceService : ActDerivedPersistenceService<Observation, DbObservation>
+    public class ObservationPersistenceService : ActDerivedPersistenceService<Observation, DbObservation>
     {
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<TextObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("ED"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
         /// <summary>
@@ -196,7 +196,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<CodedObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("CD"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
         /// <summary>
@@ -277,7 +277,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             var parm = query.Parameters[0];
             query = Expression.Lambda<Func<QuantityObservation, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, query.Body, Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(parm, typeof(Observation).GetProperty(nameof(Observation.ValueType))), Expression.Constant("PQ"))), parm);
-            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+            return base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
         }
 
 

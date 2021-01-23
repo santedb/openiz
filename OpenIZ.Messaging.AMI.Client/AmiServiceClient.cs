@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  *
- * User: khannan
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 
 using OpenIZ.Core.Alert.Alerting;
@@ -325,20 +325,12 @@ namespace OpenIZ.Messaging.AMI.Client
 			return this.Client.Get<AlertMessageInfo>($"alert/{id}");
 		}
 
-        /// <summary>
-		/// Gets a diagnostic alert.
+		/// <summary>
+		/// Gets a list of alerts.
 		/// </summary>
-		public DiagnosticReport GetServerDiagnoticReport()
-        {
-            return this.Client.Get<DiagnosticReport>($"sherlock");
-        }
-
-        /// <summary>
-        /// Gets a list of alerts.
-        /// </summary>
-        /// <param name="query">The query expression to use to find the alerts.</param>
-        /// <returns>Returns a collection of alerts which match the specified criteria.</returns>
-        public AmiCollection<AlertMessageInfo> GetAlerts(Expression<Func<AlertMessage, bool>> query)
+		/// <param name="query">The query expression to use to find the alerts.</param>
+		/// <returns>Returns a collection of alerts which match the specified criteria.</returns>
+		public AmiCollection<AlertMessageInfo> GetAlerts(Expression<Func<AlertMessage, bool>> query)
 		{
 			return this.Client.Get<AmiCollection<AlertMessageInfo>>("alert", QueryExpressionBuilder.BuildQuery(query).ToArray());
 		}
@@ -481,6 +473,22 @@ namespace OpenIZ.Messaging.AMI.Client
 		}
 
 		/// <summary>
+		/// Gets the specified log from the server
+		/// </summary>
+		public LogFileInfo GetLog(string logId)
+		{
+			return this.Client.Get<LogFileInfo>($"log/{logId}");
+		}
+
+		/// <summary>
+		/// Get all logs
+		/// </summary>
+		public AmiCollection<LogFileInfo> GetLogs()
+		{
+			return this.Client.Get<AmiCollection<LogFileInfo>>("log");
+		}
+
+		/// <summary>
 		/// Retrieves a specified policy.
 		/// </summary>
 		/// <param name="query">The query expression to use to find the policy.</param>
@@ -518,6 +526,14 @@ namespace OpenIZ.Messaging.AMI.Client
 		public AmiCollection<SecurityRoleInfo> GetRoles(Expression<Func<SecurityRole, bool>> query)
 		{
 			return this.Client.Get<AmiCollection<SecurityRoleInfo>>("role", QueryExpressionBuilder.BuildQuery(query).ToArray());
+		}
+
+		/// <summary>
+		/// Gets a diagnostic alert.
+		/// </summary>
+		public DiagnosticReport GetServerDiagnoticReport()
+		{
+			return this.Client.Get<DiagnosticReport>($"sherlock");
 		}
 
 		/// <summary>
@@ -779,22 +795,5 @@ namespace OpenIZ.Messaging.AMI.Client
 		{
 			return this.Client.Put<SecurityUserInfo, SecurityUserInfo>($"user/{id}", this.Client.Accept, user);
 		}
-
-        /// <summary>
-        /// Get all logs 
-        /// </summary>
-        public AmiCollection<LogFileInfo> GetLogs()
-        {
-            return this.Client.Get<AmiCollection<LogFileInfo>>("log");
-        }
-
-        /// <summary>
-        /// Gets the specified log from the server
-        /// </summary>
-        public LogFileInfo GetLog(string logId)
-        {
-            return this.Client.Get<LogFileInfo>($"log/{logId}");
-        }
-
 	}
 }

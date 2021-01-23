@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.Everest.Threading;
 using MARC.HI.EHRS.SVC.Core;
@@ -76,7 +76,12 @@ namespace OpenIZ.Core.Services.Impl
         /// </summary>
         public void QueueNonPooledWorkItem(Action<object> action, object parm)
         {
-            Thread thd = new Thread(new ParameterizedThreadStart(action));
+            Thread thd = new Thread(new ParameterizedThreadStart((o) =>
+            {
+                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD START: {0}({1})", action, o);
+                action(o);
+                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD STOP: {0}({1})", action, o);
+            }));
             thd.IsBackground = true;
             thd.Name = $"OpenIZBackground-{action}";
             thd.Start(parm);
@@ -92,7 +97,9 @@ namespace OpenIZ.Core.Services.Impl
             {
                 try
                 {
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
@@ -109,7 +116,9 @@ namespace OpenIZ.Core.Services.Impl
             this.m_threadPool.QueueUserWorkItem((o) => {
                 try
                 {
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
@@ -128,7 +137,9 @@ namespace OpenIZ.Core.Services.Impl
             new Timer((o) => {
                 try
                 {
+                    this.m_traceSource.TraceVerbose("TIMER THREAD START: {0}({1})", action, o);
                     action(o);
+                    this.m_traceSource.TraceVerbose("TIMER THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {

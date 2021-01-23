@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Map;
 using OpenIZ.OrmLite.Providers;
@@ -31,6 +31,7 @@ using System.Threading.Tasks;
 using OpenIZ.Core.Data.Warehouse;
 using System.Threading;
 using System.IO;
+using OpenIZ.Core.Diagnostics;
 
 namespace OpenIZ.OrmLite
 {
@@ -47,6 +48,7 @@ namespace OpenIZ.OrmLite
 
         // Parse values
         public abstract void ParseValues(IDataReader rdr, IDbProvider provider);
+
 
         /// <summary>
         /// Parse the data
@@ -152,6 +154,66 @@ namespace OpenIZ.OrmLite
         public bool IsReadonly { get; private set; }
 
         /// <summary>
+        /// Last command
+        /// </summary>
+        private IDbCommand m_lastCommand = null;
+
+        /// <summary>
+        /// Determines if <paramref name="obj"/> exists in the database
+        /// </summary>
+        public bool Exists<TModel>(TModel obj)
+        {
+            var sqlStatement = this.CreateSqlStatement();
+            foreach (var cm in TableMapping.Get(typeof(TModel)).Columns.Where(o => o.IsPrimaryKey))
+                sqlStatement.And($"{cm.Name} = ?", cm.SourceProperty.GetValue(obj));
+            sqlStatement = this.CreateSqlStatement<TModel>().SelectFrom(ColumnMapping.One).Where(sqlStatement);
+            return this.Any(sqlStatement);
+        }
+
+        /// <summary>
+        /// Returns only if only one result is available
+        /// </summary>
+        public TReturn ExecuteScalar<TReturn>(SqlStatement sqlStatement)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, sqlStatement);
+                    try
+                    {
+                        return (TReturn)dbc.ExecuteScalar();
+                    }
+                    catch (TimeoutException)
+                    {
+                        try { dbc.Cancel(); } catch { }
+                        throw;
+                    }
+                    finally
+                    {
+#if DBPERF
+                        this.PerformanceMonitor(stmt, sw);
+#endif
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("SCALAR {0} executed in {1} ms", sqlStatement, sw.ElapsedMilliseconds);
+            }
+#endif
+        }
+
+        /// <summary>
         /// Execute a stored procedure transposing the result set back to <typeparamref name="TModel"/>
         /// </summary>
         public IEnumerable<TModel> Query<TModel>(String spName, params object[] arguments)
@@ -164,16 +226,19 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
+                    var dbc = this.m_lastCommand = this.m_lastCommand = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
+                            while (rdr.Read())
+                                yield return this.MapObject<TModel>(rdr);
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
+
                     }
                 }
 #if DEBUG 
@@ -239,7 +304,15 @@ namespace OpenIZ.OrmLite
                 return (TModel)retVal;
             }
             else if (BaseTypes.Contains(typeof(TModel)))
-                return (TModel)rdr[0];
+            {
+                var obj = rdr[0];
+                if (obj == DBNull.Value)
+                    return default(TModel);
+                else if (typeof(TModel).IsAssignableFrom(obj.GetType()))
+                    return (TModel)obj;
+                else
+                    return (TModel)this.m_provider.ConvertValue(obj, typeof(TModel));
+            }
             else if (typeof(ExpandoObject).IsAssignableFrom(typeof(TModel)))
                 return this.MapExpando<TModel>(rdr);
             else
@@ -266,7 +339,6 @@ namespace OpenIZ.OrmLite
         /// </summary>
         private object MapObject(Type tModel, IDataReader rdr)
         {
-
             var tableMapping = TableMapping.Get(tModel);
             dynamic result = Activator.CreateInstance(tModel);
             // Read each column and pull from reader
@@ -287,9 +359,46 @@ namespace OpenIZ.OrmLite
             if (result is IAdoLoadedData)
                 (result as IAdoLoadedData).Context = this;
             else
-                this.m_tracer.TraceWarning("Type {0} does not implement IAdoLoadedData", tModel);
+                this.m_tracer.TraceInfo("Type {0} does not implement IAdoLoadedData", tModel);
             return result;
 
+        }
+
+        /// <summary>
+        /// Delete from the database
+        /// </summary>
+        public void Delete<TModel>(SqlStatement keyFilter)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                var keyColumnName = TableMapping.Get(typeof(TModel)).Columns.First(o => o.IsPrimaryKey);
+                var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where($"{keyColumnName.Name} IN (").Append(keyFilter).Append(")");
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
+                    try
+                    {
+                        dbc.ExecuteNonQuery();
+                    }
+                    finally
+                    {
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("DELETE executed in {0} ms", sw.ElapsedMilliseconds);
+            }
+#endif
         }
 
         /// <summary>
@@ -305,18 +414,24 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
                             return this.ReaderToResult(returnType, rdr);
 
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -326,7 +441,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", stmt, sw.ElapsedMilliseconds);
+                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", this.GetQueryLiteral(stmt), sw.ElapsedMilliseconds);
             }
 #endif
         }
@@ -344,14 +459,20 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateStoredProcedureCommand(this, spName, arguments);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
                             return this.ReaderToResult<TModel>(rdr);
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -380,11 +501,16 @@ namespace OpenIZ.OrmLite
                 var stmt = this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec).Limit(1);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
                             return this.ReaderToResult<TModel>(rdr);
+                    }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
                     }
                     finally
                     {
@@ -392,6 +518,7 @@ namespace OpenIZ.OrmLite
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -419,17 +546,23 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt.Limit(1));
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt.Limit(1));
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
                             return this.ReaderToResult<TModel>(rdr);
+                    }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
                     }
                     finally
                     {
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -440,7 +573,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("FIRST {0} executed in {1} ms", stmt, sw.ElapsedMilliseconds);
+                this.m_tracer.TraceVerbose("FIRST {0} executed in {1} ms", this.GetQueryLiteral(stmt), sw.ElapsedMilliseconds);
             }
 #endif
         }
@@ -461,7 +594,7 @@ namespace OpenIZ.OrmLite
 
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
@@ -472,11 +605,17 @@ namespace OpenIZ.OrmLite
                         }
 
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
 #if DBPERF
                         this.PerformanceMonitor(stmt, sw);
 #endif
+                        
                         if (!this.IsPreparedCommand(dbc))
                         dbc.Dispose();
                     }
@@ -508,13 +647,19 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Exists(this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (bool)dbc.ExecuteScalar();
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -544,13 +689,19 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Exists(querySpec);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (bool)dbc.ExecuteScalar();
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -562,7 +713,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("ANY {0} executed in {1} ms", querySpec, sw.ElapsedMilliseconds);
+                this.m_tracer.TraceVerbose("ANY {0} executed in {1} ms", this.GetQueryLiteral(querySpec), sw.ElapsedMilliseconds);
             }
 #endif
         }
@@ -581,13 +732,19 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Count(this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return (int)dbc.ExecuteScalar();
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -617,13 +774,19 @@ namespace OpenIZ.OrmLite
                 var stmt = this.m_provider.Count(querySpec);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try
                     {
                         return Convert.ToInt32(dbc.ExecuteScalar());
                     }
+                    catch (TimeoutException)
+                    {
+                        dbc.Cancel();
+                        throw;
+                    }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -634,7 +797,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("COUNT {0} executed in {1} ms", querySpec, sw.ElapsedMilliseconds);
+                this.m_tracer.TraceVerbose("COUNT {0} executed in {1} ms", this.GetQueryLiteral(querySpec), sw.ElapsedMilliseconds);
             }
 #endif
         }
@@ -660,43 +823,10 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Execute the specified query
         /// </summary>
-        public IEnumerable<TModel> Query<TModel>(Expression<Func<TModel, bool>> querySpec)
+        public OrmResultSet<TModel> Query<TModel>(Expression<Func<TModel, bool>> querySpec)
         {
-#if DEBUG
-            var sw = new Stopwatch();
-            sw.Start();
-            try
-            {
-#endif
-                var query = this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec);
-                lock (this.m_lockObject)
-                {
-                    var dbc = this.m_provider.CreateCommand(this, query);
-                    try
-                    {
-                        using (var rdr = dbc.ExecuteReader()) 
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
-                    }
-                    finally
-                    {
-#if DBPERF
-                        this.PerformanceMonitor(query, sw);
-#endif
-                        if (!this.IsPreparedCommand(dbc))
-                        dbc.Dispose();
-                    }
-                }
-
-#if DEBUG
-            }
-            finally
-            {
-                sw.Stop();
-                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", querySpec, sw.ElapsedMilliseconds);
-            }
-#endif
+            return new OrmResultSet<TModel>(this, this.CreateSqlStatement<TModel>().SelectFrom().Where(querySpec));
         }
-
         /// <summary>
         /// Adds data in a safe way
         /// </summary>
@@ -710,10 +840,15 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Query using the specified statement
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="query"></param>
-        /// <returns></returns>
-        public IEnumerable<TModel> Query<TModel>(SqlStatement query)
+        public OrmResultSet<TModel> Query<TModel>(SqlStatement query)
+        {
+            return new OrmResultSet<TModel>(this, query);
+        }
+
+        /// <summary>
+        /// Executes the query against the database
+        /// </summary>
+        internal IEnumerable<TModel> ExecQuery<TModel>(SqlStatement query)
         {
 #if DEBUG
             var sw = new Stopwatch();
@@ -723,21 +858,21 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try
                     {
                         using (var rdr = dbc.ExecuteReader())
-                            return this.ReaderToCollection<TModel>(rdr).ToList();
-
+                            while (rdr.Read())
+                                yield return this.MapObject<TModel>(rdr);
                     }
-
                     finally
                     {
 #if DBPERF
                         this.PerformanceMonitor(query, sw);
 #endif
+                       
                         if (!this.IsPreparedCommand(dbc))
-                             dbc.Dispose();
+                            dbc.Dispose();
                     }
                 }
 
@@ -746,7 +881,7 @@ namespace OpenIZ.OrmLite
             finally
             {
                 sw.Stop();
-                this.m_tracer.TraceVerbose("QUERY {0} executed in {1} ms", query.SQL, sw.ElapsedMilliseconds);
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "QUERY {0} executed in {1} ms", this.GetQueryLiteral(query), sw.ElapsedMilliseconds);
             }
 #endif
         }
@@ -803,7 +938,7 @@ namespace OpenIZ.OrmLite
                 // Execute
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try { 
                         if (returnKeys.Count() > 0 && this.m_provider.Features.HasFlag(SqlEngineFeatures.ReturnedInserts))
                         {
@@ -821,6 +956,7 @@ namespace OpenIZ.OrmLite
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -855,12 +991,13 @@ namespace OpenIZ.OrmLite
                 var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where(where);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -899,12 +1036,13 @@ namespace OpenIZ.OrmLite
                 var query = this.CreateSqlStatement<TModel>().DeleteFrom().Where(whereClause);
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                        
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -941,10 +1079,11 @@ namespace OpenIZ.OrmLite
                     var itmValue = itm.SourceProperty.GetValue(value);
 
                     if (itmValue == null ||
+                        !itm.IsNonNull && (
                         itmValue.Equals(default(Guid)) ||
                         itmValue.Equals(default(DateTime)) ||
                         itmValue.Equals(default(DateTimeOffset)) ||
-                        itmValue.Equals(default(Decimal)))
+                        itmValue.Equals(default(Decimal))))
                         itmValue = null;
 
                     query.Append($"{itm.Name} = ? ", itmValue);
@@ -958,12 +1097,13 @@ namespace OpenIZ.OrmLite
                 // Now update
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, query);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, query);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -996,12 +1136,13 @@ namespace OpenIZ.OrmLite
 #endif
                 lock (this.m_lockObject)
                 {
-                    var dbc = this.m_provider.CreateCommand(this, stmt);
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, stmt);
                     try { 
                         dbc.ExecuteNonQuery();
                     }
                     finally
                     {
+                       
                         if (!this.IsPreparedCommand(dbc))
                             dbc.Dispose();
                     }
@@ -1013,6 +1154,72 @@ namespace OpenIZ.OrmLite
             {
                 sw.Stop();
                 this.m_tracer.TraceVerbose("EXECUTE NON QUERY executed in {0} ms", sw.ElapsedMilliseconds);
+            }
+#endif
+        }
+
+        /// <summary>
+        /// Bulk insert data
+        /// </summary>
+        public IEnumerable<TModel> InsertOrUpdate<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Exists(o) ? this.Update(o) : this.Insert(o)).ToList();
+        }
+
+        /// <summary>
+        /// Bulk insert data
+        /// </summary>
+        public IEnumerable<TModel> Insert<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Insert(o)).ToList();
+        }
+
+        /// <summary>
+        /// Bulk update data
+        /// </summary>
+        public IEnumerable<TModel> Update<TModel>(IEnumerable<TModel> source)
+        {
+            return source.Select(o => this.Update(o)).ToList();
+        }
+
+        /// <summary>
+        /// Resets the specified sequence according to the logic in the provider
+        /// </summary>
+        public void ResetSequence(string sequenceName, object sequenceValue)
+        {
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+            try
+            {
+#endif
+                lock (this.m_lockObject)
+                {
+                    var dbc = this.m_lastCommand = this.m_provider.CreateCommand(this, this.m_provider.GetResetSequence(sequenceName, sequenceValue));
+                    try
+                    {
+                        dbc.ExecuteNonQuery();
+                    }
+                    catch (TimeoutException)
+                    {
+                        try { dbc.Cancel(); } catch { }
+                        throw;
+                    }
+                    finally
+                    {
+#if DBPERF
+                        this.PerformanceMonitor(stmt, sw);
+#endif
+                        if (!this.IsPreparedCommand(dbc))
+                            dbc.Dispose();
+                    }
+                }
+#if DEBUG
+            }
+            finally
+            {
+                sw.Stop();
+                this.m_tracer.TraceVerbose("RESET SEQUENCE{0} to {1}", sequenceName, sequenceValue);
             }
 #endif
         }

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-7
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.RISI;
 using OpenIZ.Reporting.Core.Configuration;
@@ -149,6 +149,15 @@ namespace OpenIZ.Reporting.Core
 		/// <param name="parameterId">The id of the parameter for which to retrieve detailed information.</param>
 		/// <returns>Returns an auto complete source definition of valid parameters values for a given parameter.</returns>
 		AutoCompleteSourceDefinition GetReportParameterValues(Guid id, Guid parameterId);
+
+		/// <summary>
+		/// Gets a list of auto-complete parameters which are applicable for the specified parameter.
+		/// </summary>
+		/// <param name="id">The id of the report.</param>
+		/// <param name="parameterId">The id of the parameter for which to retrieve detailed information.</param>
+		/// <param name="parameterValue">The parameter value.</param>
+		/// <returns>Returns an auto complete source definition of valid parameter values for a given parameter within the context of another parameter value.</returns>
+		AutoCompleteSourceDefinition GetReportParameterValuesCascading(Guid id, Guid parameterId, string parameterValue);
 
 		/// <summary>
 		/// Gets the report source.

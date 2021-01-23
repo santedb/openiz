@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
 <!--
- - Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ - Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  - 
  - 
  - Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -15,8 +15,8 @@
  - License for the specific language governing permissions and limitations under 
  - the License.
  - 
- - User: justi
- - Date: 2017-1-14
+ - User: fyfej
+ - Date: 2017-9-1
  -->
 <modelMap xmlns="http://openiz.org/model/map">
   
@@ -92,7 +92,6 @@
   <class modelClass="OpenIZ.Core.Model.DataTypes.Concept, OpenIZ.Core.Model, Version=1.0.0.0"
          domainClass="OpenIZ.Persistence.Data.ADO.Data.Model.Concepts.DbConceptVersion, OpenIZ.Persistence.Data.ADO, Version=0.5.0.0">
     <property modelName="PreviousVersionKey" domainName="ReplacesVersionKey"/>
-    <property modelName="StatusConceptKey" domainName="StatusKey"/>
     <property modelName="VersionSequence" domainName="VersionSequenceId"/>
     <property modelName="ModifiedOn" domainName="CreationTime"/>
 
@@ -357,9 +356,15 @@
          domainClass="OpenIZ.Persistence.Data.ADO.Data.Model.Acts.DbActParticipation, OpenIZ.Persistence.Data.ADO, Version=0.5.0.0">
     <property modelName="PlayerEntityKey" domainName="TargetKey"/>
     <property modelName="SourceEntityKey" domainName="SourceKey"/>
+    <property modelName="ActKey" domainName="SourceKey"/>
+    <property modelName="PlayerEntityKey" domainName="TargetKey"/>
   </class>
 
-  <class modelClass="OpenIZ.Core.Model.Acts.SubstanceAdministration, OpenIZ.Core.Model, Version=1.0.0.0"
+  <class modelClass="OpenIZ.Core.Model.Acts.ControlAct, OpenIZ.Core.Model, Version=1.0.0.0"
+      domainClass="OpenIZ.Persistence.Data.ADO.Data.Model.Acts.DbControlAct, OpenIZ.Persistence.Data.ADO, Version=0.5.0.0">
+  </class>
+    
+    <class modelClass="OpenIZ.Core.Model.Acts.SubstanceAdministration, OpenIZ.Core.Model, Version=1.0.0.0"
        domainClass="OpenIZ.Persistence.Data.ADO.Data.Model.Acts.DbSubstanceAdministration, OpenIZ.Persistence.Data.ADO, Version=0.5.0.0">
     <property modelName="RouteKey" domainName="RouteConceptKey"/>
     <property modelName="SiteKey" domainName="SiteConceptKey"/>

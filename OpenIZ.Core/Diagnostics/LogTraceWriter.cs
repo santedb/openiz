@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-22
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Diagnostics.Tracing;
@@ -39,6 +39,7 @@ namespace OpenIZ.Core.Diagnostics
         /// </summary>
         public LogTraceWriter(EventLevel filter, String initializationData) : base(filter, null)
         {
+            this.m_traceSource.TraceInfo("Binding PCL logging to .NET Logging");
         }
 
 
@@ -52,19 +53,19 @@ namespace OpenIZ.Core.Diagnostics
             switch (level)
             {
                 case EventLevel.Error:
-                    this.m_traceSource?.TraceEvent(TraceEventType.Error, 0, format, args);
+                    this.m_traceSource?.TraceEvent(TraceEventType.Error, 0, $"[{source}] {format}", args);
                     break;
                 case EventLevel.Informational:
-                    this.m_traceSource?.TraceEvent(TraceEventType.Information, 0, format, args);
+                    this.m_traceSource?.TraceEvent(TraceEventType.Information, 0, $"[{source}] {format}", args);
                     break;
                 case EventLevel.Critical:
-                    this.m_traceSource?.TraceEvent(TraceEventType.Critical, 0, format, args);
+                    this.m_traceSource?.TraceEvent(TraceEventType.Critical, 0, $"[{source}] {format}", args);
                     break;
                 case EventLevel.Verbose:
-                    this.m_traceSource?.TraceEvent(TraceEventType.Verbose, 0, format, args);
+                    this.m_traceSource?.TraceEvent(TraceEventType.Verbose, 0, $"[{source}] {format}", args);
                     break;
                 case EventLevel.Warning:
-                    this.m_traceSource?.TraceEvent(TraceEventType.Warning, 0, format, args);
+                    this.m_traceSource?.TraceEvent(TraceEventType.Warning, 0, $"[{source}] {format}", args);
                     break;
 
             }

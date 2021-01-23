@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core.Services.Policy;
 using System;
@@ -43,7 +43,21 @@ namespace OpenIZ.Core.Security
         /// </summary>
         public PolicyDecision GetPolicyDecision(IPrincipal principal, object securable)
         {
-            throw new NotImplementedException();
+            if (principal == null)
+                throw new ArgumentNullException(nameof(principal));
+            else if (securable == null)
+                throw new ArgumentNullException(nameof(securable));
+
+            // We need to get the active policies for this
+            var pip = ApplicationContext.Current.GetService<IPolicyInformationService>();
+            IEnumerable<IPolicyInstance> securablePolicies = pip.GetActivePolicies(securable),
+                principalPolicies = pip.GetActivePolicies(principal);
+
+            var retVal = new PolicyDecision(securable);
+            retVal.Details.AddRange(securablePolicies.Select(o => new PolicyDecisionDetail(o.Policy.Oid,
+                    principalPolicies.Any(p => p.Policy.Oid.StartsWith(o.Policy.Oid)) ? PolicyDecisionOutcomeType.Grant : PolicyDecisionOutcomeType.Deny
+                )));
+            return retVal;
         }
 
         /// <summary>
@@ -59,7 +73,7 @@ namespace OpenIZ.Core.Security
             // Can we make this decision based on the claims? 
             if (principal is ClaimsPrincipal && (principal as ClaimsPrincipal).HasClaim(c => c.Type == OpenIzClaimTypes.OpenIzGrantedPolicyClaim && policyId.StartsWith(c.Value)))
                 return PolicyDecisionOutcomeType.Grant;
-            
+
             // Get the user object from the principal
             var pip = ApplicationContext.Current.GetService<IPolicyInformationService>();
 
@@ -73,7 +87,7 @@ namespace OpenIZ.Core.Security
                 else if (pol.Rule < policyInstance.Rule)
                     policyInstance = pol;
 
-            if(policyInstance == null)
+            if (policyInstance == null)
             {
                 // TODO: Configure OptIn or OptOut
                 return PolicyDecisionOutcomeType.Deny;
@@ -86,12 +100,12 @@ namespace OpenIZ.Core.Security
             {
                 IPolicyHandler handlerInstance = null;
                 var policy = policyInstance.Policy as ILocalPolicy;
-                if(policy != null)
+                if (policy != null)
                     return policy.Handler.GetPolicyDecision(principal, policy, null).Outcome;
 
             }
             return policyInstance.Rule;
-            
+
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Security;
 using System;
@@ -128,6 +128,25 @@ namespace OpenIZ.Core.Configuration
                     retVal.Security.BasicAuth.AllowedClientClaims = new System.Collections.ObjectModel.ObservableCollection<string>();
                     foreach(XmlNode all in allowedClaims)
                         retVal.Security.BasicAuth.AllowedClientClaims.Add(all.Value);
+                }
+
+                // Administrative contacts
+                var notificationNode = section.SelectSingleNode("./notification");
+                if (notificationNode != null)
+                {
+                    retVal.Notification = new OpenIzNotificationConfiguration();
+                    XmlElement smtp = notificationNode.SelectSingleNode("./smtp") as XmlElement;
+                    if (smtp == null)
+                        throw new ConfigurationErrorsException("Missing SMTP configuration", section);
+                    else
+                        retVal.Notification.Smtp = new OpenIzSmtpConfiguration(new Uri(smtp.Attributes["server"]?.Value ?? "smtp://localhost:25"), smtp.Attributes["username"]?.Value ?? string.Empty, smtp.Attributes["password"]?.Value ?? string.Empty, Boolean.Parse(smtp.Attributes["ssl"]?.Value ?? "false"), smtp.Attributes["from"]?.Value ?? "no-reply@openiz.org");
+
+                    var adminContacts = notificationNode.SelectNodes("./adminContacts/add");
+                    retVal.Notification.AdminContacts = new List<string>();
+                    foreach (XmlElement e in adminContacts.OfType<XmlElement>())
+                    {
+                        retVal.Notification.AdminContacts.Add(e.InnerText);
+                    }
                 }
             }
 

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-15
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Linq;
@@ -67,6 +67,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
         // Get tracer
         protected TraceSource m_tracer = new TraceSource(AdoDataConstants.TraceSourceName);
+        protected TraceSource m_dataTracers = new TraceSource(AdoDataConstants.TraceSourceName + ".Resource");
 
         // Configuration
         protected static AdoConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection(AdoDataConstants.ConfigurationSectionName) as AdoConfiguration;
@@ -128,6 +129,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         public abstract IEnumerable<TData> QueryInternal(DataContext context, Expression<Func<TData, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true);
 
         /// <summary>
+        /// Returns true if the object exists
+        /// </summary>
+        public abstract bool Exists(DataContext context, Guid key);
+
+        /// <summary>
         /// Get the specified key.
         /// </summary>
         /// <param name="key">Key.</param>
@@ -141,13 +147,18 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             {
                 if (cacheItem.LoadState < context.LoadState)
                 {
+                    this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Cache state of {0}({1}) is lower than context ({2})", cacheItem, cacheItem.LoadState, context.LoadState);
                     cacheItem.LoadAssociations(context, principal);
                     cacheService?.Add(cacheItem);
                 }
+                else
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} from cache returned", cacheItem);
                 return cacheItem;
             }
             else
             {
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} ({1}) not in cache will load", key, typeof(TData).FullName);
+
                 cacheItem = this.QueryInternal(context, o => o.Key == key, Guid.Empty, 0, 1, out tr, principal, false)?.FirstOrDefault();
                 if (cacheService != null)
                     cacheService.Add(cacheItem);
@@ -224,7 +235,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
+
 #else
                             this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif
@@ -235,7 +248,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         }
                         catch (Exception e)
                         {
-                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 
                             tx?.Rollback();
                             throw new DataPersistenceException(e.Message, e);
@@ -326,7 +340,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 #else
                             this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif
@@ -339,7 +354,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         {
 
 #if DEBUG
-                        this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0} -- {1}", e, this.ObjectToString(data));
+                            this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e);
+                            this.m_dataTracers.TraceData(TraceEventType.Error, 0, this.ObjectToString(data));
 #else
                         this.m_tracer.TraceEvent(TraceEventType.Error, 0, "Error : {0}", e.Message);
 #endif
@@ -370,7 +386,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         /// <summary>
         /// Translates a DB exception to an appropriate OpenIZ exception
         /// </summary>
-        private void TranslateDbException(DbException e)
+        protected void TranslateDbException(DbException e)
         {
             if (e.Data["SqlState"] != null)
             {
@@ -549,7 +565,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
                         if (loadFast)
                         {
-                            connection.AddData("loadFast", true);
+                            //connection.AddData("loadFast", true);
                             connection.LoadState = LoadState.PartialLoad;
                         }
                         else
@@ -649,7 +665,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                         connection.PrepareStatements = true;
                     if (fastQuery)
                     {
-                        connection.AddData("loadFast", true);
+                        //connection.AddData("loadFast", true);
                         connection.LoadState = LoadState.PartialLoad;
                     }
                     else
@@ -662,14 +678,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                     var retVal = postData.Results.ToList();
 
                     // Add to cache
-                    foreach (var i in retVal.AsParallel().Where(i => i != null))
+                    foreach (var i in retVal.Where(i => i != null))
                         connection.AddCacheCommit(i);
 
-                    ApplicationContext.Current.GetService<IThreadPoolService>()?.QueueUserWorkItem(o =>
-                    {
-                        foreach (var itm in (o as IEnumerable<IdentifiedData>))
-                            ApplicationContext.Current.GetService<IDataCachingService>()?.Add(itm);
-                    }, connection.CacheOnCommit.ToList());
+                    foreach (var itm in connection.CacheOnCommit)
+                        ApplicationContext.Current.GetService<IDataCachingService>()?.Add(itm);
 
                     this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Returning {0}..{1} or {2} results", offset, offset + (count ?? 1000), totalCount);
 

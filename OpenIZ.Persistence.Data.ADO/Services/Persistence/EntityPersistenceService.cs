@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Entities;
 using System;
@@ -42,14 +42,20 @@ using OpenIZ.Core.Services;
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
 using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Concepts;
+using OpenIZ.Persistence.Data.ADO.Data.Model.Security;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
     /// <summary>
     /// Entity persistence service
     /// </summary>
-    public class EntityPersistenceService : VersionedDataPersistenceService<Core.Model.Entities.Entity, DbEntityVersion, DbEntity>
+    public class EntityPersistenceService : VersionedDataPersistenceService<Core.Model.Entities.Entity, DbEntityVersion, DbEntity>, IReportProgressChanged
     {
+        /// <summary>
+        /// Progress has changed
+        /// </summary>
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
 
         /// <summary>
         /// To model instance
@@ -94,7 +100,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var dbEntity = (dataInstance as CompositeResult)?.Values.OfType<DbEntity>().FirstOrDefault() ?? context.FirstOrDefault<DbEntity>(o => o.Key == dbEntityVersion.Key);
             Entity retVal = null;
 
-            switch (dbEntity.ClassConceptKey.ToString().ToLower())
+            if (dbEntityVersion.StatusConceptKey == StatusKeys.Purged) // Purged data doesn't exist
+                retVal = this.ToModelInstance<Entity>(dbEntityVersion, dbEntity, context, principal);
+            else switch (dbEntity.ClassConceptKey.ToString().ToLower())
             {
                 case EntityClassKeyStrings.Device:
                     retVal = new DeviceEntityPersistenceService().ToModelInstance(
@@ -195,7 +203,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 #if DEBUG
             sw.Stop();
-            this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Basic conversion took: {0}", sw.ElapsedMilliseconds);
+            this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Conversion of {0} took: {1} ms", retVal, sw.ElapsedMilliseconds);
 #endif 
             retVal.LoadAssociations(context, principal);
             return retVal;
@@ -306,7 +314,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 		        foreach (var entityIdentifier in uniqueIds)
 		        {
-			        if (context.Query<DbEntityIdentifier>(c => c.SourceKey != data.Key && c.AuthorityKey == entityIdentifier.AuthorityKey && c.Value == entityIdentifier.Value && !c.ObsoleteVersionSequenceId.HasValue).Any())
+			        if (context.Query<DbEntityIdentifier>(c => c.SourceKey != data.Key && c.AuthorityKey == entityIdentifier.AuthorityKey && c.Value == entityIdentifier.Value && c.ObsoleteVersionSequenceId == null).Any())
 			        {
 						throw new DuplicateNameException(entityIdentifier.Value);
 					}
@@ -407,7 +415,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 		        foreach (var entityIdentifier in uniqueIds)
 		        {
-			        if (context.Query<DbEntityIdentifier>(c => c.SourceKey != data.Key && c.AuthorityKey == entityIdentifier.AuthorityKey && c.Value == entityIdentifier.Value && !c.ObsoleteVersionSequenceId.HasValue).Any())
+			        if (context.Query<DbEntityIdentifier>(c => c.SourceKey != data.Key && c.AuthorityKey == entityIdentifier.AuthorityKey && c.Value == entityIdentifier.Value &&  c.ObsoleteVersionSequenceId == null).Any())
 			        {
 				        throw new DuplicateNameException(entityIdentifier.Value);
 			        }
@@ -560,6 +568,369 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             }
         }
-        
+
+        /// <summary>
+        /// Perform a purge of this data
+        /// </summary>
+        protected override void BulkPurgeInternal(DataContext context, IPrincipal principal, Guid[] keysToPurge)
+        {
+            // Purge the related fields
+            int ofs = 0;
+            while (ofs < keysToPurge.Length)
+            {
+                var batchKeys = keysToPurge.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+
+                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)ofs / (float)keysToPurge.Length, "Purging Entities")); 
+
+                // Purge the related fields
+                var versionKeys = context.Query<DbEntityVersion>(o => batchKeys.Contains(o.Key)).Select(o => o.VersionKey).ToArray();
+
+                // Delete versions of this entity in sub table
+                context.Delete<DbPatient>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbProvider>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbUserEntity>(o => versionKeys.Contains(o.ParentKey));
+
+                // Person fields
+                context.Delete<DbPersonLanguageCommunication>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbPerson>(o => versionKeys.Contains(o.ParentKey));
+
+                // Other entities
+                context.Delete<DbDeviceEntity>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbApplicationEntity>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbPlace>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbManufacturedMaterial>(o => versionKeys.Contains(o.ParentKey));
+                context.Delete<DbMaterial>(o => versionKeys.Contains(o.ParentKey));
+                // Purge the related entity fields
+
+                // Names
+                var col = TableMapping.Get(typeof(DbEntityNameComponent)).Columns.First(o => o.IsPrimaryKey);
+                var deleteStatement = context.CreateSqlStatement<DbEntityNameComponent>()
+                    .SelectFrom(col)
+                    .InnerJoin<DbEntityNameComponent, DbEntityName>(o => o.SourceKey, o => o.Key)
+                    .Where<DbEntityName>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityNameComponent>(deleteStatement);
+                context.Delete<DbEntityName>(o => batchKeys.Contains(o.SourceKey));
+
+                // Addresses
+                col = TableMapping.Get(typeof(DbEntityAddressComponent)).Columns.First(o => o.IsPrimaryKey);
+                deleteStatement = context.CreateSqlStatement<DbEntityAddressComponent>()
+                    .SelectFrom(col)
+                    .InnerJoin<DbEntityAddressComponent, DbEntityAddress>(o => o.SourceKey, o => o.Key)
+                    .Where<DbEntityAddress>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityAddressComponent>(deleteStatement);
+                context.Delete<DbEntityAddress>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbTelecomAddress>(o => batchKeys.Contains(o.SourceKey));
+                // Other Relationships
+                context.Delete<DbEntityRelationship>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityIdentifier>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityExtension>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityTag>(o => batchKeys.Contains(o.SourceKey));
+                context.Delete<DbEntityNote>(o => batchKeys.Contains(o.SourceKey));
+
+                // Detach keys which are being deleted will need to be removed from the version heirarchy
+                foreach (var rpl in context.Query<DbEntityVersion>(o => versionKeys.Contains(o.ReplacesVersionKey.Value)).ToArray())
+                {
+                    rpl.ReplacesVersionKey = null;
+                    rpl.ReplacesVersionKeySpecified = true;
+                    context.Update(rpl);
+                }
+
+                // Purge the core entity data
+                context.Delete<DbEntityVersion>(o => batchKeys.Contains(o.Key));
+
+                // Create a version which indicates this is PURGED
+                context.Insert(
+                    context.Query<DbEntity>(o => batchKeys.Contains(o.Key))
+                    .Select(o => o.Key)
+                    .Distinct()
+                    .ToArray()
+                    .Select(o => new DbEntityVersion()
+                    {
+                        CreatedByKey = principal.GetUserKey(context).GetValueOrDefault(),
+                        CreationTime = DateTimeOffset.Now,
+                        Key = o,
+                        StatusConceptKey = StatusKeys.Purged
+                    }));
+
+            }
+
+            context.ResetSequence("ENT_VRSN_SEQ", context.Query<DbEntityVersion>(o => true).Max(o => o.VersionSequenceId));
+
+        }
+
+        /// <summary>
+        /// Copy entity data from <paramref name="fromContext"/> to <paramref name="toContext"/>
+        /// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+          
+            // Copy over users and protocols and other act tables
+            IEnumerable<Guid> additionalKeys = fromContext.Query<DbExtensionType>(o => o.ObsoletionTime == null)
+                .Select(o => o.CreatedByKey)
+                .Distinct()
+                .Union(
+                    fromContext.Query<DbAssigningAuthority>(o => o.ObsoletionTime == null)
+                    .Select(o => o.CreatedByKey)
+                    .Distinct()
+                )
+                .Union(
+                    fromContext.Query<DbTemplateDefinition>(o => o.ObsoletionTime == null)
+                    .Select(o => o.CreatedByKey)
+                    .Distinct()
+                )
+                .Union(
+                    fromContext.Query<DbSecurityDevice>(o => o.ObsoletionTime == null)
+                    .Select(o => o.CreatedByKey)
+                    .Distinct()
+                )
+                .ToArray();
+            toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => additionalKeys.Contains(o.Key)));
+            toContext.InsertOrUpdate(fromContext.Query<DbExtensionType>(o => o.ObsoletionTime == null));
+            toContext.InsertOrUpdate(fromContext.Query<DbTemplateDefinition>(o => o.ObsoletionTime == null));
+
+            additionalKeys = fromContext.Query<DbAssigningAuthority>(o => o.ObsoletionTime == null)
+                .Select(o => o.AssigningDeviceKey).Distinct().ToArray()
+                .Where(o => o.HasValue)
+                .Select(o => o.Value);
+
+            toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevice>(o => additionalKeys.Contains(o.Key)).ToArray().Select(o => new DbSecurityDevice()
+            {
+                Key = o.Key,
+                CreatedByKey = o.CreatedByKey,
+                CreationTime = o.CreationTime,
+                PublicId = o.PublicId,
+                ObsoletionTime = o.ObsoletionTime,
+                ObsoletedByKey = o.ObsoletedByKey,
+                DeviceSecret = o.DeviceSecret ?? "XXXX",
+            }));
+            toContext.InsertOrUpdate(fromContext.Query<DbAssigningAuthority>(o => o.ObsoletionTime == null));
+
+            var minSets = new Guid[]
+            {
+                Guid.Parse("5cca5869-8a7b-47a3-83db-041d5af5c9da"),
+                Guid.Parse("8df14280-3d05-45a6-bfae-15b63dfc3791")
+            };
+            additionalKeys = fromContext.Query<DbEntityRelationship>(o => o.ObsoleteVersionSequenceId == null)
+                   .Select(o => o.RelationshipTypeKey)
+                   .Distinct()
+                   .Union(
+                        fromContext.Query<DbEntityName>(o => o.Key != null)
+                        .Select(o => o.UseConceptKey)
+                        .Distinct()
+                    )
+                   .Union(
+                        fromContext.Query<DbEntityAddress>(o => o.Key != null)
+                        .Select(o => o.UseConceptKey)
+                        .Distinct()
+                    )
+                    .Union(
+                        fromContext.Query<DbTelecomAddress>(o => o.Key != null)
+                        .Select(o => o.TelecomUseKey)
+                        .Distinct()
+                    )
+
+                   .Union(
+                        fromContext.Query<DbEntity>(o => o.Key != null)
+                        .Select(o => o.DeterminerConceptKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbEntity>(o => o.Key != null)
+                        .Select(o => o.ClassConceptKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbMaterial>(o => o.ParentKey != null)
+                        .Select(o => o.FormConceptKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbMaterial>(o => o.ParentKey != null)
+                        .Select(o => o.QuantityConceptKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbEntityVersion>(o => o.VersionSequenceId > 0)
+                        .Select(o => o.StatusConceptKey)
+                        .Distinct()
+                    ).Union(
+                        fromContext.Query<DbEntityVersion>(o => o.VersionSequenceId > 0)
+                        .Select(o => o.TypeConceptKey)
+                        .Distinct()
+                        .ToArray()
+                        .Where(o => o.HasValue)
+                        .Select(o => o.Value)
+                    )
+                    .Union(
+                        fromContext.Query<DbEntityNameComponent>(o => o.Key != null)
+                        .Select(o => o.ComponentTypeKey)
+                        .Distinct()
+                        .ToArray()
+                        .Where(o => o.HasValue)
+                        .Select(o => o.Value)
+                    )
+                   .Union(
+                        fromContext.Query<DbConceptSetConceptAssociation>(o => minSets.Contains(o.ConceptSetKey))
+                        .Select(o => o.ConceptKey)
+                        .Distinct()
+                    )
+                   .Union(
+                        fromContext.Query<DbPatient>(o => o.ParentKey != null)
+                        .Select(o => o.GenderConceptKey)
+                        .Distinct()
+                    )
+                   .ToArray();
+ 
+            toContext.InsertOrUpdate(fromContext.Query<DbConceptClass>(o => true));
+            toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => additionalKeys.Contains(o.Key)));
+            toContext.InsertOrUpdate(fromContext.Query<DbConceptVersion>(o => additionalKeys.Contains(o.Key)).OrderBy(o => o.VersionSequenceId));
+            toContext.InsertOrUpdate(fromContext.Query<DbConceptSet>(o => true));
+            toContext.InsertOrUpdate(fromContext.Query<DbConceptSetConceptAssociation>(o => additionalKeys.Contains(o.ConceptKey)));
+            toContext.InsertOrUpdate(fromContext.Query<DbPhoneticAlgorithm>(o => o.ObsoletionTime == null));
+            // Purge the related fields
+            int ofs = 0;
+            while (ofs < keysToCopy.Length)
+            {
+                var batchKeys = keysToCopy.Skip(ofs).Take(100).ToArray();
+                ofs += 100;
+
+                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)ofs / (float)keysToCopy.Length, "Copying Entities"));
+
+                var versionKeys = fromContext.Query<DbEntityVersion>(o => batchKeys.Contains(o.Key)).Select(o => o.VersionKey).ToArray();
+
+                // copy the core entity data
+                toContext.InsertOrUpdate(fromContext.Query<DbEntity>(o => batchKeys.Contains(o.Key)));
+
+                // copy the core entity data
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => additionalKeys.Contains(o.Key)));
+
+                // Copy users of interest
+                additionalKeys = fromContext.Query<DbEntityVersion>(o => batchKeys.Contains(o.Key))
+                    .Select(o => o.CreatedByKey)
+                    .Distinct()
+                    .Union(
+                        fromContext.Query<DbEntityTag>(o => batchKeys.Contains(o.SourceKey))
+                        .Select(o => o.CreatedByKey)
+                        .Distinct()
+                    )
+                    .Union(
+                        fromContext.Query<DbEntityVersion>(o => batchKeys.Contains(o.Key))
+                        .Select(o => o.ObsoletedByKey)
+                        .Distinct()
+                        .ToArray()
+                        .Where(o => o.HasValue)
+                        .Select(o => o.Value)
+                    )
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => additionalKeys.Contains(o.Key)));
+
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityVersion>(o => batchKeys.Contains(o.Key)).OrderBy(o=>o.VersionSequenceId));
+
+                additionalKeys = fromContext.Query<DbPlaceService>(o => batchKeys.Contains(o.SourceKey))
+                    .Select(o => o.ServiceConceptKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => additionalKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbPlaceService>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                // Person fields
+                toContext.InsertOrUpdate(fromContext.Query<DbPerson>(o => versionKeys.Contains(o.ParentKey)));
+                toContext.InsertOrUpdate(fromContext.Query<DbPersonLanguageCommunication>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                // Copy versions of persons
+                toContext.InsertOrUpdate(fromContext.Query<DbPatient>(o => versionKeys.Contains(o.ParentKey)));
+
+                additionalKeys = fromContext.Query<DbProvider>(o => versionKeys.Contains(o.ParentKey))
+                    .Select(o => o.Specialty)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => additionalKeys.Contains(o.Key)));
+
+                toContext.InsertOrUpdate(fromContext.Query<DbProvider>(o => versionKeys.Contains(o.ParentKey)));
+
+                // Security Users
+                additionalKeys = fromContext.Query<DbUserEntity>(o => versionKeys.Contains(o.ParentKey))
+                    .Select(o => o.SecurityUserKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => additionalKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbUserEntity>(o => versionKeys.Contains(o.ParentKey)));
+
+                // Other entities
+                additionalKeys = fromContext.Query<DbDeviceEntity>(o => versionKeys.Contains(o.ParentKey))
+                    .Select(o => o.SecurityDeviceKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevice>(o => additionalKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbDeviceEntity>(o => versionKeys.Contains(o.ParentKey)));
+
+                additionalKeys = fromContext.Query<DbApplicationEntity>(o => versionKeys.Contains(o.ParentKey))
+                   .Select(o => o.SecurityApplicationKey)
+                   .Distinct()
+                   .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbSecurityApplication>(o => additionalKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbApplicationEntity>(o => versionKeys.Contains(o.ParentKey)));
+                toContext.InsertOrUpdate(fromContext.Query<DbPlace>(o => versionKeys.Contains(o.ParentKey)));
+
+                // Person fields
+                additionalKeys = fromContext.Query<DbMaterial>(o => versionKeys.Contains(o.ParentKey))
+                    .Select(o => o.QuantityConceptKey)
+                    .Distinct()
+                    .Union(
+                        fromContext.Query<DbMaterial>(o => versionKeys.Contains(o.ParentKey))
+                        .Select(o => o.FormConceptKey)
+                        .Distinct()
+                    )
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbConcept>(o => additionalKeys.Contains(o.Key)));
+                toContext.InsertOrUpdate(fromContext.Query<DbMaterial>(o => versionKeys.Contains(o.ParentKey)));
+                toContext.InsertOrUpdate(fromContext.Query<DbManufacturedMaterial>(o => versionKeys.Contains(o.ParentKey)));
+
+                // Telecoms
+                toContext.InsertOrUpdate(fromContext.Query<DbTelecomAddress>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                // Names
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityName>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                // Phonetic values
+                SqlStatement selectStatement = fromContext.CreateSqlStatement<DbEntityNameComponent>()
+                    .SelectFrom()
+                    .InnerJoin<DbEntityNameComponent, DbEntityName>(o => o.SourceKey, o => o.Key)
+                    .Where<DbEntityName>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null);
+
+                var phonSeqs = fromContext.Query<DbEntityNameComponent>(selectStatement).Select(o => o.ValueSequenceId).Distinct().ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbPhoneticValue>(o => phonSeqs.Contains(o.SequenceId.Value)));
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityNameComponent>(selectStatement));
+                // Addresses
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityAddress>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                selectStatement = fromContext.CreateSqlStatement<DbEntityAddressComponent>()
+                    .SelectFrom()
+                    .InnerJoin<DbEntityAddressComponent, DbEntityAddress>(o => o.SourceKey, o => o.Key)
+                    .Where<DbEntityAddress>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null);
+                phonSeqs = fromContext.Query<DbEntityAddressComponent>(selectStatement).Select(o => o.ValueSequenceId).Distinct().ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityAddressComponentValue>(o => phonSeqs.Contains(o.SequenceId.Value)));
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityAddressComponent>(selectStatement));
+
+                // Other Relationships
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityIdentifier>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                // Entity Extension types
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityExtension>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityTag>(o => batchKeys.Contains(o.SourceKey) && o.ObsoletionTime == null));
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityNote>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+
+                additionalKeys = fromContext.Query<DbEntityRelationship>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null)
+                    .Select(o => o.TargetKey)
+                    .Distinct()
+                    .ToArray();
+                toContext.InsertOrUpdate(fromContext.Query<DbEntity>(o => additionalKeys.Contains(o.Key)));
+
+
+                toContext.InsertOrUpdate(fromContext.Query<DbEntityRelationship>(o => batchKeys.Contains(o.SourceKey) && o.ObsoleteVersionSequenceId == null));
+            }
+
+            toContext.ResetSequence("ENT_VRSN_SEQ", toContext.Query<DbEntityVersion>(o => true).Max(o => o.VersionSequenceId));
+
+        }
+
+
     }
 }

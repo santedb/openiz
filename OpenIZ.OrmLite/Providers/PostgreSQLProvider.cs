@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -157,6 +157,8 @@ namespace OpenIZ.OrmLite.Providers
         /// <returns></returns>
         public DataContext GetWriteConnection()
         {
+            if (string.IsNullOrEmpty(this.ConnectionString))
+                throw new ReadOnlyException("This connection is readonly");
             var conn = this.GetProviderFactory().CreateConnection();
             conn.ConnectionString = this.ConnectionString;
             return new DataContext(this, conn, false);
@@ -398,5 +400,14 @@ namespace OpenIZ.OrmLite.Providers
                     return null;
             }
         }
+
+        /// <summary>
+        /// Get reset sequence command
+        /// </summary>
+        public SqlStatement GetResetSequence(string sequenceName, object sequenceValue)
+        {
+            return new SqlStatement(this, $"SELECT setval('{sequenceName}', {sequenceValue})");
+        }
+
     }
 }

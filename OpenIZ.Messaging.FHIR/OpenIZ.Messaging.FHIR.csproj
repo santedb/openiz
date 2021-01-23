@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OpenIZ.Messaging.FHIR</RootNamespace>
     <AssemblyName>OpenIZ.Messaging.FHIR</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -57,9 +57,11 @@
     <Compile Include="Handlers\AdverseEventResourceHandler.cs" />
     <Compile Include="Handlers\AllergyIntoleranceResourceHandler.cs" />
     <Compile Include="Handlers\ConditionResourceHandler.cs" />
+    <Compile Include="Handlers\EncounterResourceHandler.cs" />
     <Compile Include="Handlers\LocationResourceHandler.cs" />
     <Compile Include="Handlers\MedicationAdministrationResourceHandler.cs" />
     <Compile Include="Handlers\MedicationResourceHandler.cs" />
+    <Compile Include="Handlers\PractitionerResourceHandler.cs" />
     <Compile Include="Handlers\RepositoryResourceHandlerBase.cs" />
     <Compile Include="Handlers\ImmunizationRecommendationResourceHandler.cs" />
     <Compile Include="Handlers\ImmunizationResourceHandler.cs" />

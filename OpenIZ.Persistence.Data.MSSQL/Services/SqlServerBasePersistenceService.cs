@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Linq;
@@ -447,7 +447,7 @@ namespace OpenIZ.Persistence.Data.MSSQL.Services
                         if (count.HasValue)
                             postData.Results = postData.Results.Take(count.Value);
 
-                        var retVal = postData.Results.AsParallel().ToList();
+                        var retVal = postData.Results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ToList();
                         this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Returning {0}..{1} or {2} results", offset, offset + (count ?? 1000), totalCount);
 
                         return retVal;

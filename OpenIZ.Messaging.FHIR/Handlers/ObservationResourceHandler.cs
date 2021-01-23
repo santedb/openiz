@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2017-6-15
+ * Date: 2017-9-1
  */
-
 using MARC.Everest.Connectors;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.Resources;
@@ -33,6 +32,8 @@ using System.Collections.Specialized;
 using OpenIZ.Core.Model.Query;
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Model.DataTypes;
+using MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone;
+using OpenIZ.Core.Model.Acts;
 
 namespace OpenIZ.Messaging.FHIR.Handlers
 {
@@ -94,13 +95,17 @@ namespace OpenIZ.Messaging.FHIR.Handlers
                     break;
             }
 
-            var loc = model.Participations.FirstOrDefault(o => o.ParticipationRoleKey == ActParticipationKey.Location);
+            var loc = model.LoadCollection<ActParticipation>("Participations").FirstOrDefault(o => o.ParticipationRoleKey == ActParticipationKey.Location);
             if (loc != null)
                 retVal.Extension.Add(new Extension()
                 {
                     Url = "http://openiz.org/extensions/act/fhir/location",
                     Value = new FhirString(loc.PlayerEntityKey.ToString())
                 });
+
+            if(model.InterpretationConceptKey.HasValue)
+                retVal.Interpretation = DataTypeConverter.ToFhirCodeableConcept(model.LoadProperty<Concept>("InterpretationConcept"));
+
 
             return retVal;
         }
@@ -137,7 +142,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
                 throw new ArgumentNullException(nameof(parameters));
 
             Core.Model.Query.NameValueCollection imsiQuery = null;
-            FhirQuery query = QueryRewriter.RewriteFhirQuery<Observation, Core.Model.Acts.Observation>(parameters, out imsiQuery);
+            FhirQuery query = QueryRewriter.RewriteFhirQuery<MARC.HI.EHRS.SVC.Messaging.FHIR.Resources.Observation, Core.Model.Acts.Observation>(parameters, out imsiQuery);
 
             // Do the query
             int totalResults = 0;
@@ -169,10 +174,25 @@ namespace OpenIZ.Messaging.FHIR.Handlers
             {
                 Details = issues,
                 Outcome = ResultCode.Accepted,
-                Results = imsiResults.AsParallel().Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
+                Results = imsiResults.AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
                 Query = query,
                 TotalResults = totalResults
             };
+        }
+
+        /// <summary>
+        /// Get interactions
+        /// </summary>
+        protected override IEnumerable<InteractionDefinition> GetInteractions()
+        {
+            return new TypeRestfulInteraction[]
+            {
+                TypeRestfulInteraction.InstanceHistory,
+                TypeRestfulInteraction.Read,
+                TypeRestfulInteraction.Search,
+                TypeRestfulInteraction.VersionRead,
+                TypeRestfulInteraction.Delete
+            }.Select(o => new InteractionDefinition() { Type = o });
         }
 
     }

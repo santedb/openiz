@@ -21,6 +21,8 @@ using System.IO;
 using System.Xml.Serialization;
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Model.Security;
+using OpenIZ.Core;
+using OpenIZ.Core.Configuration;
 
 namespace OpenIZ.Persistence.Diagnostics.Email
 {
@@ -34,7 +36,7 @@ namespace OpenIZ.Persistence.Diagnostics.Email
         private TraceSource m_traceSource = new TraceSource("OpenIZ.Persistence.Diagnostics.Email");
 
         // Configuration
-        private DiagnosticEmailServiceConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("openiz.persistence.diagnostics.email") as DiagnosticEmailServiceConfiguration;
+        private OpenIzConfiguration m_configuration = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection(OpenIzConstants.OpenIZConfigurationName) as OpenIZ.Core.Configuration.OpenIzConfiguration;
 
         /// Fired when an issue is being inserted
         /// </summary>
@@ -112,8 +114,8 @@ namespace OpenIZ.Persistence.Diagnostics.Email
                 // Setup message
 
                 MailMessage bugMessage = new MailMessage();
-                bugMessage.From = new MailAddress(this.m_configuration.Smtp.From, $"OpenIZ Bug on behalf of {storageData?.Submitter?.Names?.FirstOrDefault()?.Component?.FirstOrDefault(n => n.ComponentTypeKey == NameComponentKeys.Given)?.Value}");
-                foreach (var itm in this.m_configuration.Recipients)
+                bugMessage.From = new MailAddress(this.m_configuration.Notification.Smtp.From, $"OpenIZ Bug on behalf of {storageData?.Submitter?.Names?.FirstOrDefault()?.Component?.FirstOrDefault(n => n.ComponentTypeKey == NameComponentKeys.Given)?.Value}");
+                foreach (var itm in this.m_configuration.Notification.AdminContacts)
                     bugMessage.To.Add(itm);
                 bugMessage.Subject = $"ISSUE #{issueId}";
                 bugMessage.Body = $"{storageData.Note} - Username - {storageData.LoadProperty<SecurityUser>("CreatedBy")?.UserName ?? storageData?.Submitter?.LoadProperty<SecurityUser>("SecurityUser")?.UserName}";
@@ -142,11 +144,11 @@ namespace OpenIZ.Persistence.Diagnostics.Email
                     bugMessage.Attachments.Add(new Attachment(new MemoryStream(ms.ToArray()), "appinfo.xml", "text/xml"));
                 }
 
-                SmtpClient smtpClient = new SmtpClient(this.m_configuration.Smtp.Server.Host, this.m_configuration.Smtp.Server.Port);
-                smtpClient.UseDefaultCredentials = String.IsNullOrEmpty(this.m_configuration.Smtp.Username);
-                smtpClient.EnableSsl = this.m_configuration.Smtp.Ssl;
+                SmtpClient smtpClient = new SmtpClient(this.m_configuration.Notification.Smtp.Server.Host, this.m_configuration.Notification.Smtp.Server.Port);
+                smtpClient.UseDefaultCredentials = String.IsNullOrEmpty(this.m_configuration.Notification.Smtp.Username);
+                smtpClient.EnableSsl = this.m_configuration.Notification.Smtp.Ssl;
                 if (!(smtpClient.UseDefaultCredentials))
-                    smtpClient.Credentials = new NetworkCredential(this.m_configuration.Smtp.Username, this.m_configuration.Smtp.Password);
+                    smtpClient.Credentials = new NetworkCredential(this.m_configuration.Notification.Smtp.Username, this.m_configuration.Notification.Smtp.Password);
                 smtpClient.SendCompleted += (o, e) =>
                 {
                     this.m_traceSource.TraceInformation("Successfully sent message to {0}", bugMessage.To);

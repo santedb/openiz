@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-3-31
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -27,6 +27,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace LogViewer
 {
@@ -68,26 +69,26 @@ namespace LogViewer
         /// <summary>
         /// Load gzipped stream
         /// </summary>
-        public static List<LogEvent> LoadGz(String filename)
+        public static IEnumerable<LogEvent> LoadGz(String filename)
         {
             using (var strm = new GZipStream(File.OpenRead(filename), CompressionMode.Decompress))
             using (var sw = new StreamReader(strm))
-                return LogEvent.Load(sw);
+                return LogEvent.Load(sw).ToArray();
         }
 
         /// <summary>
         /// Load plain text
         /// </summary>
-        public static List<LogEvent> Load(String filename)
+        public static IEnumerable<LogEvent> Load(String filename)
         {
             using (var sw = File.OpenText(filename))
-                return LogEvent.Load(sw);
+                return LogEvent.Load(sw).ToArray();
         }
 
         /// <summary>
         /// Load the specified file
         /// </summary>
-        public static List<LogEvent> Load(StreamReader stream)
+        public static IEnumerable<LogEvent> Load(StreamReader stream)
         {
             Regex v1Regex = new Regex(@"^(.*)?(\s)?[\s][\[\<](.*?)[\]\>]\s\[(.*?)\]\s?:(.*)$"),
              v2Regex = new Regex(@"^(.*)?@(.*)?\s[\[\<](.*)?[\>\]]\s\[(.*?)\]\:\s(.*)$"),
@@ -95,18 +96,19 @@ namespace LogViewer
              server = new Regex(@"^([0-9\-\s\:APM\/]*?)\[@(\d*)\]?\s:\s(.*)\s(Information|Warning|Error|Fatal|Verbose):\s-?\d{1,10}?\s:(.*)$"),
              logCat = new Regex(@"^(\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}\.\d{3})\s*(\d*)?\s*(\d*)?\s([IVDEW])\s([\w\-\s]*):\s(.*)$");
 
-            List<LogEvent> retVal = new List<LogEvent>();
             LogEvent current = null;
-
+            int i = 0;
             while (!stream.EndOfStream)
-            { 
+            {
+                if (i++ % 100 == 0) Application.DoEvents();
+
                 var line = stream.ReadLine();
                 var match = v2Regex.Match(line);
                 if (!match.Success)
                     match = v1Regex.Match(line);
                 if (match.Success)
                 {
-                    if (current != null) retVal.Add(current);
+                    if (current != null) yield return current;
                     current = new LogEvent()
                     {
                         Sequence = current?.Sequence + 1 ?? 0,
@@ -119,7 +121,7 @@ namespace LogViewer
                 }
                 else if(server.IsMatch(line))
                 {
-                    if (current != null) retVal.Add(current);
+                    if (current != null) yield return current;
                     match = server.Match(line);
                     current = new LogEvent()
                     {
@@ -135,7 +137,7 @@ namespace LogViewer
                 }
                 else if (serverOld.IsMatch(line))
                 {
-                    if (current != null) retVal.Add(current);
+                    if (current != null) yield return current;
                     match = serverOld.Match(line);
                     current = new LogEvent()
                     {
@@ -151,7 +153,7 @@ namespace LogViewer
                 }
                 else if(logCat.IsMatch(line))
                 {
-                    if (current != null) retVal.Add(current);
+                    if (current != null) yield return current;
                     match = logCat.Match(line);
                     current = new LogEvent()
                     {
@@ -169,10 +171,7 @@ namespace LogViewer
                 else if(current != null)
                     current.Message += "\r\n" + line;
             }
-            if(current != null)
-                retVal.Add(current);
-
-            return retVal;
+            yield return current;
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-3
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
@@ -31,6 +31,7 @@ using System.Linq.Expressions;
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Security.Attribute;
 using OpenIZ.Core.Interfaces;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -50,6 +51,7 @@ namespace OpenIZ.Core.Services.Impl
         IFastQueryRepositoryService
 	{
 
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
         // Events for audit
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataEventArgs> DataUpdated;
@@ -310,28 +312,33 @@ namespace OpenIZ.Core.Services.Impl
 
 			try
 			{
-				act = businessRulesService != null ? businessRulesService.BeforeUpdate(act) : act;
 
-				act = persistenceService.Update(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                if (act.Key.HasValue && persistenceService.Get(new Identifier<Guid>(act.Key.Value), AuthenticationContext.Current.Principal, true) != null)
+                {
+                    act = businessRulesService != null ? businessRulesService.BeforeUpdate(act) : act;
+                    act = persistenceService.Update(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                    businessRulesService?.AfterUpdate(act);
+                    this.DataUpdated?.Invoke(this, new AuditDataEventArgs(act));
+                }
+                else
+                {
+                    act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
+                    act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
+                    this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
+                    businessRulesService?.AfterInsert(act);
+                }
 
-                businessRulesService?.AfterUpdate(act);
-
-                this.DataUpdated?.Invoke(this, new AuditDataEventArgs(act));
                 return act;
 			}
 			catch (KeyNotFoundException)
 			{
 				act = businessRulesService != null ? businessRulesService.BeforeInsert(act) : act;
-
 				act = persistenceService.Insert(act, AuthenticationContext.Current.Principal, TransactionMode.Commit);
-
                 this.DataCreated?.Invoke(this, new AuditDataEventArgs(act));
-                businessRulesService.AfterInsert(act);
-
+                businessRulesService?.AfterInsert(act);
                 return act;
 			}
 
-			return act;
 		}
 
         /// <summary>
@@ -369,6 +376,11 @@ namespace OpenIZ.Core.Services.Impl
 			{
 				throw new DetectedIssueException(details);
 			}
+            else 
+                foreach(var itm in details)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
 
 			// Correct author information and controlling act information
 			data = data.Clean() as TAct;

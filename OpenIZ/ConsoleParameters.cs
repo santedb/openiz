@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MohawkCollege.Util.Console.Parameters;
 using System.ComponentModel;
@@ -51,5 +51,25 @@ namespace OpenIZ
         [Parameter("test-start")]
         public bool StartupTest { get; set; }
 
+        /// <summary>
+        /// Install the service
+        /// </summary>
+        [Parameter("install")]
+        [Description("Register the service in Windows")]
+        public bool Install { get; set; }
+
+        /// <summary>
+        /// Uninstall the service
+        /// </summary>
+        [Parameter("uninstall")]
+        [Description("Unregister the service in Windows")]
+        public bool UnInstall { get; set; }
+
+        /// <summary>
+        /// Gets or sets the instance name
+        /// </summary>
+        [Parameter("name")]
+        [Description("Sets the instance name")]
+        public string InstanceName { get; set; }
     }
 }

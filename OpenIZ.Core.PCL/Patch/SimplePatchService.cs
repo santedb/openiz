@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Services;
 using System;
@@ -189,7 +189,10 @@ namespace OpenIZ.Core.Services.Impl
         private PatchOperation BuildRemoveQuery(String path, IdentifiedData c)
         {
             PatchOperation retval = new PatchOperation(PatchOperationType.Remove, path, null);
-            if (c.Key.HasValue)
+
+            var simpleAtt = c.GetType().GetTypeInfo().GetCustomAttribute<SimpleValueAttribute>();
+
+            if (c.Key.HasValue && simpleAtt == null)
             {
                 retval.Path += ".id";
                 retval.Value = c.Key;
@@ -204,10 +207,12 @@ namespace OpenIZ.Core.Services.Impl
                 {
                     var pi = cvalue.GetType().GetRuntimeProperty(classAtt.ClassifierProperty);
                     var redirectProperty = pi.GetCustomAttribute<SerializationReferenceAttribute>();
+
+                    // Prefer the key over the type
                     if (redirectProperty != null)
-                        serializationName += "." + cvalue.GetType().GetRuntimeProperty(redirectProperty.RedirectProperty).GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
-                    else
-                        serializationName += "." + pi.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
+                        pi = cvalue.GetType().GetRuntimeProperty(redirectProperty.RedirectProperty);
+
+                    serializationName += "." + pi.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
 
                     cvalue = pi.GetValue(cvalue);
                     classAtt = cvalue?.GetType().GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
@@ -320,7 +325,7 @@ namespace OpenIZ.Core.Services.Impl
                                 // HACK: Patches with no version code don't adhere to ths
                                 if (String.IsNullOrEmpty(patch.Version) && force)
                                     this.m_tracer.TraceWarning("Patch specifies removal of non-existing relationship {0} -> Ignoring", op);
-                                else
+                                else if(!force)
                                     throw new PatchAssertionException("Cannot remove a non-existing relationship");
                             }
                         }

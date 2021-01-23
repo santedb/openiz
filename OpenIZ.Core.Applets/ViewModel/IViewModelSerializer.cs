@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Applets.ViewModel.Description;
 using OpenIZ.Core.Model;
@@ -34,7 +34,7 @@ namespace OpenIZ.Core.Applets.ViewModel
     /// <summary>
     /// Represents a view model serializer instance
     /// </summary>
-    public interface IViewModelSerializer
+    public interface IViewModelSerializer : IDisposable
     {
 
         /// <summary>
@@ -76,6 +76,15 @@ namespace OpenIZ.Core.Applets.ViewModel
         /// Loads the specified related object
         /// </summary>
         TRelated LoadRelated<TRelated>(Guid? objectKey) where TRelated : IdentifiedData, new();
-        
+
+        /// <summary>
+        /// Get loaded object from delay load cache
+        /// </summary>
+        object GetLoadedObject(Guid key);
+
+        /// <summary>
+        /// Add the classified object
+        /// </summary>
+        void AddLoadedObject(Guid key, IdentifiedData classifierObj);
     }
 }

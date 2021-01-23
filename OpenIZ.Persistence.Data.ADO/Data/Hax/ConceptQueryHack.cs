@@ -1,4 +1,23 @@
-﻿using OpenIZ.OrmLite;
+﻿/*
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
+ *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
+ * the License.
+ * 
+ * User: fyfej
+ * Date: 2017-10-5
+ */
+using OpenIZ.OrmLite;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +50,7 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Hax
         /// <summary>
         /// Hack the particular query
         /// </summary>
-        public bool HackQuery(QueryBuilder builder, SqlStatement sqlStatement, SqlStatement whereClause, PropertyInfo property, String queryPrefix, QueryPredicate predicate, object values, IEnumerable<TableMapping> scopedTables)
+        public bool HackQuery(QueryBuilder builder, SqlStatement sqlStatement, SqlStatement whereClause, Type tmodel, PropertyInfo property, String queryPrefix, QueryPredicate predicate, object values, IEnumerable<TableMapping> scopedTables)
         {
 
             // Hack mnemonic queries
@@ -74,7 +93,13 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Hax
                     if (typeof(IDbBaseData).IsAssignableFrom(tblMap.OrmType))
                         whereClause.And($"{tblName}.{tblMap.GetColumn(nameof(IDbBaseData.ObsoletionTime)).Name} IS NULL");
                 }
-               
+                else
+                {
+                    whereClause.And(builder.CreateWhereCondition(property.PropertyType, predicate.SubPath, values, $"{queryPrefix}{declProp.Name}_", new List<TableMapping>() { tblMap }, $"{directFkName}"));
+                    // Add obslt_utc version?
+                    if (typeof(IDbBaseData).IsAssignableFrom(tblMap.OrmType))
+                        whereClause.And($"{directFkName}.{tblMap.GetColumn(nameof(IDbBaseData.ObsoletionTime)).Name} IS NULL");
+                }
                 return true;
             }
             else

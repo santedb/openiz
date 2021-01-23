@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-11
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Newtonsoft.Json;
 using System;
@@ -144,10 +144,12 @@ namespace OpenIZ.Core.Data.Warehouse
         /// <summary>
         /// Identifies a column has a date and a time
         /// </summary>
+        [XmlEnum("datetime")]
         DateTime = 9,
         /// <summary>
         /// Represents a timestamp (with timezone)
         /// </summary>
+        [XmlEnum("timestamp")]
         TimeStamp = 10
     }
 }

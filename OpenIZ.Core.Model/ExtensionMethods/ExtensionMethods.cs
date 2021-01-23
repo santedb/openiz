@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Attributes;
 using OpenIZ.Core.Model.Entities;
@@ -31,6 +31,7 @@ using System.Reflection;
 using System.Xml.Serialization;
 using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.Interfaces;
+using Newtonsoft.Json;
 
 namespace OpenIZ.Core.Model
 {
@@ -82,7 +83,7 @@ namespace OpenIZ.Core.Model
 
             if (typeof(IEnumerable).GetTypeInfo().IsAssignableFrom(propertyToLoad.PropertyType.GetTypeInfo())) // Collection we load by key
             {
-                if ((currentValue as IList)?.Count == 0)
+                if ((currentValue as IList)?.Count == 0 && me.Key.HasValue)
                 {
                     var mi = typeof(IEntitySourceProvider).GetGenericMethod(nameof(IEntitySourceProvider.GetRelations), new Type[] { propertyToLoad.PropertyType.StripGeneric() }, new Type[] { typeof(Guid?) });
                     var loaded = Activator.CreateInstance(propertyToLoad.PropertyType, mi.Invoke(EntitySource.Current.Provider, new object[] { me.Key.Value }));
@@ -141,14 +142,14 @@ namespace OpenIZ.Core.Model
 		/// <summary>
 		/// Update property data if required
 		/// </summary>
-		public static void CopyObjectData<TObject>(this TObject toEntity, TObject fromEntity)
+		public static void CopyObjectData<TObject>(this TObject toEntity, TObject fromEntity, bool checkTypes = true)
 		{
 			if (toEntity == null)
 				throw new ArgumentNullException(nameof(toEntity));
 			else if (fromEntity == null)
 				throw new ArgumentNullException(nameof(fromEntity));
-			else if (!fromEntity.GetType().GetTypeInfo().IsAssignableFrom(toEntity.GetType().GetTypeInfo()))
-				throw new ArgumentException("Type mismatch", nameof(fromEntity));
+			else if (checkTypes && !fromEntity.GetType().GetTypeInfo().IsAssignableFrom(toEntity.GetType().GetTypeInfo()))
+				throw new ArgumentException($"Type mismatch {toEntity.GetType().FullName} != {fromEntity.GetType().FullName}", nameof(fromEntity));
 
 			PropertyInfo[] properties = null;
 			if (!s_typePropertyCache.TryGetValue(toEntity.GetType(), out properties))
@@ -159,7 +160,7 @@ namespace OpenIZ.Core.Model
 					if (!s_typePropertyCache.ContainsKey(toEntity.GetType()))
 						s_typePropertyCache.Add(toEntity.GetType(), properties);
 			}
-			foreach (var destinationPi in properties.AsParallel())
+			foreach (var destinationPi in properties)
 			{
 				var sourcePi = fromEntity.GetType().GetRuntimeProperty(destinationPi.Name);
 				// Skip properties no in the source
@@ -208,15 +209,15 @@ namespace OpenIZ.Core.Model
 		}
 
 		/// <summary>
-		/// Get a property based on XML property and/or serialization redirect
+		/// Get a property based on XML property and/or serialization redirect and/or query parameter
 		/// </summary>
-		public static PropertyInfo GetXmlProperty(this Type type, string propertyName, bool followReferences = false)
+		public static PropertyInfo GetQueryProperty(this Type type, string propertyName, bool followReferences = false)
 		{
 			PropertyInfo retVal = null;
 			var key = String.Format("{0}.{1}[{2}]", type.FullName, propertyName, followReferences);
 			if (!s_propertyCache.TryGetValue(key, out retVal))
 			{
-				retVal = type.GetRuntimeProperties().FirstOrDefault(o => o.GetCustomAttributes<XmlElementAttribute>()?.FirstOrDefault()?.ElementName == propertyName);
+				retVal = type.GetRuntimeProperties().FirstOrDefault(o => o.GetCustomAttributes<XmlElementAttribute>()?.FirstOrDefault()?.ElementName == propertyName || o.GetCustomAttribute<QueryParameterAttribute>()?.ParameterName == propertyName);
                 if (retVal == null)
                     throw new MissingMemberException($"{type.FullName}.{propertyName}");
 				if (followReferences) retVal = type.GetRuntimeProperties().FirstOrDefault(o => o.GetCustomAttribute<SerializationReferenceAttribute>()?.RedirectProperty == retVal.Name) ?? retVal;
@@ -231,10 +232,28 @@ namespace OpenIZ.Core.Model
 			return retVal;
 		}
 
-		/// <summary>
-		/// Compute a basic hash string
-		/// </summary>
-		public static String HashCode(this byte[] me)
+        /// <summary>
+        /// Get the serialization name
+        /// </summary>
+        public static string GetSerializationName(this PropertyInfo me)
+        {
+            var xmlName = me.GetCustomAttributes<XmlElementAttribute>().FirstOrDefault()?.ElementName ?? me.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
+            if (xmlName == null)
+            {
+                var refName = me.GetCustomAttribute<SerializationReferenceAttribute>()?.RedirectProperty;
+                if (refName == null)
+                    return null;
+                xmlName = me.DeclaringType.GetRuntimeProperty(refName)?.GetCustomAttribute<XmlElementAttribute>()?.ElementName;
+            }
+            else if (xmlName == String.Empty)
+                xmlName = me.Name;
+            return xmlName;
+        }
+
+        /// <summary>
+        /// Compute a basic hash string
+        /// </summary>
+        public static String HashCode(this byte[] me)
 		{
 			long hash = 1009;
 			foreach (var b in me)

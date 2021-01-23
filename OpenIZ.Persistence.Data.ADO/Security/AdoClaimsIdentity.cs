@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Services;
 using MARC.HI.EHRS.SVC.Core;
@@ -145,6 +145,7 @@ namespace OpenIZ.Persistence.Data.ADO.Security
             }
             catch (AuthenticationException e)
             {
+                s_traceSource.TraceEvent(TraceEventType.Warning, e.HResult, "Error authenticating {0} : {1}", userName, e.Message);
                 // TODO: Audit this
                 if (e.Message.Contains("AUTH_INV:") || e.Message.Contains("AUTH_LCK:") || e.Message.Contains("AUTH_TFA:"))
                     throw new AuthenticationException(e.Message.Substring(0, e.Message.IndexOf(":")), e);
@@ -158,7 +159,8 @@ namespace OpenIZ.Persistence.Data.ADO.Security
             }
             catch (DbException e)
             {
-                throw new AuthenticationException(e.Message);
+                s_traceSource.TraceEvent(TraceEventType.Error, e.HResult, "Database Error Creating Identity: {0}", e);
+                throw new AuthenticationException(e.Message, e);
             }
             catch (Exception e)
             {

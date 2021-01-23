@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-9-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -84,6 +84,18 @@ namespace OpenIZ.Core.Services.Impl
                 o.Participations.Where(guard=>guard.ParticipationRole.Mnemonic == "Location").Any(p=>p.PlayerEntityKey == placeKey) &&
                 o.Participations.Where(guard=>guard.ParticipationRole.Mnemonic == "Consumable").Any(p=>p.PlayerEntityKey == manufacturedMaterialKey), AuthenticationContext.Current.Principal);
 
+        }
+
+        /// <summary>
+        /// Get total consumed in the specified place by material
+        /// </summary>
+        public IEnumerable<ActParticipation> GetConsumed(Guid manufacturedMaterialKey, Guid placeKey, DateTimeOffset? startPeriod, DateTimeOffset? endPeriod)
+        {
+            var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ActParticipation>>();
+            if (persistenceService == null)
+                throw new InvalidOperationException($"Unabled to locate persistence service for ActParticipations");
+
+            return persistenceService.Query(o => o.ParticipationRoleKey == ActParticipationKey.Consumable && o.PlayerEntityKey == manufacturedMaterialKey && o.Act.ActTime >= startPeriod  && o.Act.ActTime <= endPeriod && o.Act.Participations.Where(p => p.ParticipationRole.Mnemonic == "Location").Any(p => p.PlayerEntityKey == placeKey), AuthenticationContext.Current.Principal);
         }
     }
 }

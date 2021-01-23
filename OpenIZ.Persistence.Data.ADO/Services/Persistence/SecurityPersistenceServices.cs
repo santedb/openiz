@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model;
 using OpenIZ.Core.Model.Security;
@@ -29,6 +29,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Principal;
 using MARC.HI.EHRS.SVC.Core.Data;
+using OpenIZ.Core.Services;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -37,7 +38,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// </summary>
 	public class SecurityApplicationPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityApplication, DbSecurityApplication>
 	{
-		internal override SecurityApplication Get(DataContext context, Guid key, IPrincipal principal)
+		/// <summary>
+		/// Progress has changed
+		/// </summary>
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        internal override SecurityApplication Get(DataContext context, Guid key, IPrincipal principal)
 		{
 			var application = base.Get(context, key, principal);
 
@@ -47,7 +53,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityApplicationPolicy>(o => o.SourceKey == application.Key);
 
-				application.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				application.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return application;
@@ -87,7 +93,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityApplicationPolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityApplicationPolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			return retVal;
 		}
 
@@ -131,6 +137,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 			return data;
 		}
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			var sysUsers = new String[] { "Administrator", "SYSTEM", "ANONYMOUS" };
+			int offset = 0;
+			var appNames = toContext.Query<DbSecurityApplication>(o => o.ObsoletionTime == null).Select(o => o.PublicId).Distinct().ToArray().Select(o => o.ToLower()).ToArray();
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)keysToCopy.Length, "Archiving Users"));
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityApplication>(o => batchKeys.Contains(o.Key) && !appNames.Contains(o.PublicId.ToLower())).Select(o => o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityApplication>(o => userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityApplicationPolicy>(o => userKeys.Contains(o.SourceKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityApplicationPolicy>(o => userKeys.Contains(o.SourceKey)));
+
+			}
+		}
 	}
 
 	/// <summary>
@@ -138,6 +168,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// </summary>
 	public class SecurityDevicePersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityDevice, DbSecurityDevice>
 	{
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			var sysUsers = new String[] { "Administrator", "SYSTEM", "ANONYMOUS" };
+			int offset = 0;
+			var appNames = toContext.Query<DbSecurityDevice>(o => o.ObsoletionTime == null).Select(o => o.PublicId).Distinct().ToArray().Select(o => o.ToLower()).ToArray();
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityDevice>(o => batchKeys.Contains(o.Key) && !appNames.Contains(o.PublicId.ToLower())).Select(o => o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevice>(o => userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityDevicePolicy>(o => userKeys.Contains(o.SourceKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevicePolicy>(o => userKeys.Contains(o.SourceKey)));
+
+			}
+		}
+
 		internal override SecurityDevice Get(DataContext context, Guid key, IPrincipal principal)
 		{
 			var device = base.Get(context, key, principal);
@@ -148,7 +202,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityDevicePolicy>(o => o.SourceKey == device.Key);
 
-				device.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				device.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return device;
@@ -188,7 +242,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityDevicePolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityDevicePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			return retVal;
 		}
 
@@ -250,6 +304,26 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	public class SecurityRolePersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityRole, DbSecurityRole>
 	{
 		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			int offset = 0;
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null));
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				offset += 100;
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityRole>(o => batchKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityRolePolicy>(o => batchKeys.Contains(o.SourceKey));
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityRolePolicy>(o => batchKeys.Contains(o.SourceKey)));
+
+			}
+		}
+
+		/// <summary>
 		/// Gets the specified context.
 		/// </summary>
 		/// <param name="context">The context.</param>
@@ -266,7 +340,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 										.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 										.Where<DbSecurityRolePolicy>(o => o.SourceKey == role.Key);
 
-				role.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+				role.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 			}
 
 			return role;
@@ -309,13 +383,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityPolicy>(o => o.PolicyKey, o => o.Key)
 				.Where<DbSecurityRolePolicy>(o => o.SourceKey == retVal.Key);
 
-			retVal.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
+			retVal.Policies = context.Query<CompositeResult<DbSecurityRolePolicy, DbSecurityPolicy>>(policyQuery).ToArray().Select(o => new SecurityPolicyInstance(m_mapper.MapDomainInstance<DbSecurityPolicy, SecurityPolicy>(o.Object2), (PolicyGrantType)o.Object1.GrantType)).ToList();
 
 			var rolesQuery = context.CreateSqlStatement<DbSecurityUserRole>().SelectFrom()
 				.InnerJoin<DbSecurityUser>(o => o.UserKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.RoleKey == retVal.Key);
 
-			retVal.Users = context.Query<DbSecurityUser>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityUser, Core.Model.Security.SecurityUser>(o)).ToList();
+			retVal.Users = context.Query<DbSecurityUser>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityUser, Core.Model.Security.SecurityUser>(o)).ToList();
 
 			return retVal;
 		}
@@ -362,16 +436,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// <summary>
 	/// Security user persistence
 	/// </summary>
-	public class SecurityUserPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityUser, DbSecurityUser>
+	public class SecurityUserPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityUser, DbSecurityUser>, IReportProgressChanged
 	{
 		/// <summary>
-		/// Insert the specified object
+		/// Report progress changed
 		/// </summary>
-		/// <param name="context">Context.</param>
-		/// <param name="data">Data.</param>
-		/// <param name="principal">The principal.</param>
-		/// <returns>Core.Model.Security.SecurityUser.</returns>
-		public override Core.Model.Security.SecurityUser InsertInternal(DataContext context, Core.Model.Security.SecurityUser data, IPrincipal principal)
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
+        /// Insert the specified object
+        /// </summary>
+        /// <param name="context">Context.</param>
+        /// <param name="data">Data.</param>
+        /// <param name="principal">The principal.</param>
+        /// <returns>Core.Model.Security.SecurityUser.</returns>
+        public override Core.Model.Security.SecurityUser InsertInternal(DataContext context, Core.Model.Security.SecurityUser data, IPrincipal principal)
 		{
 			var retVal = base.InsertInternal(context, data, principal);
 
@@ -404,7 +483,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 		/// <returns>IEnumerable&lt;SecurityUser&gt;.</returns>
 		public override IEnumerable<SecurityUser> QueryInternal(DataContext context, Expression<Func<SecurityUser, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
 		{
-			var results = base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults);
+			var results = base.QueryInternal(context, query, queryId, offset, count, out totalResults, principal, countResults).ToList();
 
 			var users = new List<SecurityUser>();
 
@@ -414,7 +493,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 					.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 					.Where<DbSecurityUserRole>(o => o.UserKey == user.Key);
 
-				user.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
+				user.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
 
 				users.Add(user);
 			}
@@ -441,7 +520,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.UserKey == dbUser.Key);
 
-			retVal.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, Core.Model.Security.SecurityRole>(o)).ToList();
+			retVal.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, Core.Model.Security.SecurityRole>(o)).ToList();
 			return retVal;
 		}
 
@@ -456,7 +535,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 		{
 			var retVal = base.UpdateInternal(context, data, principal);
 
-			if (data.Roles == null)
+			if (data.Roles == null || data.Roles.Count == 0)
 			{
 				return retVal;
 			}
@@ -490,9 +569,38 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 				.InnerJoin<DbSecurityRole>(o => o.RoleKey, o => o.Key)
 				.Where<DbSecurityUserRole>(o => o.UserKey == key);
 
-			user.Roles = context.Query<DbSecurityRole>(rolesQuery).Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
+			user.Roles = context.Query<DbSecurityRole>(rolesQuery).ToArray().Select(o => m_mapper.MapDomainInstance<DbSecurityRole, SecurityRole>(o)).ToList();
 
 			return user;
 		}
-	}
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+			var sysUsers = new String[] { "SYSTEM", "ANONYMOUS" };
+			var sysUserKeys = fromContext.Query<DbSecurityUser>(o => sysUsers.Contains(o.UserName)).Select(o => o.Key).Distinct();
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => sysUserKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityUserRole>(o => sysUserKeys.Contains(o.UserKey));
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityUserRole>(o => sysUserKeys.Contains(o.UserKey)));
+
+			int offset = 0;
+			var userNames = toContext.Query<DbSecurityUser>(o => o.ObsoletionTime == null).Select(o => o.UserName).Distinct().ToArray().Select(o => o.ToLower()).ToArray() ;
+
+			while (offset < keysToCopy.Length)
+            {
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)keysToCopy.Length, "Archiving Users"));
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityUser>(o => batchKeys.Contains(o.Key) && !userNames.Contains(o.UserName.ToLower())).Select(o=>o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o=>userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityUserRole>(o => userKeys.Contains(o.UserKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityUserRole>(o => userKeys.Contains(o.UserKey)));
+
+            }
+        }
+    }
 }

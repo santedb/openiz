@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-15
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core.Services.Security;
 using System;
@@ -47,6 +47,7 @@ using OpenIZ.Persistence.Data.ADO.Data.Model.Security;
 using OpenIZ.Persistence.Data.ADO.Data;
 using OpenIZ.OrmLite;
 using OpenIZ.Persistence.Data.ADO.Services.Persistence;
+using OpenIZ.Core.Exceptions;
 
 namespace OpenIZ.Persistence.Data.ADO.Services
 {
@@ -150,6 +151,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                                 tfaExpiry = claims.FirstOrDefault(o => o.ClaimType == OpenIzClaimTypes.OpenIZTfaSecretExpiry),
                                 noPassword = claims.FirstOrDefault(o => o.ClaimType == OpenIzClaimTypes.OpenIZPasswordlessAuth);
 
+                            
                             if (tfaClaim == null || tfaExpiry == null)
                                 throw new InvalidOperationException("Cannot find appropriate claims for TFA");
 
@@ -175,7 +177,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
                             // Now we want to fire authenticated
                             this.Authenticated?.Invoke(this, new AuthenticatedEventArgs(userName, retVal, true));
-
+                            
                             tx.Commit();
                             return retVal;
                         }
@@ -210,7 +212,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
             // Password failed validation
             if (ApplicationContext.Current.GetService<IPasswordValidatorService>()?.Validate(newPassword) == false)
-                throw new SecurityException("Password failed validation");
+                throw new DetectedIssueException(new List<DetectedIssue>() {
+                    new DetectedIssue() {
+                        Text = "Password failed validation, it does not meet complexity requirements",
+                        Priority = DetectedIssuePriorityType.Error
+                    }
+                }, "Password does not meet validation requirements");
 
             try
             {
@@ -239,7 +246,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                             user.PasswordHash = passwordHashingService.EncodePassword(newPassword);
                             user.SecurityHash = Guid.NewGuid().ToString();
                             user.UpdatedByKey = principal.GetUserKey(dataContext);
-
+                            user.UpdatedTime = DateTimeOffset.Now;
                             dataContext.Update(user);
                             tx.Commit();
                         }

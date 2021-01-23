@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-15
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.OrmLite.Providers;
 using System;
@@ -44,6 +44,11 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         /// Read/write connection string
         /// </summary>
         public String ReadWriteConnectionString { get; set; }
+
+        /// <summary>
+        /// Archive connection string
+        /// </summary>
+        public String ArchiveConnectionString { get; set; }
 
         /// <summary>
         /// Readonly connection string
@@ -80,6 +85,12 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         /// </summary>
         public IDbProvider Provider { get; set; }
 
+
+        /// <summary>
+        /// Provider type
+        /// </summary>
+        public IDbProvider ArchiveProvider { get; set; }
+
         /// <summary>
         /// Gets a list of data corrections to apply
         /// </summary>
@@ -89,5 +100,10 @@ namespace OpenIZ.Persistence.Data.ADO.Configuration
         /// True if statements should be prepared
         /// </summary>
         public bool PrepareStatements { get; set; }
+
+        /// <summary>
+        /// True when fuzzy totals should be used (i.e. total results will not return actual total results)
+        /// </summary>
+        public bool UseFuzzyTotals { get; set; }
     }
 }

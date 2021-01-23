@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-12
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -89,11 +89,11 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
             var erPersistence = ApplicationContext.Current.GetService<IDataPersistenceService<EntityRelationship>>() as IFastQueryDataPersistenceService<EntityRelationship>;
             var authContext = AuthenticationContext.Current.Principal;
 
-            retVal.OfType<ManufacturedMaterial>().AsParallel().ForAll(o => {
+            foreach(var o in retVal.OfType<ManufacturedMaterial>()) { 
                 int tr = 0;
                 if(!o.Relationships.Any(r=>r.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance))
                     o.Relationships.AddRange(erPersistence.QueryFast(q => q.TargetEntityKey == o.Key && q.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance, Guid.Empty, 0, 100, authContext, out tr));
-            });
+            };
 
             return retVal;
         }

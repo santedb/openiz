@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using ExpressionEvaluator;
 using OpenIZ.Core.Applets.ViewModel;
@@ -76,8 +76,8 @@ namespace OpenIZ.Protocol.Xml.Model
                     // Load all concepts for the specified objects 
                 }
                 act = (itm.Element as Act).Clone() as Act;
-                act.Participations = new List<ActParticipation>((itm.Element as Act).Participations.Select(o=>o.Clone() as ActParticipation));
-                act.Relationships = new List<ActRelationship>((itm.Element as Act).Relationships.Select(o => o.Clone() as ActRelationship));
+                act.Participations = new List<ActParticipation>((itm.Element as Act).LoadCollection<ActParticipation>(nameof(Act.Participations)).Select(o=>o.Clone() as ActParticipation));
+                act.Relationships = new List<ActRelationship>((itm.Element as Act).LoadCollection<ActRelationship>(nameof(Act.Relationships)).Select(o => o.Clone() as ActRelationship));
                 act.Protocols = new List<ActProtocol>();// (itm.Element as Act).Protocols);
                 // Now do the actions to the properties as stated
                 foreach (var instr in itm.Do)
@@ -232,8 +232,9 @@ namespace OpenIZ.Protocol.Xml.Model
                     {
                         var itemType = scopeProperty.PropertyType.GetTypeInfo().GenericTypeArguments[0];
                         var predicateType = typeof(Func<,>).MakeGenericType(new Type[] { itemType, typeof(bool) });
-                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection) });
-                        this.m_linqExpression = builderMethod.Invoke(null, new Object[] { NameValueCollection.ParseQueryString(this.WhereFilter) }) as Expression;
+
+                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection), typeof(Dictionary<String, Delegate>), typeof(bool), typeof(bool) });
+                        this.m_linqExpression = builderMethod.Invoke(null, new Object[] { NameValueCollection.ParseQueryString(this.WhereFilter), variableFunc, true, true }) as Expression;
                         this.m_compiledExpression = (this.m_linqExpression as LambdaExpression).Compile();
                         // Call where clause
                         builderMethod = typeof(Expression).GetGenericMethod(nameof(Expression.Lambda), new Type[] { predicateType }, new Type[] { typeof(Expression), typeof(ParameterExpression[]) });

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-6-10
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.BusinessRules.JavaScript;
@@ -129,6 +129,15 @@ namespace OizDevTool.Debugger
             {
                 ApplicationContext.Current.RemoveServiceProvider(serviceType);
             }
+            /// <summary>
+            /// Get all types
+            /// </summary>
+            public IEnumerable<Type> GetAllTypes()
+            {
+                return AppDomain.CurrentDomain.GetAssemblies()
+                    .Where(a => !a.IsDynamic)
+                    .SelectMany(o => { try { return o.ExportedTypes; } catch { return new List<Type>(); } }); // HACK: Mono does not like all assemblies
+            }
         }
 
         /// <summary>
@@ -212,7 +221,7 @@ namespace OizDevTool.Debugger
             {
                 var col = Console.ForegroundColor;
                 Console.ForegroundColor = this.GetResponseColor();
-                this.m_prompt = $"{e.CurrentStatement.LabelSet ?? JavascriptBusinessRulesEngine.Current.ExecutingFile ?? this.m_loadFile} @ {e.CurrentStatement.Location.Start.Line} (step) >";
+                this.m_prompt = $"{e.CurrentStatement.LabelSet.Name ?? JavascriptBusinessRulesEngine.Current.ExecutingFile ?? this.m_loadFile} @ {e.CurrentStatement.Location.Start.Line} (step) >";
                 this.m_currentDebug = e;
                 int l = Console.CursorLeft;
                 Console.CursorLeft = 0;
@@ -593,7 +602,7 @@ namespace OizDevTool.Debugger
             String fileName = null;
             if (this.m_currentDebug != null)
             {
-                if (!this.m_loadedFiles.TryGetValue(this.m_currentDebug.CurrentStatement.LabelSet ?? JavascriptBusinessRulesEngine.Current.ExecutingFile ?? this.m_loadFile, out fileName))
+                if (!this.m_loadedFiles.TryGetValue(this.m_currentDebug.CurrentStatement.LabelSet.Name ?? JavascriptBusinessRulesEngine.Current.ExecutingFile ?? this.m_loadFile, out fileName))
                     throw new InvalidOperationException($"Source for {this.m_currentDebug.CurrentStatement.LabelSet} not found");
             }
             else if (!this.m_loadedFiles.TryGetValue(Path.GetFileName(this.m_loadFile), out fileName))

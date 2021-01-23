@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-2-17
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -139,7 +139,6 @@ namespace OpenIZ.Warehouse.ADO
                 catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error while adding data to {0}: {1}", datamartId, e);
-                    context.Transaction.Commit();
                     throw;
                 }
             }
@@ -184,8 +183,8 @@ namespace OpenIZ.Warehouse.ADO
             context.ExecuteNonQuery(sbQuery);
 
             // Sub-properties
-            foreach (var p in pcontainer.Properties.Where(o => o.Type == SchemaPropertyType.Object))
-                this.InsertObject(context, String.Format("{0}_{1}", path, p.Name), p, obj[p.Name], (Guid)tuple["uuid"]);
+            //foreach (var p in pcontainer.Properties.Where(o => o.Type == SchemaPropertyType.Object))
+            //    this.InsertObject(context, String.Format("{0}_{1}", path, p.Name), p, obj[p.Name], (Guid)tuple["uuid"]);
 
             return (Guid)tuple["uuid"];
         }
@@ -323,6 +322,15 @@ namespace OpenIZ.Warehouse.ADO
 
             if (container is DatamartSchemaProperty)
                 createSql = createSql.Append("entity_uuid UUID NOT NULL, ");
+            else if (container is DatamartStoredQuery)  // We create a property for the container
+                context.Insert(new AdhocProperty()
+                {
+                    Attributes = 0,
+                    TypeId = 8,
+                    SchemaId = schema.Id,
+                    Name = container.Name,
+                    PropertyId = container.Id
+                });
 
             // Create the specified dm_<<name>>_table
             foreach (var itm in (container ?? schema).Properties)
@@ -334,7 +342,7 @@ namespace OpenIZ.Warehouse.ADO
                 {
                     Attributes = (int)itm.Attributes,
                     TypeId = (int)itm.Type,
-                    ContainerId = (container as DatamartSchemaProperty)?.Id,
+                    ContainerId = (container as DatamartSchemaProperty)?.Id ?? (container as DatamartStoredQuery)?.Id,
                     SchemaId = schema.Id,
                     Name = itm.Name,
                     PropertyId = itm.Id
@@ -417,7 +425,7 @@ namespace OpenIZ.Warehouse.ADO
                     var sql = this.ParseFilterDictionary(context, mart.Schema.Name, parms, mart.Schema.Properties).Build();
                     var delSql = context.CreateSqlStatement($"DELETE FROM {mart.Schema.Name} WHERE {sql.Build().SQL} ", sql.Arguments.ToArray());
                     context.ExecuteNonQuery(delSql);
-                    this.DeleteProperties(context, mart.Schema.Name, mart.Schema);
+                    //this.DeleteProperties(context, mart.Schema.Name, mart.Schema);
 
                     context.Transaction.Commit();
                 }
@@ -425,7 +433,7 @@ namespace OpenIZ.Warehouse.ADO
                 {
                     this.m_tracer.TraceError("Error deleting {0} : {1}", datamartId, e);
                     context.Transaction.Rollback();
-                    throw;
+                    throw new Exception($"Error deleting from {datamartId}", e);
                 }
             }
         }
@@ -566,7 +574,7 @@ namespace OpenIZ.Warehouse.ADO
                 {
 
                     context.Open();
-                    return context.Query<AdhocDatamart>(o => o.Name != null).Select(o => new DatamartDefinition()
+                    return context.Query<AdhocDatamart>(o => o.Name != null).ToList().Select(o => new DatamartDefinition()
                     {
                         Id = o.DatamartId,
                         Name = o.Name,
@@ -587,7 +595,7 @@ namespace OpenIZ.Warehouse.ADO
         /// Execute a stored query
         /// </summary>
         [PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.QueryWarehouseData)]
-        public IEnumerable<dynamic> StoredQuery(Guid datamartId, string queryId, dynamic queryParameters)
+        public IEnumerable<dynamic> StoredQuery(Guid datamartId, string queryId, dynamic queryParameters, out int totalResults)
         {
             this.ThrowIfDisposed();
 
@@ -599,6 +607,9 @@ namespace OpenIZ.Warehouse.ADO
                     context.Open();
                     // Query paremeters
                     var mart = this.GetDatamart(context, datamartId);
+
+                    if (mart == null)
+                        throw new FileNotFoundException(datamartId.ToString());
 
                     IDictionary<String, Object> parms = queryParameters as ExpandoObject;
                     if (queryParameters is String)
@@ -616,10 +627,21 @@ namespace OpenIZ.Warehouse.ADO
                             parms.Add(itm.Name, itm.GetValue(queryParameters, null));
                     }
 
-                    var queryDefn = mart.Schema.Queries.FirstOrDefault(m => m.Name == queryId);
+                    var queryDefn = mart.Schema.Queries.FirstOrDefault(m => m.Name == queryId || m.Id.ToString() == queryId.ToLower());
+
 
                     int tr = 0;
-                    return this.QueryInternal(context, String.Format("sqp_{0}_{1}", mart.Schema.Name, queryId), queryDefn.Properties, parms, 0, 0, out tr);
+                    object ofs = 0, cnt = 0;
+                    parms.TryGetValue("_count", out cnt);
+                    parms.TryGetValue("_offset", out ofs);
+                    parms.Remove("_count");
+                    parms.Remove("_offset");
+
+                    if (ofs is List<String>)
+                        ofs = Int32.Parse((ofs as List<String>)[0]);
+                    if (cnt is List<String>)
+                        cnt = Int32.Parse((cnt as List<String>)[0]);
+                    return this.QueryInternal(context, String.Format("sqp_{0}_{1}", mart.Schema.Name, queryId), queryDefn.Properties, parms, Convert.ToInt32(ofs), Convert.ToInt32(cnt), out totalResults);
                 }
                 catch (Exception e)
                 {
@@ -640,6 +662,10 @@ namespace OpenIZ.Warehouse.ADO
             var qry = context.CreateSqlStatement($"SELECT DISTINCT * FROM {objectName} ")
                 .Where(this.ParseFilterDictionary(context, objectName, parms, properties));
 
+#if DEBUG
+            this.m_tracer.TraceInfo("Will run : {0}", context.GetQueryLiteral(qry.Build()));
+#endif
+
             // Construct the result set
             List<dynamic> retVal = new List<dynamic>();
 
@@ -650,7 +676,7 @@ namespace OpenIZ.Warehouse.ADO
             if (offset > 0)
                 qry = qry.Offset(offset);
 
-            return context.Query<ExpandoObject>(qry);
+            return context.Query<ExpandoObject>(qry).ToList();
         }
 
         /// <summary>
@@ -681,7 +707,7 @@ namespace OpenIZ.Warehouse.ADO
                     {
                         var value = itm;
                         String filter = String.Empty;
-                        var op = "AND";
+                        var op = " AND ";
 
                         if (value is String)
                         {
@@ -727,7 +753,7 @@ namespace OpenIZ.Warehouse.ADO
                                 case '~':
                                     filter = $"{key} {this.m_configuration.Provider.CreateSqlKeyword(OrmLite.Providers.SqlKeyword.ILike)} '%' || ? || '%'";
                                     value = sValue.Substring(1);
-                                    op = "OR";
+                                    op = " OR ";
 
                                     break;
                                 default:
@@ -739,7 +765,7 @@ namespace OpenIZ.Warehouse.ADO
                                     else
                                     {
                                         filter = $"{key} = ?";
-                                        op = "OR";
+                                        op = " OR ";
                                     }
                                     break;
                             }
@@ -793,7 +819,7 @@ namespace OpenIZ.Warehouse.ADO
                     }
 
                     retVal.RemoveLast();
-                    retVal.Append(")").Append("AND");
+                    retVal.Append(")").Append(" AND ");
                 } // exist or value
                 retVal.RemoveLast();
             }
@@ -925,7 +951,7 @@ namespace OpenIZ.Warehouse.ADO
             };
 
             // Stored queries
-            retVal.Queries = context.Query<AdhocQuery>(o => o.SchemaId == id).Select(o =>
+            retVal.Queries = context.Query<AdhocQuery>(o => o.SchemaId == id).ToList().Select(o =>
               new DatamartStoredQuery(){
                   Id = o.QueryId,
                   Name = o.Name,
@@ -944,7 +970,7 @@ namespace OpenIZ.Warehouse.ADO
         /// </summary>
         private List<DatamartSchemaProperty> LoadProperties(DataContext context, Guid containerId)
         {
-            return context.Query<AdhocProperty>(o => o.ContainerId == containerId || o.SchemaId == containerId).Select(o => new DatamartSchemaProperty()
+            return context.Query<AdhocProperty>(o => o.ContainerId == containerId || o.SchemaId == containerId).ToList().Select(o => new DatamartSchemaProperty()
             {
                 Attributes = (SchemaPropertyAttributes)o.Attributes,
                 Type = (SchemaPropertyType)o.TypeId,
@@ -967,7 +993,7 @@ namespace OpenIZ.Warehouse.ADO
                 try
                 {
                     context.Open();
-                    return context.Query<ExpandoObject>(context.CreateSqlStatement(queryText));
+                    return context.Query<ExpandoObject>(context.CreateSqlStatement(queryText)).ToList();
                 }
                 catch(Exception e)
                 {
@@ -997,7 +1023,7 @@ namespace OpenIZ.Warehouse.ADO
                     // First, we delete the record
                     var delSql = context.CreateSqlStatement($"TRUNCATE {mart.Schema.Name}");
                     context.ExecuteNonQuery(delSql);
-                    this.DeleteProperties(context, mart.Schema.Name, mart.Schema);
+                    //this.DeleteProperties(context, mart.Schema.Name, mart.Schema);
 
                     context.Transaction.Commit();
                 }

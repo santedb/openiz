@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you
@@ -15,7 +15,7 @@
  * the License.
  *
  * User: khannan
- * Date: 2017-6-22
+ * Date: 2017-9-1
  */
 
 using OpenIZ.Core.Wcf.Compression;
@@ -49,9 +49,8 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		{
 			try
 			{
-
-                // Handle compressed requests
-                var compressionScheme = CompressionUtil.GetCompressionScheme(WebOperationContext.Current.IncomingRequest.Headers[System.Net.HttpRequestHeader.ContentEncoding]);
+				// Handle compressed requests
+				var compressionScheme = CompressionUtil.GetCompressionScheme(WebOperationContext.Current.IncomingRequest.Headers[System.Net.HttpRequestHeader.ContentEncoding]);
 				if (compressionScheme != null)
 					CompressionUtil.DeCompressMessage(ref request, compressionScheme, this.GetContentFormat(request));
 
@@ -71,7 +70,6 @@ namespace OpenIZ.Messaging.AMI.Wcf
 		{
 			try
 			{
-
 				string encodings = WebOperationContext.Current.IncomingRequest.Headers.Get("Accept-Encoding");
 				string compressionScheme = String.Empty;
 
@@ -79,11 +77,11 @@ namespace OpenIZ.Messaging.AMI.Wcf
 				{
 					encodings = encodings.ToLowerInvariant();
 
-                    if (encodings.Contains("lzma"))
-                        compressionScheme = "lzma";
-                    else if (encodings.Contains("bzip2"))
-                        compressionScheme = "bzip2";
-                    else if (encodings.Contains("gzip"))
+					if (encodings.Contains("lzma"))
+						compressionScheme = "lzma";
+					else if (encodings.Contains("bzip2"))
+						compressionScheme = "bzip2";
+					else if (encodings.Contains("gzip"))
 						compressionScheme = "gzip";
 					else if (encodings.Contains("deflate"))
 						compressionScheme = "deflate";

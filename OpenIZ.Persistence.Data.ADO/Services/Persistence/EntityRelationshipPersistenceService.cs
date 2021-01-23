@@ -1,6 +1,6 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
- * 
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
+ *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-3-31
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Entities;
 using System;
@@ -45,7 +45,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
             int tr = 0;
-            return this.QueryInternal(context, base.BuildSourceQuery<EntityRelationship>(id, versionSequenceId), Guid.Empty, 0, null, out tr, principal, false).ToList();
+            return this.QueryInternal(context, base.BuildSourceQuery<EntityRelationship>(id, versionSequenceId), Guid.Empty, 0, 1000, out tr, principal, false).ToList();
 
         }
 
@@ -77,13 +77,28 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public override EntityRelationship InsertInternal(DataContext context, EntityRelationship data, IPrincipal principal)
         {
-            
+
             // Ensure we haven't already persisted this
-            if(data.TargetEntity != null && !data.InversionIndicator) data.TargetEntity = data.TargetEntity.EnsureExists(context, principal) as Entity;
+            if (data.TargetEntity != null && !data.InversionIndicator) data.TargetEntity = data.TargetEntity.EnsureExists(context, principal) as Entity;
             data.TargetEntityKey = data.TargetEntity?.Key ?? data.TargetEntityKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
-            
-            return base.InsertInternal(context, data, principal);
+            data.EffectiveVersionSequenceId = data.EffectiveVersionSequenceId ?? data.SourceEntity?.VersionSequence;
+
+            // Lookup the original 
+            if (!data.EffectiveVersionSequenceId.HasValue)
+                data.EffectiveVersionSequenceId = context.FirstOrDefault<DbEntityVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
+
+           // Duplicate check 
+            var existing = context.FirstOrDefault<DbEntityRelationship>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.TargetEntityKey && r.RelationshipTypeKey == data.RelationshipTypeKey && !r.ObsoleteVersionSequenceId.HasValue) ;
+            if (existing == null)
+                return base.InsertInternal(context, data, principal);
+            else if (existing.Quantity != data.Quantity)
+            {
+                data.Key = existing.Key;
+                return base.UpdateInternal(context, data, principal);
+            }
+            else
+                return this.ToModelInstance(existing, context, principal);
         }
 
         /// <summary>
@@ -94,6 +109,24 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             // Ensure we haven't already persisted this
             data.TargetEntityKey = data.TargetEntity?.Key ?? data.TargetEntityKey;
             data.RelationshipTypeKey = data.RelationshipType?.Key ?? data.RelationshipTypeKey;
+
+            if (data.ObsoleteVersionSequenceId == Int32.MaxValue)
+                data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
+
+            // Duplicate check 
+            var existing = context.FirstOrDefault<DbEntityRelationship>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.TargetEntityKey && r.RelationshipTypeKey == data.RelationshipTypeKey && !r.ObsoleteVersionSequenceId.HasValue);
+            if (existing != null && existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
+            {
+                existing.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence;
+                if (existing.ObsoleteVersionSequenceId.HasValue)
+                    context.Update(existing);
+                else
+                {
+                    this.m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Warning, 9382, "EntityRelationship {0} would conflict with existing {1} -> {2} (role {3}, quantity = {4}) already exists and this update would violate unique constraint.", data, existing.SourceKey, existing.TargetKey, existing.RelationshipTypeKey, existing.Quantity);
+                    existing.ObsoleteVersionSequenceId = 1;
+                    context.Update(existing);
+                }
+            }
             return base.UpdateInternal(context, data, principal);
         }
 

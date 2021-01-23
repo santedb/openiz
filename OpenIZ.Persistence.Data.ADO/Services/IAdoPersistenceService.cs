@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Services;
 using OpenIZ.Persistence.Data.ADO.Data;
@@ -56,6 +56,25 @@ namespace OpenIZ.Persistence.Data.ADO.Services
         /// Map to model instance
         /// </summary>
         Object ToModelInstance(object domainInstance, DataContext context, IPrincipal principal);
+
+        /// <summary>
+        /// Determine if existing object exists
+        /// </summary>
+        bool Exists(DataContext context, Guid guid);
+
+      
+    }
+
+    /// <summary>
+    /// Interface for copy provider
+    /// </summary>
+    public interface IAdoCopyPersistenceService : IAdoPersistenceService
+    {
+        /// <summary>
+        /// Copy keys to the archive connection 
+        /// </summary>
+        void CopyToArchive(Guid[] keysToBeArchived);
+
     }
 
     /// <summary>

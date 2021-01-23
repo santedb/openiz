@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OpenIZ.Persistence.Data.ADO</RootNamespace>
     <AssemblyName>OpenIZ.Persistence.Data.ADO</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -71,6 +71,10 @@
     </Compile>
     <Compile Include="Data\Extensions\DataModelExtensions.cs" />
     <Compile Include="Data\Hax\ConceptQueryHack.cs" />
+    <Compile Include="Data\Hax\CreationTimeQueryHack.cs" />
+    <Compile Include="Data\Hax\EntityAddressNameQueryHack.cs" />
+    <Compile Include="Data\Hax\RelationshipQueryHack.cs" />
+    <Compile Include="Data\Hax\SecurityUserEntityQueryHack.cs" />
     <Compile Include="Data\Model\Acts\DbActProtocol.cs" />
     <Compile Include="Data\Model\Acts\DbActVersion.cs" />
     <Compile Include="Data\Model\Acts\DbAct.cs" />
@@ -84,6 +88,7 @@
     <Compile Include="Data\Model\Acts\DbSubstanceAdministration.cs" />
     <Compile Include="Data\Model\Alerts\DbAlertMessage.cs" />
     <Compile Include="Data\Model\Alerts\DbAlertRcptTo.cs" />
+    <Compile Include="Data\Model\IDbHasStatus.cs" />
     <Compile Include="Data\SQL\AdoCodeDataFeature.cs" />
     <Compile Include="Data\SQL\AdoCoreDataFeature.cs" />
     <Compile Include="Data\SQL\AdoDataInitialization.cs" />
@@ -155,6 +160,7 @@
     <Compile Include="Services\AdoPersistenceService.cs" />
     <Compile Include="Services\AdoPolicyInformationService.cs" />
     <Compile Include="Services\AdoRoleProvider.cs" />
+    <Compile Include="Services\AdoSubscriptionExecutor.cs" />
     <Compile Include="Services\Persistence\EntityIdentifierPersistenceService.cs" />
     <Compile Include="Services\IAdoPersistenceService.cs" />
     <Compile Include="Services\Persistence\ActDerivedPersistenceService.cs" />
@@ -271,14 +277,50 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Data\SQL\PSQL\openiz-vws.sql" />
-    <Content Include="Data\SQL\Updates\20171030-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171023-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171016-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171011-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171003-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20170913-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171016-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20171108-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\20180126-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20181113-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20190322-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20190522-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20180131-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20201023-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\20201220-PSQL.sql" />
+    <Content Include="Data\SQL\Updates\ARCHIVE_INIT.SQL" />
+    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL10.sql" />
+    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL11.sql" />
+    <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171023-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171011-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171003-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20170913-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171016-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171124-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Data\SQL\Updates\20171108-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

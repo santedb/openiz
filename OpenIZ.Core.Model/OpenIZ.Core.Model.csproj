@@ -53,6 +53,7 @@
     <Compile Include="Attributes\DataIgnoreAttribute.cs" />
     <Compile Include="Attributes\KeyLookupAttribute.cs" />
     <Compile Include="Attributes\NonCachedAttribute.cs" />
+    <Compile Include="Attributes\QueryParameterAttribute.cs" />
     <Compile Include="Attributes\SerializationReferenceAttribute.cs" />
     <Compile Include="Attributes\SimpleValueAttribute.cs" />
     <Compile Include="BaseEntityData.cs" />
@@ -132,6 +133,7 @@
     <Compile Include="Extensions\DateExtensionHandler.cs" />
     <Compile Include="Extensions\DecimalExtensionHandler.cs" />
     <Compile Include="Extensions\DictionaryExtensionHandler.cs" />
+    <Compile Include="Extensions\ReferenceExtensionHandler.cs" />
     <Compile Include="Extensions\StringExtensionHandler.cs" />
     <Compile Include="IdentifiedData.cs" />
     <Compile Include="Interfaces\IBaseEntityData.cs" />
@@ -177,13 +179,13 @@
     <Compile Include="Security\SecurityUser.cs" />
     <Compile Include="Serialization\ModelSerializationBinder.cs" />
     <Compile Include="NonVersionedEntityData.cs" />
+    <Compile Include="Subscription\SubscriptionClientDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionModeType.cs" />
+    <Compile Include="Subscription\SubscriptionServerDefinition.cs" />
+    <Compile Include="Subscription\SubscriptionTriggerType.cs" />
     <Compile Include="VersionedAssociation.cs" />
     <Compile Include="VersionedEntityData.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\Solution Items\Newtonsoft.Json.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\OpenIZ.licenseheader">
@@ -205,7 +207,11 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Solution Items\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

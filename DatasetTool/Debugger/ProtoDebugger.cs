@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-6-10
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.BusinessRules.JavaScript;
@@ -111,6 +111,15 @@ namespace OizDevTool.Debugger
             public void RemoveServiceProvider(Type serviceType)
             {
                 ApplicationContext.Current.RemoveServiceProvider(serviceType);
+            }
+            /// <summary>
+            /// Get all types
+            /// </summary>
+            public IEnumerable<Type> GetAllTypes()
+            {
+                return AppDomain.CurrentDomain.GetAssemblies()
+                    .Where(a => !a.IsDynamic)
+                    .SelectMany(o => { try { return o.ExportedTypes; } catch { return new List<Type>(); } }); // HACK: Mono does not like all assemblies
             }
         }
 

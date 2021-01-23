@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.Core.Model;
@@ -27,6 +27,7 @@ using OpenIZ.Core.Security.Attribute;
 using OpenIZ.Core.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Permissions;
 
 namespace OpenIZ.Messaging.IMSI.ResourceHandler
@@ -80,7 +81,15 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
         [PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
         public override IEnumerable<IdentifiedData> Query(NameValueCollection queryParameters, int offset, int count, out int totalCount)
         {
-            return base.Query(queryParameters, offset, count, out totalCount);
+            var retVal = base.Query(queryParameters, offset, count, out totalCount);
+
+            // Clean reverse relationships
+            List<String> lean = null;
+            if (queryParameters.TryGetValue("_lean", out lean) && lean[0] == "true")
+                foreach(var r in retVal.OfType<Entity>())
+                    r.Relationships.RemoveAll(o => o.SourceEntityKey != r.Key);
+
+            return retVal;
         }
 
 

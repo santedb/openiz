@@ -1,4 +1,23 @@
-﻿using MARC.HI.EHRS.SVC.Core.Services;
+﻿/*
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
+ *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
+ * the License.
+ * 
+ * User: fyfej
+ * Date: 2017-11-21
+ */
+using MARC.HI.EHRS.SVC.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,8 +92,16 @@ namespace OpenIZ.Core.Query
         {
             get
             {
-                throw new NotImplementedException();
+                return true;
             }
+        }
+
+        /// <summary>
+        /// Clear
+        /// </summary>
+        public void Clear()
+        {
+            this.m_queryCache.Clear();
         }
 
         /// <summary>
@@ -85,11 +112,11 @@ namespace OpenIZ.Core.Query
             MemoryQueryInfo retVal = null;
             if (this.m_queryCache.TryGetValue(queryId, out retVal))
             {
-                this.m_tracer.TraceVerbose("Updating query {0} ({1} results)", queryId, results.Count());
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Updating query {0} ({1} results)", queryId, results.Count());
                 lock (retVal.Results)
                     retVal.Results.AddRange(results.Where(o => !retVal.Results.Contains(o.Id)).Select(o => o.Id).OfType<Object>());
 
-                retVal.TotalResults = retVal.Results.Count();
+                //retVal.TotalResults = retVal.Results.Count();
                 return true;
             }
             else
@@ -103,7 +130,8 @@ namespace OpenIZ.Core.Query
         {
             MemoryQueryInfo retVal = null;
             if (this.m_queryCache.TryGetValue(queryId, out retVal))
-                return retVal.Results.ToArray().Distinct().Skip(startRecord).Take(nRecords).Select(o => new Identifier<Guid>((Guid)o)).OfType<Identifier<TIdentifier>>().ToArray();
+                lock(retVal.Results)
+                    return retVal.Results.ToArray().Distinct().Skip(startRecord).Take(nRecords).Select(o => new Identifier<Guid>((Guid)o)).OfType<Identifier<TIdentifier>>().ToArray();
             return null;
         }
 
@@ -147,19 +175,20 @@ namespace OpenIZ.Core.Query
                 MemoryQueryInfo retVal = null;
                 if (this.m_queryCache.TryGetValue(queryId, out retVal))
                 {
-                    this.m_tracer.TraceVerbose("Updating query {0} ({1} results)", queryId, results.Count());
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Updating query {0} ({1} results)", queryId, results.Count());
                     retVal.Results = results.Select(o => o.Id).OfType<Object>().ToList();
                     retVal.QueryTag = tag;
+                    retVal.TotalResults = count;
                 }
                 else
                 {
-                    this.m_tracer.TraceVerbose("Registering query {0} ({1} results)", queryId, results.Count());
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Registering query {0} ({1} results)", queryId, results.Count());
 
                     this.m_queryCache.Add(queryId, new MemoryQueryInfo()
                     {
                         QueryTag = tag,
                         Results = results.Select(o => o.Id).OfType<Object>().ToList(),
-                        TotalResults = results.ToArray().Count()
+                        TotalResults = count
                     });
                 }
             }
@@ -177,7 +206,7 @@ namespace OpenIZ.Core.Query
             ApplicationContext.Current.Started += (o, e) =>
             {
                 var timerService = ApplicationContext.Current.GetService<ITimerService>();
-                if (!timerService.IsJobRegistered(typeof(MemoryQueryPersistenceService)))
+                if (timerService?.IsJobRegistered(typeof(MemoryQueryPersistenceService)) == false)
                     timerService.AddJob(this, new TimeSpan(4, 0, 0));
             };
 

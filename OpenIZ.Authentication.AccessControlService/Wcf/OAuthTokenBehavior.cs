@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core;
 using System;
@@ -124,7 +124,7 @@ namespace OpenIZ.Authentication.OAuth2.Wcf
             this.m_traceSource.TraceInformation("Begin owner password credential grant for {0}", clientPrincipal.Identity.Name);
 
             if (this.m_configuration.AllowedScopes != null && !this.m_configuration.AllowedScopes.Contains(tokenRequest["scope"]))
-                return this.CreateErrorCondition(OAuthErrorType.invalid_scope, "Scope not registered with provider");
+                return this.CreateErrorCondition(OAuthErrorType.invalid_scope, $"Scope {tokenRequest["scope"]} not registered with provider");
 
             var appliesTo = new EndpointReference(tokenRequest["scope"]);
 

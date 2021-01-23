@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -28,34 +28,34 @@ namespace OpenIZ.Core
     /// <summary>
     /// OpenIZ constants
     /// </summary>
-    internal static class OpenIzConstants
+    public static class OpenIzConstants
     {
 
         // Configuration name
-        internal const string OpenIZConfigurationName = "openiz.core";
+        public const string OpenIZConfigurationName = "openiz.core";
 
         // Security trace source
-        internal const string SecurityTraceSourceName = "OpenIZ.Core.Security";
+        public const string SecurityTraceSourceName = "OpenIZ.Core.Security";
 
         // Map trace source
-        internal const string MapTraceSourceName= "OpenIZ.Core.Map";
+        public const string MapTraceSourceName= "OpenIZ.Core.Map";
 
         /// <summary>
         /// OpenIZ dataset installation source name
         /// </summary>
-        internal const string DatasetInstallSourceName = "OpenIZ.Core.DataSet";
+        public const string DatasetInstallSourceName = "OpenIZ.Core.DataSet";
 
         // Client claim header
-        internal const string BasicHttpClientClaimHeaderName = "X-OpenIZClient-Claim";
+        public const string BasicHttpClientClaimHeaderName = "X-OpenIZClient-Claim";
         // Client auth header
-        internal const string BasicHttpClientCredentialHeaderName = "X-OpenIZClient-Authorization";
+        public const string BasicHttpClientCredentialHeaderName = "X-OpenIZClient-Authorization";
         // WCF trace source
-        internal const string WcfTraceSourceName = "OpenIZ.Core.Wcf";
+        public const string WcfTraceSourceName = "OpenIZ.Core.Wcf";
 
         // Panic error code
-        internal const string GeneralPanicErrorCode = "01189998819991197253";
+        public const string GeneralPanicErrorCode = "01189998819991197253";
         // General panic error text
-        internal const string GeneralPanicErrorText = "0118 999 881 999 119 7253 - FATAL ERROR: {0}";
+        public const string GeneralPanicErrorText = "0118 999 881 999 119 7253 - FATAL ERROR: {0}";
 
         /// <summary>
         /// Service trace source name

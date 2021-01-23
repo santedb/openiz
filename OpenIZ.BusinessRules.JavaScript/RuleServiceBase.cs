@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,12 +14,17 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
+using Jint.Runtime;
 using Newtonsoft.Json;
+using OpenIZ.Core.Diagnostics;
 using OpenIZ.Core.Model;
+using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Collection;
+using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Services;
 using System;
 using System.Collections.Generic;
@@ -38,13 +43,46 @@ namespace OpenIZ.BusinessRules.JavaScript
     public class RuleServiceBase<TBinding> : IBusinessRulesService<TBinding> where TBinding : IdentifiedData
     {
 
+        // Tracer
+        private Tracer m_tracer = Tracer.GetTracer(typeof(RuleServiceBase<TBinding>));
+
+        /// <summary>
+        /// Invokes the specified trigger if one is registered
+        /// </summary>
+        /// <param name="triggerName">The name of the trigger to run</param>
+        /// <param name="data">The data to be used in the trigger</param>
+        /// <returns>The result of the trigger</returns>
+        private TBinding InvokeTrigger(String triggerName, TBinding data)
+        {
+            try
+            {
+                if (JavascriptBusinessRulesEngine.Current.HasRule<TBinding>(triggerName, data?.GetType()))
+                    using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                        return instance.Invoke(triggerName, data);
+                else
+                    return data;
+            }
+            catch (JavaScriptException e)
+            {
+                try
+                {
+                    if (data is Entity entity)
+                        entity.Tags.Add(new Core.Model.DataTypes.EntityTag("$bre.error", e.Message));
+                    else if (data is Act act)
+                        act.Tags.Add(new Core.Model.DataTypes.ActTag("$bre.error", e.Message));
+
+                }
+                catch { }
+                return data;
+            }
+        }
+
         /// <summary>
         /// Fire after insert on the type
         /// </summary>
         public TBinding AfterInsert(TBinding data)
         {
-            // Invoke the business rule
-            return JavascriptBusinessRulesEngine.Current.Invoke("AfterInsert", data);
+            return this.InvokeTrigger("AfterInsert", data);
         }
 
         /// <summary>
@@ -52,8 +90,7 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding AfterObsolete(TBinding data)
         {
-            // Invoke the business rule
-            return JavascriptBusinessRulesEngine.Current.Invoke("AfterObsolete", data);
+            return this.InvokeTrigger("AfterObsolete", data);
         }
 
         /// <summary>
@@ -62,7 +99,12 @@ namespace OpenIZ.BusinessRules.JavaScript
         public IEnumerable<TBinding> AfterQuery(IEnumerable<TBinding> results)
         {
             // Invoke the business rule
-            return JavascriptBusinessRulesEngine.Current.Invoke("AfterQuery", new Bundle() { Item = results.OfType<IdentifiedData>().ToList() }).Item.OfType<TBinding>();
+            if (results.Any() && JavascriptBusinessRulesEngine.Current.HasRule<TBinding>("AfterQuery", typeof(Bundle)))
+                using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                    return instance.Invoke("AfterQuery", new Bundle() { Item = results.OfType<IdentifiedData>().ToList() }).Item.OfType<TBinding>();
+            else
+                return results;
+
         }
 
         /// <summary>
@@ -70,8 +112,7 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding AfterRetrieve(TBinding result)
         {
-            // Invoke the business rule
-            return JavascriptBusinessRulesEngine.Current.Invoke("AfterRetrieve", result);
+            return this.InvokeTrigger("AfterRetrieve", result);
         }
 
         /// <summary>
@@ -79,7 +120,8 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding AfterUpdate(TBinding data)
         {
-            return JavascriptBusinessRulesEngine.Current.Invoke("AfterUpdate", data);
+            return this.InvokeTrigger("AfterUpdate", data);
+
         }
 
         /// <summary>
@@ -87,7 +129,8 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding BeforeInsert(TBinding data)
         {
-            return JavascriptBusinessRulesEngine.Current.Invoke("BeforeInsert", data);
+            return this.InvokeTrigger("BeforeInsert", data);
+
         }
 
         /// <summary>
@@ -95,7 +138,8 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding BeforeObsolete(TBinding data)
         {
-            return JavascriptBusinessRulesEngine.Current.Invoke("BeforeObsolete", data);
+            return this.InvokeTrigger("BeforeObsolete", data);
+
         }
 
         /// <summary>
@@ -103,7 +147,7 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public TBinding BeforeUpdate(TBinding data)
         {
-            return JavascriptBusinessRulesEngine.Current.Invoke("BeforeUpdate", data);
+            return this.InvokeTrigger("BeforeUpdate", data);
         }
 
         /// <summary>
@@ -111,8 +155,10 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// </summary>
         public List<DetectedIssue> Validate(TBinding data)
         {
-            return JavascriptBusinessRulesEngine.Current.Validate(data);
+            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                return instance.Validate(data);
+
         }
-        
+
     }
 }

@@ -1,22 +1,23 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: khannan
- * Date: 2016-8-14
+ * Date: 2017-9-1
  */
+
 using MARC.Everest.Connectors;
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -32,7 +33,6 @@ using OpenIZ.Core.Model.Constants;
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Core.Model.Roles;
-using OpenIZ.Core.ResultsDetails;
 using OpenIZ.Core.Services;
 using System;
 using System.Collections.Generic;
@@ -89,11 +89,11 @@ namespace OpenIZ.Messaging.HL7
 			{
 				var entityAddress = new EntityAddress();
 
-				var addressUse = AddressUseKeys.TemporaryAddress;
+				var addressUse = AddressUseKeys.HomeAddress;
 
 				if (!string.IsNullOrEmpty(addresses[i].AddressType.Value) && !string.IsNullOrWhiteSpace(addresses[i].AddressType.Value))
 				{
-					var concept = GetConcept(addresses[i].AddressType.Value, "urn:oid:2.16.840.1.113883.5.1");
+					var concept = GetConcept(addresses[i].AddressType.Value, "urn:oid:2.16.840.1.113883.5.1012");
 
 					// TODO: cleanup
 					if (concept == null)
@@ -313,7 +313,7 @@ namespace OpenIZ.Messaging.HL7
 			{
 				var entityName = new EntityName();
 
-				var nameUse = NameUseKeys.Search;
+				var nameUse = NameUseKeys.OfficialRecord;
 
 				if (!string.IsNullOrEmpty(names[i].NameTypeCode.Value) && !string.IsNullOrWhiteSpace(names[i].NameTypeCode.Value))
 				{
@@ -900,22 +900,12 @@ namespace OpenIZ.Messaging.HL7
 					var v231Msh = (MSH)msh;
 
 					var result = ConvertAssigningAuthority(v231Msh.SendingApplication, details);
-
-					if (result == null)
-					{
-						details.Add(new UnrecognizedSenderResultDetail(ResultDetailType.Error, v231Msh.SendingApplication.NamespaceID.Value, "MSH^3"));
-					}
 				}
 				else if (msh is NHapi.Model.V25.Segment.MSH)
 				{
 					var v25Msh = (NHapi.Model.V25.Segment.MSH)msh;
 
 					var result = ConvertAssigningAuthority(v25Msh.SendingApplication, details);
-
-					if (result == null)
-					{
-						details.Add(new UnrecognizedSenderResultDetail(ResultDetailType.Error, v25Msh.SendingApplication.NamespaceID.Value, "MSH^3"));
-					}
 				}
 				else
 				{

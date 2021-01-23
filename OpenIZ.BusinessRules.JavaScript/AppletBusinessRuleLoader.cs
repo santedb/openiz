@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core;
 using OpenIZ.Core.Applets.Services;
@@ -47,15 +47,26 @@ namespace OpenIZ.BusinessRules.JavaScript
             try
             {
                 var appletManager = ApplicationServiceContext.Current.GetService(typeof(IAppletManagerService)) as IAppletManagerService;
+                JavascriptBusinessRulesEngine.InitializeGlobal();
 
                 foreach (var itm in appletManager.Applets.SelectMany(a => a.Assets).Where(a => a.Name.StartsWith("rules/")))
                     using (StreamReader sr = new StreamReader(new MemoryStream(appletManager.Applets.RenderAssetContent(itm))))
                     {
-                        OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.Current.AddRules(itm.Name, sr);
+                        JavascriptBusinessRulesEngine.AddRulesGlobal(itm.Name, sr);
+                        //OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.Current.AddRules(itm.Name, sr);
                         this.m_tracer.TraceInfo("Added rules from {0}", itm.Name);
                     }
-                OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.Current.Bridge.Serializer.LoadSerializerAssembly(typeof(ActExtensionViewModelSerializer).GetTypeInfo().Assembly);
 
+                //// Instruct the rules engine to load rules
+                //OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.EngineCreated += (o, e) =>
+                //{
+                //    foreach (var itm in appletManager.Applets.SelectMany(a => a.Assets).Where(a => a.Name.StartsWith("rules/")))
+                //        using (StreamReader sr = new StreamReader(new MemoryStream(appletManager.Applets.RenderAssetContent(itm))))
+                //        {
+                //            e.CreatedEngine.AddRules(itm.Name, sr);
+                //            this.m_tracer.TraceInfo("Added rules from {0}", itm.Name);
+                //        }
+                //};
             }
             catch (Exception ex)
             {

@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: khannan
- * Date: 2016-8-28
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using OpenIZ.Core.Data.Warehouse;
 using OpenIZ.Core.Http;
 using OpenIZ.Core.Interop.Clients;
@@ -255,9 +254,22 @@ namespace OpenIZ.Messaging.RISI.Client
 		/// <param name="id">The id of the report.</param>
 		/// <param name="parameterId">The id of the parameter for which to retrieve detailed information.</param>
 		/// <returns>Returns an auto complete source definition of valid parameters values for a given parameter.</returns>
-		public AutoCompleteSourceDefinition GetReportParameterValues(Guid id, Guid parameterId)
+		public T GetReportParameterValues<T>(Guid id, Guid parameterId) where T : AutoCompleteSourceDefinition
 		{
-			return this.Client.Get<AutoCompleteSourceDefinition>($"report/{id}/parm/{parameterId}/values");
+			return this.Client.Get<T>($"report/{id}/parm/{parameterId}/values");
+		}
+
+		/// <summary>
+		/// Gets a list of auto-complete parameters which are applicable for the specified parameter.
+		/// </summary>
+		/// <typeparam name="T">The type of auto complete source definition.</typeparam>
+		/// <param name="id">The id of the report.</param>
+		/// <param name="parameterId">The id of the parameter for which to retrieve detailed information.</param>
+		/// <param name="parameterValue">The parameter value.</param>
+		/// <returns>Returns an auto complete source definition of valid parameter values for a given parameter within the context of another parameter value.</returns>
+		public T GetReportParameterValuesCascading<T>(Guid id, Guid parameterId, string parameterValue) where T : AutoCompleteSourceDefinition
+		{
+			return this.Client.Get<T>($"report/{id}/parm/{parameterId}/values/{parameterValue}");
 		}
 
 		/// <summary>

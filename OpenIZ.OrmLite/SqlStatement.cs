@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Map;
 using OpenIZ.OrmLite.Providers;
@@ -98,9 +98,9 @@ namespace OpenIZ.OrmLite
             if (this.IsFinalized) throw new InvalidOperationException();
 
             if (this.m_rhs != null)
-                this.m_rhs.Append(sql);
+                this.m_rhs.Append(sql.Build());
             else
-                this.m_rhs = sql;
+                this.m_rhs = sql.Build();
             return this;
         }
 
@@ -199,9 +199,17 @@ namespace OpenIZ.OrmLite
         /// </summary>
         public SqlStatement InnerJoin<TLeft, TRight>(Expression<Func<TLeft, dynamic>> leftColumn, Expression<Func<TRight, dynamic>> rightColumn)
         {
+            return this.Join<TLeft, TRight>("INNER", leftColumn, rightColumn);
+        }
+
+        /// <summary>
+        /// Join by specific type of join
+        /// </summary>
+        public SqlStatement Join<TLeft, TRight>(String joinType, Expression<Func<TLeft, dynamic>> leftColumn, Expression<Func<TRight, dynamic>> rightColumn)
+        {
             var leftMap = TableMapping.Get(typeof(TLeft));
             var rightMap = TableMapping.Get(typeof(TRight));
-            var joinStatement = this.Append($"INNER JOIN {rightMap.TableName} ON");
+            var joinStatement = this.Append($"{joinType} JOIN {rightMap.TableName} ON");
             var rhsPk = rightMap.GetColumn(this.GetMember(rightColumn.Body));
             var lhsPk = leftMap.GetColumn(this.GetMember(leftColumn.Body));
             return joinStatement.Append($"({lhsPk.Table.TableName}.{lhsPk.Name} = {rhsPk.Table.TableName}.{rhsPk.Name}) ");
@@ -257,6 +265,16 @@ namespace OpenIZ.OrmLite
         }
 
         /// <summary>
+        /// Return a select from
+        /// </summary>
+        public SqlStatement SelectFrom(Type dataType, params ColumnMapping[] columns)
+        {
+            var tableMap = TableMapping.Get(dataType);
+            return this.Append(new SqlStatement(this.m_provider, $"SELECT {String.Join(",", columns.Select(o => o.Name))} FROM {tableMap.TableName} AS {tableMap.TableName} "));
+        }
+
+
+        /// <summary>
         /// Construct a where clause on the expression tree
         /// </summary>
         public SqlStatement Where<TExpression>(Expression<Func<TExpression, bool>> expression)
@@ -310,17 +328,31 @@ namespace OpenIZ.OrmLite
             return this.Append($"ORDER BY {orderMap.TableName}.{orderCol.Name} ").Append(sortOperation == SortOrderType.OrderBy ? " ASC " : " DESC ");
         }
 
+        /// <summary>
+        /// Removes the last statement from the list
+        /// </summary>
+        public bool RemoveLast(out SqlStatement last)
+        {
+            last = this.RemoveLast();
+            return last != null;
+        }
 
         /// <summary>
         /// Removes the last statement from the list
         /// </summary>
-        public void RemoveLast()
+        public SqlStatement RemoveLast()
         {
             var t = this;
             while (t.m_rhs?.m_rhs != null)
                 t = t.m_rhs;
-            if(t != null)
+            if (t != null)
+            {
+                var m = t.m_rhs;
                 t.m_rhs = null;
+                return m;
+            }
+            else
+                return null;
         }
 
         /// <summary>
@@ -432,6 +464,47 @@ namespace OpenIZ.OrmLite
             });
         }
 
+        /// <summary>
+        /// Construct a SELECT FROM statement with the specified selectors
+        /// </summary>
+        /// <param name="selector">The types from which to select columns</param>
+        /// <returns>The constructed sql statement</returns>
+        public SqlStatement<T> SelectFrom(params ColumnMapping[] columns)
+        {
+            var tableMap = TableMapping.Get(typeof(T));
+            return this.Append(new SqlStatement<T>(this.m_provider, $"SELECT {String.Join(",", columns.Select(o => o.Name))} FROM {tableMap.TableName} AS {tableMap.TableName} "));
+        }
+
+        /// <summary>
+        /// Construct a SELECT FROM statement with the specified selectors
+        /// </summary>
+        /// <param name="selector">The types from which to select columns</param>
+        /// <returns>The constructed sql statement</returns>
+        public SqlStatement<T> SelectFrom(params Type[] scopedTables)
+        {
+            var existingCols = new List<String>();
+            var tableMap = TableMapping.Get(typeof(T));
+            // Column list of distinct columns
+            var columnList = String.Join(",", scopedTables.Select(o => TableMapping.Get(o)).SelectMany(o => o.Columns).Where(o =>
+            {
+                if (!existingCols.Contains(o.Name))
+                {
+                    existingCols.Add(o.Name);
+                    return true;
+                }
+                return false;
+            }).Select(o => $"{o.Table.TableName}.{o.Name}"));
+
+            // Append the result to query
+            var retVal = this.Append(new SqlStatement<T>(this.m_provider, $"SELECT {columnList} ")
+            {
+                m_alias = tableMap.TableName
+            });
+
+            retVal.Append($" FROM {tableMap.TableName} AS {tableMap.TableName} ");
+
+            return retVal;
+        }
         /// <summary>
         /// Generate an update statement
         /// </summary>

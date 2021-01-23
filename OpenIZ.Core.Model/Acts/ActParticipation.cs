@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-7-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Attributes;
 using OpenIZ.Core.Model.DataTypes;
@@ -126,7 +126,7 @@ namespace OpenIZ.Core.Model.Acts
         /// <summary>
         /// Gets or sets the entity which participated in the act
         /// </summary>
-        [XmlIgnore, JsonIgnore]
+        [XmlIgnore, JsonIgnore, DataIgnore]
         [SerializationReference(nameof(PlayerEntityKey))]
         public Entity PlayerEntity
         {
@@ -138,7 +138,10 @@ namespace OpenIZ.Core.Model.Acts
             set
             {
                 this.m_player = value;
-                this.m_playerKey = value?.Key;
+                if (value?.Key != null)
+                    this.m_playerKey = value?.Key;
+                else if (value == null)
+                    this.m_playerKey = null;
             }
         }
 

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Jint.Native;
 using Newtonsoft.Json;
@@ -42,6 +42,8 @@ using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Diagnostics;
 using System.Threading;
 using System.Text.RegularExpressions;
+using OpenIZ.Core.Model.Json.Formatter;
+using Jint.Runtime;
 
 namespace OpenIZ.BusinessRules.JavaScript.JNI
 {
@@ -54,8 +56,6 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         private Tracer m_tracer = Tracer.GetTracer(typeof(BusinessRulesBridge));
 
         private Regex date_regex = new Regex(@"(\d{4})-(\d{2})-(\d{2})");
-        // View model serializer
-        private JsonViewModelSerializer m_modelSerializer = new JsonViewModelSerializer();
 
         // Map of view model names to type names
         private Dictionary<String, Type> m_modelMap = new Dictionary<string, Type>();
@@ -68,7 +68,6 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public BusinessRulesBridge()
         {
-
             foreach (var t in typeof(IdentifiedData).GetTypeInfo().Assembly.ExportedTypes)
             {
                 var jatt = t.GetTypeInfo().GetCustomAttribute<JsonObjectAttribute>();
@@ -77,11 +76,6 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                     this.m_modelMap.Add(jatt.Id, t);
             }
         }
-
-        /// <summary>
-        /// Gets the serializer
-        /// </summary>
-        public JsonViewModelSerializer Serializer { get { return this.m_modelSerializer; } }
 
         /// <summary>
         /// Break current execution
@@ -99,7 +93,8 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public void AddBusinessRule(String target, String trigger, Func<Object, ExpandoObject> _delegate)
         {
-            JavascriptBusinessRulesEngine.Current.RegisterRule(target, trigger, _delegate);
+            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                instance.RegisterRule(target, trigger, _delegate);
         }
 
         /// <summary>
@@ -107,7 +102,8 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public void AddValidator(String target, Func<Object, Object[]> _delegate)
         {
-            JavascriptBusinessRulesEngine.Current.RegisterValidator(target, _delegate);
+            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                instance.RegisterValidator(target, _delegate);
         }
 
         /// <summary>
@@ -115,9 +111,12 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public object ExecuteRule(String action, Object data)
         {
-            var sData = this.ToModel(data);
-            var retVal = JavascriptBusinessRulesEngine.Current.Invoke(action, sData);
-            return this.ToViewModel(retVal);
+            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+            {
+                var sData = this.ToModel(data);
+                var retVal = instance.Invoke(action, sData);
+                return this.ToViewModel(retVal);
+            }
         }
 
         /// <summary>
@@ -189,7 +188,11 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                 using (MemoryStream ms = new MemoryStream())
                 {
                     using (TextWriter tw = new StreamWriter(ms, Encoding.UTF8, 2048, true))
-                        this.m_modelSerializer.Serialize(tw, data);
+                    using (var szr = new JsonViewModelSerializer())
+                    {
+                        szr.LoadSerializerAssembly(typeof(SecurityApplicationViewModelSerializer).GetTypeInfo().Assembly);
+                        szr.Serialize(tw, data);
+                    }
                     ms.Seek(0, SeekOrigin.Begin);
 
                     // Parse
@@ -230,48 +233,59 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public Object ExecuteBundleRules(String trigger, Object bundle)
         {
-            try
+            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
             {
-                var thdPool = ApplicationServiceContext.Current.GetService(typeof(IThreadPoolService)) as IThreadPoolService;
-                IDictionary<String, Object> bdl = bundle as IDictionary<String, Object>;
-
-                this.m_cacheObject.Clear();
-
-                object rawItems = null;
-                if (!bdl.TryGetValue("$item", out rawItems) && !bdl.TryGetValue("item", out rawItems))
+                try
                 {
-                    this.m_tracer.TraceVerbose("Bundle contains no items: {0}", this.ProduceLiteral(bdl));
-                    return bundle;
+                    var thdPool = ApplicationServiceContext.Current.GetService(typeof(IThreadPoolService)) as IThreadPoolService;
+                    IDictionary<String, Object> bdl = bundle as IDictionary<String, Object>;
+
+                    this.m_cacheObject.Clear();
+
+                    object rawItems = null;
+                    if (!bdl.TryGetValue("$item", out rawItems) && !bdl.TryGetValue("item", out rawItems))
+                    {
+                        this.m_tracer.TraceVerbose("Bundle contains no items: {0}", this.ProduceLiteral(bdl));
+                        return bundle;
+                    }
+
+                    Object[] itms = rawItems as object[];
+
+                    for (int i = 0; i < itms.Length; i++)
+                    {
+                        try
+                        {
+                            itms[i] = instance.InvokeRaw(trigger, itms[i]);
+                        }
+                        catch (JavaScriptException e)
+                        {
+                            if(itms[i] is IDictionary<String, Object> obj)
+                            {
+                                try
+                                {
+                                    if (!obj.ContainsKey("tag"))
+                                        obj["tag"] = new ExpandoObject();
+                                    var tagData = obj["tag"] as IDictionary<String, Object>;
+                                    tagData.Add("$bre.error", e.Message);
+                                }
+                                catch { }
+                            }
+                            //else
+                            //    Tracer.GetTracer(typeof(BusinessRulesBridge)).TraceError("Error applying rule for {0}: {1}", itms[i], e);
+                        }
+                    }
+
+                    bdl.Remove("item");
+                    bdl.Remove("$item");
+                    bdl.Add("$item", itms);
+                    return bdl;
                 }
-
-                Object[] itms = rawItems as object[];
-
-                for (int i = 0; i < itms.Length; i++)
+                catch (Exception e)
                 {
-                    try
-                    {
-                        itms[i] = JavascriptBusinessRulesEngine.Current.InvokeRaw(trigger, itms[i]);
-                    }
-                    catch (Exception e)
-                    {
-                        //if (System.Diagnostics.Debugger.IsAttached)
-                        throw;
-                        //else
-                        //    Tracer.GetTracer(typeof(BusinessRulesBridge)).TraceError("Error applying rule for {0}: {1}", itms[i], e);
-                    }
+                    this.m_tracer.TraceError("Error executing bundle rules: {0}", e);
+                    throw;
                 }
-
-                bdl.Remove("item");
-                bdl.Remove("$item");
-                bdl.Add("$item", itms);
-                return bdl;
             }
-            catch (Exception e)
-            {
-                this.m_tracer.TraceError("Error executing bundle rules: {0}", e);
-                throw;
-            }
-
         }
 
         /// <summary>
@@ -279,32 +293,33 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         private ExpandoObject ConvertToJint(JObject source)
         {
-            try { 
-            var retVal = new ExpandoObject();
-
-            if (source == null)
-                return retVal;
-
-            var expandoDic = (IDictionary<String, Object>)retVal;
-            foreach (var kv in source)
+            try
             {
-                if (kv.Value is JObject)
-                    expandoDic.Add(kv.Key, ConvertToJint(kv.Value as JObject));
-                else if (kv.Value is JArray)
-                    expandoDic.Add(kv.Key == "item" ? "$item" : kv.Key, (kv.Value as JArray).Select(o => o is JValue ? (o as JValue).Value : ConvertToJint(o as JObject)).ToArray());
-                else
+                var retVal = new ExpandoObject();
+
+                if (source == null)
+                    return retVal;
+
+                var expandoDic = (IDictionary<String, Object>)retVal;
+                foreach (var kv in source)
                 {
-                    object jValue = (kv.Value as JValue).Value;
-                    if (jValue is String && date_regex.IsMatch(jValue.ToString())) // Correct dates
-                    {
-                        var dValue = date_regex.Match(jValue.ToString());
-                        expandoDic.Add(kv.Key, new DateTime(Int32.Parse(dValue.Groups[1].Value), Int32.Parse(dValue.Groups[2].Value), Int32.Parse(dValue.Groups[3].Value)));
-                    }
+                    if (kv.Value is JObject)
+                        expandoDic.Add(kv.Key, ConvertToJint(kv.Value as JObject));
+                    else if (kv.Value is JArray)
+                        expandoDic.Add(kv.Key == "item" ? "$item" : kv.Key, (kv.Value as JArray).Select(o => o is JValue ? (o as JValue).Value : ConvertToJint(o as JObject)).ToArray());
                     else
-                        expandoDic.Add(kv.Key, (kv.Value as JValue).Value);
+                    {
+                        object jValue = (kv.Value as JValue).Value;
+                        if (jValue is String && date_regex.IsMatch(jValue.ToString())) // Correct dates
+                        {
+                            var dValue = date_regex.Match(jValue.ToString());
+                            expandoDic.Add(kv.Key, new DateTime(Int32.Parse(dValue.Groups[1].Value), Int32.Parse(dValue.Groups[2].Value), Int32.Parse(dValue.Groups[3].Value)));
+                        }
+                        else
+                            expandoDic.Add(kv.Key, (kv.Value as JValue).Value);
+                    }
                 }
-            }
-            return retVal;
+                return retVal;
             }
             catch (Exception e)
             {
@@ -360,26 +375,31 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public IdentifiedData ToModel(Object data)
         {
-            try { 
-            var dictData = data as IDictionary<String, object>;
-            if (dictData?.ContainsKey("$item") == true) // HACK: JInt does not like Item property on ExpandoObject
+            try
             {
-                dictData.Add("item", dictData["$item"]);
-                dictData.Remove("$item");
-            }
+                var dictData = data as IDictionary<String, object>;
+                if (dictData?.ContainsKey("$item") == true) // HACK: JInt does not like Item property on ExpandoObject
+                {
+                    dictData.Add("item", dictData["$item"]);
+                    dictData.Remove("$item");
+                }
 
-            // Serialize to a view model serializer
-            using (MemoryStream ms = new MemoryStream())
-            {
-                JsonSerializer jsz = new JsonSerializer();
-                using (JsonWriter reader = new JsonTextWriter(new StreamWriter(ms, Encoding.UTF8, 2048, true)))
-                    jsz.Serialize(reader, data);
+                // Serialize to a view model serializer
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    JsonSerializer jsz = new JsonSerializer();
+                    using (JsonWriter reader = new JsonTextWriter(new StreamWriter(ms, Encoding.UTF8, 2048, true)))
+                        jsz.Serialize(reader, data);
 
-                // De-serialize
-                ms.Seek(0, SeekOrigin.Begin);
-                var retVal = this.m_modelSerializer.DeSerialize<IdentifiedData>(ms);
-                return retVal;
-            }
+                    // De-serialize
+                    ms.Seek(0, SeekOrigin.Begin);
+
+                    using (var szr = new JsonViewModelSerializer())
+                    {
+                        szr.LoadSerializerAssembly(typeof(SecurityApplicationViewModelSerializer).GetTypeInfo().Assembly);
+                        return szr.DeSerialize<IdentifiedData>(ms);
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -393,23 +413,29 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public object Obsolete(String type, Guid id)
         {
-            try { 
-            Type dataType = null;
-            if (!this.m_modelMap.TryGetValue(type, out dataType))
-                throw new InvalidOperationException($"Cannot find type information for {type}");
+            try
+            {
+                Type dataType = null;
+                if (!this.m_modelMap.TryGetValue(type, out dataType))
+                    throw new InvalidOperationException($"Cannot find type information for {type}");
 
-            var idp = typeof(IRepositoryService<>).MakeGenericType(dataType);
-            var idpInstance = ApplicationServiceContext.Current.GetService(idp);
-            if (idpInstance == null)
-                throw new KeyNotFoundException($"The repository service for {type} was not found. Ensure an IRepositoryService<{type}> is registered");
+                var idp = typeof(IRepositoryService<>).MakeGenericType(dataType);
+                var idpInstance = ApplicationServiceContext.Current.GetService(idp);
+                if (idpInstance == null)
+                    throw new KeyNotFoundException($"The repository service for {type} was not found. Ensure an IRepositoryService<{type}> is registered");
 
-            var mi = idp.GetRuntimeMethod("Obsolete", new Type[] { typeof(Guid) });
-            return this.ToViewModel(mi.Invoke(idpInstance, new object[] { id }) as IdentifiedData);
+                var mi = idp.GetRuntimeMethod("Obsolete", new Type[] { typeof(Guid) });
+                return this.ToViewModel(mi.Invoke(idpInstance, new object[] { id }) as IdentifiedData);
+            }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence obsoleting BRE object: {0}/{1} - {2}", type, id, e.InnerException);
+                throw new Exception($"Persistence error obsoleting BRE object: {type}/{id}", e.InnerException);
             }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error obsoleting object : {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error obsoleting BRE object: {0}/{1} - {2}", type, id, e);
+                throw new Exception($"Error obsoleting BRE object: {type}/{id}", e);
             }
         }
 
@@ -443,13 +469,18 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                         this.m_cacheObject.Add(guidId, retVal);
                 }
                 return retVal;
-             }
-            catch(Exception e)
-            {
-                this.m_tracer.TraceError("Error getting object: {0}", e);
-                throw;
             }
-}
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence retreiving BRE object: {0}/{1} - {2}", type, id, e.InnerException);
+                throw new Exception($"Persistence error retreiving in BRE: {type}/{id}", e.InnerException);
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error retrieving in BRE object: {0}/{1} - {2}", type, id, e);
+                throw new Exception($"Error retrieving in BRE: {type}/{id}", e);
+            }
+        }
 
         /// <summary>
         /// Find object
@@ -465,33 +496,39 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public object Find(String type, String query)
         {
-            try { 
-            Type dataType = null;
-            if (!this.m_modelMap.TryGetValue(type, out dataType))
-                throw new InvalidOperationException($"Cannot find type information for {type}");
-
-            var idp = typeof(IRepositoryService<>).MakeGenericType(dataType);
-            var idpInstance = ApplicationServiceContext.Current.GetService(idp);
-            if (idpInstance == null)
-                throw new KeyNotFoundException($"The repository service for {type} was not found. Ensure an IRepositoryService<{type}> is registered");
-
-            MethodInfo builderMethod = (MethodInfo)typeof(QueryExpressionParser).GetGenericMethod("BuildLinqExpression", new Type[] { dataType }, new Type[] { typeof(NameValueCollection) });
-            var mi = idp.GetRuntimeMethod("Find", new Type[] { builderMethod.ReturnType });
-
-            var nvc = NameValueCollection.ParseQueryString(query);
-            var filter = builderMethod.Invoke(null, new Object[] { nvc });
-
-            var results = (mi.Invoke(idpInstance, new object[] { filter }) as IEnumerable).OfType<IdentifiedData>();
-            return this.ToViewModel(new Bundle()
+            try
             {
-                Item = results.ToList(),
-                TotalResults = results.Count()
-            });
+                Type dataType = null;
+                if (!this.m_modelMap.TryGetValue(type, out dataType))
+                    throw new InvalidOperationException($"Cannot find type information for {type}");
+
+                var idp = typeof(IRepositoryService<>).MakeGenericType(dataType);
+                var idpInstance = ApplicationServiceContext.Current.GetService(idp);
+                if (idpInstance == null)
+                    throw new KeyNotFoundException($"The repository service for {type} was not found. Ensure an IRepositoryService<{type}> is registered");
+
+                MethodInfo builderMethod = (MethodInfo)typeof(QueryExpressionParser).GetGenericMethod("BuildLinqExpression", new Type[] { dataType }, new Type[] { typeof(NameValueCollection) });
+                var mi = idp.GetRuntimeMethod("Find", new Type[] { builderMethod.ReturnType });
+
+                var nvc = NameValueCollection.ParseQueryString(query);
+                var filter = builderMethod.Invoke(null, new Object[] { nvc });
+
+                var results = (mi.Invoke(idpInstance, new object[] { filter }) as IEnumerable).OfType<IdentifiedData>();
+                return this.ToViewModel(new Bundle()
+                {
+                    Item = results.ToList(),
+                    TotalResults = results.Count()
+                });
+            }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence searching in BRE object: {0} - {1}", query, e.InnerException);
+                throw new Exception($"Error searching in BRE: {type}?{query}", e.InnerException);
             }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error executing search : {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error searching in BRE: {0}", e);
+                throw new Exception($"Error searching in BRE: {type}?{query}", e);
             }
         }
 
@@ -500,27 +537,34 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public object Save(object value)
         {
-            try { 
-            var data = this.ToModel(value);
+            try
+            {
+                var data = this.ToModel(value);
 
-            if (data.Key.HasValue && this.m_cacheObject.ContainsKey(data.Key.Value))
-                this.m_cacheObject.Remove(data.Key.Value);
+                if (data.Key.HasValue && this.m_cacheObject.ContainsKey(data.Key.Value))
+                    this.m_cacheObject.Remove(data.Key.Value);
 
-            if (data == null) throw new ArgumentException("Could not parse value for save");
+                if (data == null) throw new ArgumentException("Could not parse value for save");
 
-            var idp = typeof(IRepositoryService<>).MakeGenericType(data.GetType());
-            var idpInstance = ApplicationServiceContext.Current.GetService(idp);
-            if (idpInstance == null)
-                throw new KeyNotFoundException($"The repository service for {data.GetType()} was not found. Ensure an IRepositoryService<{data.GetType()}> is registered");
+                var idp = typeof(IRepositoryService<>).MakeGenericType(data.GetType());
+                var idpInstance = ApplicationServiceContext.Current.GetService(idp);
+                if (idpInstance == null)
+                    throw new KeyNotFoundException($"The repository service for {data.GetType()} was not found. Ensure an IRepositoryService<{data.GetType()}> is registered");
 
-            var mi = idp.GetRuntimeMethod("Save", new Type[] { data.GetType() });
-            return this.ToViewModel(mi.Invoke(idpInstance, new object[] { data }) as IdentifiedData);
+                var mi = idp.GetRuntimeMethod("Save", new Type[] { data.GetType() });
+                return this.ToViewModel(mi.Invoke(idpInstance, new object[] { data }) as IdentifiedData);
+            }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence error saving BRE object: {0} - {1}", value, e.InnerException);
+                throw new Exception($"Persistence error saving BRE object: {value}", e.InnerException);
             }
             catch (Exception e)
             {
-                this.m_tracer.TraceError("Error saving object: {0}", e);
-                throw;
+                this.m_tracer.TraceError("Error saving BRE object: {0}", e);
+                throw new Exception($"Error saving BRE object: {value}", e);
             }
+
         }
 
         /// <summary>
@@ -544,10 +588,15 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                 var mi = idp.GetRuntimeMethod("Insert", new Type[] { data.GetType() });
                 return this.ToViewModel(mi.Invoke(idpInstance, new object[] { data }) as IdentifiedData);
             }
+            catch (TargetInvocationException e)
+            {
+                this.m_tracer.TraceError("Persistence error inserting BRE object: {0} - {1}", value, e.InnerException);
+                throw new Exception($"Persistence error inserting BRE object: {value}", e.InnerException);
+            }
             catch (Exception e)
             {
                 this.m_tracer.TraceError("Error inserting BRE object: {0}", e);
-                throw;
+                throw new Exception($"Error inserting BRE object: {value}", e);
             }
         }
     }

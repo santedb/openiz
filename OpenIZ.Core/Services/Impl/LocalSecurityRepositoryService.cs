@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
@@ -393,7 +393,7 @@ namespace OpenIZ.Core.Services.Impl
 		/// </summary>
 		/// <param name="query">The query to use to match the users.</param>
 		/// <returns>Returns a list of users.</returns>
-		[PolicyPermission(System.Security.Permissions.SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.Login)]
+		[PolicyPermission(System.Security.Permissions.SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.LoginAsService)]
 		public IEnumerable<SecurityUser> FindUsers(Expression<Func<SecurityUser, bool>> query)
 		{
 			int totalResults = 0;
@@ -408,7 +408,7 @@ namespace OpenIZ.Core.Services.Impl
 		/// <param name="count">The number of users.</param>
 		/// <param name="totalResults">The total number of users.</param>
 		/// <returns>Returns a list of roles.</returns>
-		[PolicyPermission(System.Security.Permissions.SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.Login)]
+		[PolicyPermission(System.Security.Permissions.SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.LoginAsService)]
 		public IEnumerable<SecurityUser> FindUsers(Expression<Func<SecurityUser, bool>> query, int offset, int? count, out int totalResults)
 		{
 			var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<SecurityUser>>();

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-7-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -103,9 +103,7 @@ namespace OpenIZ.Core.Model
         {
             var other = obj as VersionedAssociation<TSourceType>;
             if (other == null) return false;
-            return base.SemanticEquals(obj) &&
-                this.EffectiveVersionSequenceId == other.EffectiveVersionSequenceId &&
-                this.ObsoleteVersionSequenceId == other.ObsoleteVersionSequenceId;
+            return base.SemanticEquals(obj);
         }
     }
 }

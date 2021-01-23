@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using ExpressionEvaluator;
 using OpenIZ.Core.Diagnostics;
@@ -43,6 +43,12 @@ namespace OpenIZ.Protocol.Xml.Model
         /// </summary>
         [XmlAttribute("evaluation")]
         public BinaryOperatorType Operator { get; set; }
+
+        /// <summary>
+        /// Gets the debug view
+        /// </summary>
+        [XmlIgnore]
+        public String DebugView { get; private set; }
 
         /// <summary>
         /// Clause evelators
@@ -75,7 +81,7 @@ namespace OpenIZ.Protocol.Xml.Model
                 else if (itm is WhenClauseImsiExpression)
                 {
                     var imsiExpr = itm as WhenClauseImsiExpression;
-                    clauseExpr = Expression.Invoke(QueryExpressionParser.BuildLinqExpression<TData>(NameValueCollection.ParseQueryString(imsiExpr.Expression), variableFunc), expressionParm);
+                    clauseExpr = Expression.Invoke(QueryExpressionParser.BuildLinqExpression<TData>(NameValueCollection.ParseQueryString(imsiExpr.Expression), variableFunc, true, true), expressionParm);
                     if (imsiExpr.NegationIndicator)
                         clauseExpr = Expression.Not(clauseExpr);
                     this.m_tracer.TraceVerbose("Converted WHEN {0} > {1}", imsiExpr.Expression, clauseExpr);
@@ -121,6 +127,7 @@ namespace OpenIZ.Protocol.Xml.Model
                 Expression.Convert(objParm, typeof(TData))
             );
             var uncompiledExpression = Expression.Lambda<Func<Object, bool>>(invoke, objParm);
+            this.DebugView = uncompiledExpression.ToString();
             this.m_compiledExpression = uncompiledExpression.Compile();
             return uncompiledExpression;
         }

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-7-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Attributes;
@@ -117,11 +117,11 @@ namespace OpenIZ.Core.Model.DataTypes
         {
             return this.LoadProperty<ExtensionType>("ExtensionType")?.ExtensionHandlerInstance?.DeSerialize(this.ExtensionValueXml);
         }
-
+        
         /// <summary>
         /// Gets or sets an extension displayable value
         /// </summary>
-        [XmlIgnore, JsonIgnore]
+        [XmlIgnore, JsonIgnore, QueryParameter("display")]
         public String ExtensionDisplay
         {
             get
@@ -148,7 +148,8 @@ namespace OpenIZ.Core.Model.DataTypes
             set
             {
                 this.m_extensionType = value;
-                this.m_extensionTypeKey = value?.Key;
+                if(value != null)
+                    this.m_extensionTypeKey = value?.Key;
             }
         }
 
@@ -210,7 +211,7 @@ namespace OpenIZ.Core.Model.DataTypes
         {
             get
             {
-                return this.ExtensionValue;
+                return this.GetValue();
             }
         }
 

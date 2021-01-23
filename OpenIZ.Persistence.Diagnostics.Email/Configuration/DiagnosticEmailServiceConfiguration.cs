@@ -13,11 +13,6 @@ namespace OpenIZ.Persistence.Diagnostics.Email.Configuration
     {
 
         /// <summary>
-        /// Gets or sets the SMTP configuration
-        /// </summary>
-        public SmtpConfiguration Smtp { get; set; }
-
-        /// <summary>
         /// Gets or sets the recipient
         /// </summary>
         public List<String> Recipients { get; set; }

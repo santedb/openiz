@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-9-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.DataTypes;
@@ -45,6 +45,15 @@ namespace OpenIZ.Core.Services
 		/// <param name="place">The facility for which to get the balance of stock.</param>
 		/// <param name="manufacturedMaterial">The manufactured material for which to retrieve the balance.</param>
 		int GetBalance(Place place, ManufacturedMaterial manufacturedMaterial);
+
+        /// <summary>
+        /// Get the total amount of consumed objects 
+        /// </summary>
+        /// <param name="manufacturedMaterialKey">The manufactured material being consumed</param>
+        /// <param name="placeKey">The place at which the manufactured material was consumed</param>
+        /// <param name="startPeriod">The start period</param>
+        /// <param name="endPeriod">The end period</param>
+        IEnumerable<ActParticipation> GetConsumed(Guid manufacturedMaterialKey, Guid placeKey, DateTimeOffset? startPeriod, DateTimeOffset? endPeriod);
 
 		/// <summary>
 		/// Find adjustments matching the specified

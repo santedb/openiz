@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-15
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 
@@ -42,6 +42,11 @@ using OpenIZ.Persistence.Data.ADO.Services.Persistence;
 using System.Collections;
 using OpenIZ.OrmLite;
 using OpenIZ.Persistence.Data.ADO.Data.Hax;
+using OpenIZ.Core.Interfaces;
+using OpenIZ.Core.Security;
+using OpenIZ.Core.Security.Attribute;
+using System.Data;
+using OpenIZ.Core.Diagnostics;
 
 namespace OpenIZ.Persistence.Data.ADO.Services
 {
@@ -50,7 +55,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
     /// <summary>
     /// Represents a dummy service which just adds the persistence services to the context
     /// </summary>
-    public class AdoPersistenceService : IDaemonService
+    public class AdoPersistenceService : IDaemonService, ISqlDataPersistenceService,IDataArchiveService
     {
 
         private static ModelMapper s_mapper;
@@ -60,6 +65,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services
 
         // Query builder
         private static QueryBuilder s_queryBuilder;
+
+        /// <summary>
+        /// Gets the invariant name
+        /// </summary>
+        public string InvariantName => s_configuration.Provider.Name;
 
         /// <summary>
         /// Get configuration
@@ -109,8 +119,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             {
                 s_mapper = new ModelMapper(typeof(AdoPersistenceService).GetTypeInfo().Assembly.GetManifestResourceStream(AdoDataConstants.MapResourceName));
 
-                List<IQueryBuilderHack> hax = new List<IQueryBuilderHack>();
-                if (s_configuration.DataCorrectionKeys.Any(k => k == "ConceptQueryHack")) hax.Add(new ConceptQueryHack(s_mapper));
+                List<IQueryBuilderHack> hax = new List<IQueryBuilderHack>() { new SecurityUserEntityQueryHack(), new RelationshipQueryHack(), new CreationTimeQueryHack(s_mapper), new EntityAddressNameQueryHack() };
+                if (s_configuration.DataCorrectionKeys.Any(k => k == "ConceptQueryHack"))
+                    hax.Add(new ConceptQueryHack(s_mapper));
 
                 s_queryBuilder = new QueryBuilder(s_mapper, s_configuration.Provider,
                     hax.Where(o=>o != null).ToArray()    
@@ -232,7 +243,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             public IEnumerable GetFromSource(DataContext context, Guid sourceId, decimal? versionSequenceId, IPrincipal principal)
             {
                 int tr = 0;
-                return this.QueryInternal(context, base.BuildSourceQuery<TModel>(sourceId), Guid.Empty, 0, null, out tr, principal).ToList();
+                return this.QueryInternal(context, base.BuildSourceQuery<TModel>(sourceId), Guid.Empty, 0, 100, out tr, principal).ToList();
             }
         }
 
@@ -440,6 +451,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services
                 throw e;
             }
 
+            // Bind subscription execution
+            ApplicationContext.Current.GetService<IServiceManager>().AddServiceProvider(typeof(AdoSubscriptionExector));
+
             // Bind some basic service stuff
             ApplicationContext.Current.GetService<IDataPersistenceService<Core.Model.Security.SecurityUser>>().Inserting += (o, e) =>
             {
@@ -448,7 +462,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             };
             ApplicationContext.Current.GetService<IDataPersistenceService<Core.Model.Security.SecurityUser>>().Updating += (o, e) =>
             {
-                e.Data.SecurityHash = Guid.NewGuid().ToString();
+                if (String.IsNullOrEmpty(e.Data.SecurityHash)) 
+                    e.Data.SecurityHash = Guid.NewGuid().ToString();
             };
 
             // Attempt to cache concepts
@@ -457,6 +472,43 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             this.Started?.Invoke(this, EventArgs.Empty);
 
             return true;
+        }
+
+        /// <summary>
+        /// Execute the SQL provided
+        /// </summary>
+        public void ExecuteNonQuery(string sql)
+        {
+
+            if (AuthenticationContext.Current.Principal != AuthenticationContext.SystemPrincipal)
+                new PolicyPermission(System.Security.Permissions.PermissionState.Unrestricted, PermissionPolicyIdentifiers.UnrestrictedAdministration).Demand();
+
+            using (var conn = s_configuration.Provider.GetWriteConnection())
+            {
+                IDbTransaction tx = null;
+                try
+                {
+                    conn.Open();
+                    tx = conn.BeginTransaction();
+                    var rsql = sql;
+                    while (rsql.Contains(";"))
+                    {
+                        conn.ExecuteNonQuery(conn.CreateSqlStatement(rsql.Substring(0, rsql.IndexOf(";"))));
+                        rsql = rsql.Substring(rsql.IndexOf(";") + 1);
+                    }
+
+                    if (!String.IsNullOrEmpty(rsql) && !String.IsNullOrWhiteSpace(rsql))
+                        conn.ExecuteNonQuery(conn.CreateSqlStatement(rsql));
+
+                    tx.Commit();
+                }
+                catch (Exception e)
+                {
+                    tx.Rollback();
+                    this.m_tracer.TraceError("Could not execute SQL: {0}", e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -469,6 +521,16 @@ namespace OpenIZ.Persistence.Data.ADO.Services
             this.Stopped?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+        /// <summary>
+        /// Archives the specified keys
+        /// </summary>
+        public void Archive(Type modelType, params Guid[] keysToBeArchived)
+        {
+            (AdoPersistenceService.GetPersister(modelType) as IAdoCopyPersistenceService).CopyToArchive(keysToBeArchived);
+        }
+
+      
     }
 }
 

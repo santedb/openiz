@@ -9,8 +9,9 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OpenIZ.Persistence.Diagnostics.Email</RootNamespace>
     <AssemblyName>OpenIZ.Persistence.Diagnostics.Email</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -46,7 +47,6 @@
   <ItemGroup>
     <Compile Include="Configuration\ConfigurationSectionHandler.cs" />
     <Compile Include="Configuration\DiagnosticEmailServiceConfiguration.cs" />
-    <Compile Include="Configuration\SmtpConfiguration.cs" />
     <Compile Include="DiagnosticReportPersistenceService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -58,6 +58,10 @@
     <ProjectReference Include="..\OpenIZ.Core.Model\OpenIZ.Core.Model.csproj">
       <Project>{F1A82A4F-4A57-47D7-AE76-444C8A4FF54A}</Project>
       <Name>OpenIZ.Core.Model</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\OpenIZ.Core.PCL\OpenIZ.Core.PCL.csproj">
+      <Project>{3A45F695-47A2-464C-ACE6-BDABBFA39FBC}</Project>
+      <Name>OpenIZ.Core.PCL</Name>
     </ProjectReference>
     <ProjectReference Include="..\OpenIZ.Core\OpenIZ.Core.csproj">
       <Project>{DB9BC05E-45F1-4F96-A161-F36BDECAF566}</Project>

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -75,6 +75,22 @@ namespace OpenIZ.Persistence.Data.ADO.Data
         private static Dictionary<String, Guid> m_classIdCache = new Dictionary<string, Guid>();
 
         private static Dictionary<String, Guid> m_userIdCache = new Dictionary<string, Guid>();
+
+        /// <summary>
+        /// Try get by classifier
+        /// </summary>
+        public static bool CheckExists(this IIdentifiedEntity me, DataContext context)
+        {
+
+            // Is there a classifier?
+            var idpInstance = AdoPersistenceService.GetPersister(me.GetType()) as IAdoPersistenceService;
+
+            if (me.Key.HasValue && me.Key != Guid.Empty)
+                return idpInstance.Exists(context, me.Key.GetValueOrDefault());
+            else
+                return false;
+        }
+
 
         /// <summary>
         /// Get fields
@@ -369,15 +385,15 @@ namespace OpenIZ.Persistence.Data.ADO.Data
             // Load fast or lean mode only root associations which will appear on the wire
             if (context.LoadState == LoadState.PartialLoad)
             {
-                if (me.LoadState == LoadState.PartialLoad) // already partially loaded :/ 
-                    return;
-                else
-                {
                     me.LoadState = LoadState.PartialLoad;
                     properties = properties.Where(o => o.GetCustomAttribute<XmlAttributeAttribute>() != null || o.GetCustomAttribute<XmlElementAttribute>() != null).ToList();
-                }
             }
 
+#if DEBUG
+            sw.Stop();
+            s_traceSource.TraceEvent(TraceEventType.Verbose, 0, "Base attributes for {0} took {1} ms", me, sw.ElapsedMilliseconds);
+            sw.Start();
+#endif
             // Iterate over the properties and load the properties
             foreach (var pi in properties)
             {
@@ -389,8 +405,34 @@ namespace OpenIZ.Persistence.Data.ADO.Data
                 var adoPersister = AdoPersistenceService.GetPersister(pi.PropertyType.StripGeneric());
 
                 // Loading associations, so what is the associated type?
-                if (typeof(IList).IsAssignableFrom(pi.PropertyType) &&
-                    adoPersister is IAdoAssociativePersistenceService &&
+                if (typeof(IIdentifiedEntity).IsAssignableFrom(pi.PropertyType)) // Single
+                {
+                    // Single property, we want to execute a get on the key property
+                    var pid = pi;
+                    if (pid.Name.EndsWith("Xml")) // Xml purposes only
+                        pid = pi.DeclaringType.GetProperty(pi.Name.Substring(0, pi.Name.Length - 3));
+                    var redirectAtt = pid.GetCustomAttribute<SerializationReferenceAttribute>();
+
+                    // We want to issue a query
+                    var keyProperty = redirectAtt != null ? pi.DeclaringType.GetProperty(redirectAtt.RedirectProperty) : pi.DeclaringType.GetProperty(pid.Name + "Key");
+                    if (keyProperty == null)
+                        continue;
+                    var keyValue = keyProperty?.GetValue(me);
+                    if (keyValue == null ||
+                        Guid.Empty.Equals(keyValue))
+                        continue; // No key specified
+
+                    // This is kinda messy.. maybe iz to be changez
+                    object value = null;
+                    if (!context.Data.TryGetValue(keyValue.ToString(), out value))
+                    {
+                        value = adoPersister.Get(context, (Guid)keyValue, principal);
+                        context.AddData(keyValue.ToString(), value);
+                    }
+                    pid.SetValue(me, value);
+                }
+                else if (adoPersister is IAdoAssociativePersistenceService && 
+                    typeof(IList).IsAssignableFrom(pi.PropertyType) &&
                     me.Key.HasValue) // List so we select from the assoc table where we are the master table
                 {
                     // Is there not a value?
@@ -420,32 +462,7 @@ namespace OpenIZ.Persistence.Data.ADO.Data
                     var listValue = ci.Invoke(new object[] { assoc });
                     pi.SetValue(me, listValue);
                 }
-                else if (typeof(IIdentifiedEntity).IsAssignableFrom(pi.PropertyType)) // Single
-                {
-                    // Single property, we want to execute a get on the key property
-                    var pid = pi;
-                    if (pid.Name.EndsWith("Xml")) // Xml purposes only
-                        pid = pi.DeclaringType.GetProperty(pi.Name.Substring(0, pi.Name.Length - 3));
-                    var redirectAtt = pid.GetCustomAttribute<SerializationReferenceAttribute>();
 
-                    // We want to issue a query
-                    var keyProperty = redirectAtt != null ? pi.DeclaringType.GetProperty(redirectAtt.RedirectProperty) : pi.DeclaringType.GetProperty(pid.Name + "Key");
-                    if (keyProperty == null)
-                        continue;
-                    var keyValue = keyProperty?.GetValue(me);
-                    if (keyValue == null ||
-                        Guid.Empty.Equals(keyValue))
-                        continue; // No key specified
-
-                    // This is kinda messy.. maybe iz to be changez
-                    object value = null;
-                    if (!context.Data.TryGetValue(keyValue.ToString(), out value))
-                    {
-                        value = adoPersister.Get(context, (Guid)keyValue, principal);
-                        context.AddData(keyValue.ToString(), value);
-                    }
-                    pid.SetValue(me, value);
-                }
 
             }
 #if DEBUG
@@ -453,8 +470,7 @@ namespace OpenIZ.Persistence.Data.ADO.Data
             s_traceSource.TraceEvent(TraceEventType.Verbose, 0, "Load associations for {0} took {1} ms", me, sw.ElapsedMilliseconds);
 #endif
 
-            if (me.LoadState == LoadState.New)
-                me.LoadState = LoadState.FullLoad;
+            me.LoadState = context.LoadState;
         }
     }
 }

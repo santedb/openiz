@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: justi
- * Date: 2016-8-14
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using MARC.Everest.Connectors;
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
@@ -27,6 +26,7 @@ using MARC.HI.EHRS.SVC.Messaging.FHIR.Handlers;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.Resources;
 using OpenIZ.Core;
 using OpenIZ.Core.Model;
+using OpenIZ.Core.Model.Interfaces;
 using OpenIZ.Core.Model.Query;
 using OpenIZ.Messaging.FHIR.Util;
 using System;
@@ -133,13 +133,52 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			};
 		}
 
-		/// <summary>
-		/// Queries for a specified resource.
-		/// </summary>
-		/// <param name="parameters">The parameters.</param>
-		/// <returns>Returns the FHIR query result containing the results of the query.</returns>
-		/// <exception cref="System.ArgumentNullException">parameters</exception>
-		public virtual FhirQueryResult Query(System.Collections.Specialized.NameValueCollection parameters)
+        /// <summary>
+        /// Get definition for the specified resource
+        /// </summary>
+        public virtual MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.ResourceDefinition GetResourceDefinition()
+        {
+            return new MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.ResourceDefinition()
+            {
+                ConditionalCreate = false,
+                ConditionalUpdate = true,
+                ConditionalDelete = MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.ConditionalDeleteStatus.NotSupported,
+                ReadHistory = true,
+                UpdateCreate = true,
+                Versioning = typeof(IVersionedEntity).IsAssignableFrom(typeof(TModel)) ? 
+                    MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.ResourceVersionPolicy.Versioned :
+                    MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.ResourceVersionPolicy.NonVersioned,
+                Interaction = this.GetInteractions().ToList(),
+                SearchParams = QueryRewriter.GetSearchParams<TFhirResource, TModel>().ToList(),
+                Type = typeof(TFhirResource).GetCustomAttribute<XmlRootAttribute>().ElementName,
+                Profile = new Reference<StructureDefinition>()
+                {
+                    ReferenceUrl = $"/StructureDefinition/openiz/_history/{Assembly.GetEntryAssembly().GetName().Version}"
+                }
+            };
+        }
+
+        /// <summary>
+        /// Get structure definitions
+        /// </summary>
+        public virtual StructureDefinition GetStructureDefinition()
+        {
+			// TODO: implement
+			return null;
+        }
+
+        /// <summary>
+        /// Get interactions supported by this handler
+        /// </summary>
+        protected abstract IEnumerable<MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.InteractionDefinition> GetInteractions();
+
+        /// <summary>
+        /// Queries for a specified resource.
+        /// </summary>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns>Returns the FHIR query result containing the results of the query.</returns>
+        /// <exception cref="System.ArgumentNullException">parameters</exception>
+        public virtual FhirQueryResult Query(System.Collections.Specialized.NameValueCollection parameters)
 		{
 			if (parameters == null)
 				throw new ArgumentNullException(nameof(parameters));
@@ -159,7 +198,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			{
 				Details = issues,
 				Outcome = ResultCode.Accepted,
-				Results = imsiResults.AsParallel().Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
+				Results = imsiResults.AsParallel().AsOrdered().WithDegreeOfParallelism(2).Select(o => this.MapToFhir(o, webOperationContext)).OfType<DomainResourceBase>().ToList(),
 				Query = query,
 				TotalResults = totalResults
 			};

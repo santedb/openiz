@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-11-2
  */
 using Newtonsoft.Json;
 using System;
@@ -34,10 +34,19 @@ namespace OpenIZ.Core.Applets.Model
     [XmlType(nameof(AppletWidgetScope), Namespace = "http://openiz.org/applet")]
     public enum AppletWidgetScope
     {
+        /// <summary>
+        /// The widget should be placed on the patient summary page
+        /// </summary>
         [XmlEnum("patient")]
         Patient,
+        /// <summary>
+        /// The widget should be placed on the facility home page
+        /// </summary>
         [XmlEnum("place")]
         Facility,
+        /// <summary>
+        /// The widget should be placed on the user settings page
+        /// </summary>
         [XmlEnum("user")]
         User
     }
@@ -59,6 +68,7 @@ namespace OpenIZ.Core.Applets.Model
         [XmlEnum("tab")]
         Tab
     }
+
     /// <summary>
     /// Represents a widget. A widget is a special pointer which has a title and content which can be rendered
     /// in a container 

@@ -1,5 +1,6 @@
 ﻿<!--
- - Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ - Copyright 2015-2019 Mohawk College of Applied Arts and Technology
+ - Copyright 2019-2020 SanteSuite Contributors (See NOTICE)
  - 
  - 
  - Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,21 +15,22 @@
  - License for the specific language governing permissions and limitations under 
  - the License.
  - 
- - User: justi
- - Date: 2017-4-14
+ - User: fyfej
+ - Date: 2019-11-27
  -->
 <ViewModel xmlns="http://openiz.org/model/view">
 
   <!-- Base types -->
-  <type type="EntityRelationship" all="false">
+  <type type="EntityRelationship" all="true">
     <property name="source" all="true"/>
+    <property name="holder" all="true"/>
     <property name="effectiveVersionSequence" behavior="always" all="true" />
     <property name="target" all="true"/>
     <property name="id" all="true"/>
     <property name="quantity" all="true"/>
     <property name="relationshipType" behavior="always" all="true"/>
   </type>
-  <type type="ActRelationship" all="false">
+  <type type="ActRelationship" all="true">
     <property name="source" all="true"/>
     <property name="target" all="true"/>
     <property name="id" all="true"/>
@@ -59,7 +61,7 @@
     <property name="id"/>
     <property name="source" behavior="never"/>
   </type>
-  
+
   <type type="Bundle" all="true">
     <property name="id"/>
     <property name="item" all="true"/>
@@ -75,7 +77,7 @@
     <property name="statusConceptModel" behavior="never"/>
     <property name="previousVersion" behavior="never"/>
     <property name="previousVersionModel" behavior="never"/>
-
+    <property name="mnemonic" behavior="always"/>
   </type>
 
   <!-- Entity Information -->
@@ -138,7 +140,7 @@
     <property name="determinerConceptModel" behavior="never"/>
     <property name="determinerConcept" behavior="never"/>
     <property name="statusConceptModel" behavior="never"/>
-    <property name="typeConceptModel" behavior="always"/>
+    <property name="typeConceptModel" behavior="always" ref="Concept"/>
     <property name="name" all="true" ref="EntityName" behavior="always"/>
     <property name="identifier" all="true" ref="EntityIdentifier" behavior="always"/>
     <property name="relationship" all="true">
@@ -169,7 +171,7 @@
     <property name="statusConceptModel" behavior="never"/>
     <property name="name" all="true" ref="EntityName" behavior="always"/>
     <property name="identifier" all="true" ref="EntityIdentifier" behavior="always"/>
-    <property name="typeConceptModel" behavior="always"/>
+    <property name="typeConceptModel" behavior="always" ref="Concept"/>
     <property name="relationship" all="false" behavior="always">
       <property name="*" all="false">
         <property name="source"/>

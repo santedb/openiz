@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Persistence.Data.ADO.Data;
@@ -47,6 +47,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             retVal.IsMobile = placeInstance?.IsMobile == true;
             retVal.Lat = placeInstance?.Lat;
             retVal.Lng = placeInstance?.Lng;
+            retVal.Services = context.Query<DbPlaceService>(o => o.SourceKey == retVal.Key && !o.ObsoleteVersionSequenceId.HasValue).ToArray().Select(o => new PlaceService()
+            {
+                EffectiveVersionSequenceId = o.EffectiveVersionSequenceId,
+                Key = o.Key,
+                ServiceConceptKey = o.ServiceConceptKey,
+                ServiceSchedule = o.ServiceSchedule
+            }).ToList();
             return retVal;
         }
 

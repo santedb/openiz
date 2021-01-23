@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -41,6 +41,29 @@ namespace OpenIZ.Messaging.FHIR.Util
         [XmlElement("type")]
         public List<QueryParameterType> Map { get; set; }
 
+        /// <summary>
+        /// Merges two query parameter maps together
+        /// </summary>
+        public void Merge(QueryParameterMap map)
+        {
+
+            foreach (var itm in map.Map)
+            {
+                var myMapping = this.Map.FirstOrDefault(p => p.SourceType == itm.SourceType);
+
+                // I have a local mapping
+                if (myMapping != null)
+                {
+                    // Remove any overridden mappings
+                    myMapping.Map.RemoveAll(o => itm.Map.Any(i => i.FhirName == o.FhirName));
+                    // Add overridden mappings
+                    myMapping.Map.AddRange(itm.Map);
+                }
+                else // we just add
+                    this.Map.Add(itm);
+
+            }
+        }
     }
 
     /// <summary>
@@ -98,7 +121,13 @@ namespace OpenIZ.Messaging.FHIR.Util
         /// </summary>
         [XmlAttribute("type")]
         public String FhirType { get; set; }
-        
+
+        /// <summary>
+        /// Gets or sets the textual description of the query parameter
+        /// </summary>
+        [XmlAttribute("desc")]
+        public String Description { get; set; }
+
     }
 
 }

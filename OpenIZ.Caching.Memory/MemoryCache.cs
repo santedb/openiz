@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.Everest.Threading;
 using MARC.HI.EHRS.SVC.Core;
@@ -169,7 +169,13 @@ namespace OpenIZ.Caching.Memory
             CacheEntry candidate = null;
             if (this.m_entryTable.TryGetValue(idData.Key.Value, out candidate) && candidate != null)
             {
-                if ((candidate.Data as IIdentifiedEntity).LoadState <= idData.LoadState)
+                if (candidate.Data.GetType() != data.GetType())
+                {
+                    lock (this.m_lock)
+                        this.m_entryTable.Remove(idData.Key.Value);
+                    this.m_entryTable.Add(idData.Key.Value, new CacheEntry(DateTime.Now, data as IdentifiedData));
+                }
+                else if ((candidate.Data as IIdentifiedEntity).LoadState <= idData.LoadState)
                     candidate.Update(data as IdentifiedData);
             }
             else
@@ -276,7 +282,6 @@ namespace OpenIZ.Caching.Memory
         public void Clear()
         {
             this.ThrowIfDisposed();
-
             this.m_entryTable.Clear();
         }
 

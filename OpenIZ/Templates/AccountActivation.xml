@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>Welcome to OpenIZ!</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }}</strong></p>
+      <p>Welcome to the OpenIZ solution. Your account has been created by {{ $authenticatedUser }}. You'll have to <a href="https://openiz.santesuite.net/Account/Activate?{{ $activateToken }}">Activate Your Account</a> and set a new password. </p>
+      <p><strong>User Name:</strong> {{ $UserName }}</p>
+      <p><strong>Temporary Password:</strong> {{ $password }}</p>
+      <p>After you have activated your account you will be able to log in with your new credentials. The link above will expire {{ $expiry }}</strong>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenIZ.Core.Alert.Alerting;
@@ -238,5 +238,18 @@ namespace OpenIZ.Messaging.IMSI.Test
             var expression = CreateQueryString(query.ToArray());
             Assert.AreEqual("name[Legal].component.value=Smith", expression);
         }
+
+
+        /// <summary>
+        /// Tests that the [QueryParameter] attribute is adhered to
+        /// </summary>
+        [TestMethod]
+        public void TestWriteNonSerializedProperty()
+        {
+            var query = QueryExpressionBuilder.BuildQuery<Patient>(o => o.Extensions.Any(e => e.ExtensionDisplay == "1"));
+            var expression = CreateQueryString(query.ToArray());
+            Assert.AreEqual("extension.display=1", expression);
+        }
+
     }
 }

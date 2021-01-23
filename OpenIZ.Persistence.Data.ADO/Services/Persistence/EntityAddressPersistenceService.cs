@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.DataTypes;
 using OpenIZ.Core.Model.Entities;
@@ -53,14 +53,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public IEnumerable GetFromSource(DataContext context, Guid id, decimal? versionSequenceId, IPrincipal principal)
         {
-            int tr = 0;
             var addrLookupQuery = context.CreateSqlStatement<DbEntityAddressComponent>().SelectFrom()
                 .InnerJoin<DbEntityAddress>(o=>o.SourceKey, o=>o.Key)
                 .InnerJoin<DbEntityAddressComponentValue>(o=>o.ValueSequenceId, o=>o.SequenceId)
                 .Where<DbEntityAddress>(o=>o.SourceKey == id && o.ObsoleteVersionSequenceId == null);
 
             /// Yowza! But it appears to be faster than the other way 
-            return this.DomainQueryInternal<CompositeResult<DbEntityAddressComponent, DbEntityAddress, DbEntityAddressComponentValue>>(context, addrLookupQuery, ref tr)
+            return this.DomainQueryInternal<CompositeResult<DbEntityAddressComponent, DbEntityAddress, DbEntityAddressComponentValue>>(context, addrLookupQuery)
                 .GroupBy(o=>o.Object2.Key)
                 .Select(o =>
                     new EntityAddress()

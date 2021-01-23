@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.OrmLite.Attributes;
 using System;
@@ -30,6 +30,15 @@ namespace OpenIZ.OrmLite
     /// </summary>
     public class ColumnMapping
     {
+
+        /// <summary>
+        /// A column mapping representing 1 (for using in SELECT 1 FROM)
+        /// </summary>
+        public static readonly ColumnMapping One = new ColumnMapping()
+        {
+            Name = "1",
+            SourceProperty = null
+        };
 
         // Column mapping
         private static Dictionary<PropertyInfo, ColumnMapping> s_columnCache = new Dictionary<PropertyInfo, ColumnMapping>();
@@ -77,6 +86,11 @@ namespace OpenIZ.OrmLite
         /// Identifies the column must always have a value even if 0
         /// </summary>
         public bool IsNonNull { get; private set; }
+
+        /// <summary>
+        /// Column mapping
+        /// </summary>
+        private ColumnMapping() { }
 
         /// <summary>
         /// Create a column mapping

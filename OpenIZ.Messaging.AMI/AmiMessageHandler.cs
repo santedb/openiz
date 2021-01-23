@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you
@@ -15,7 +15,7 @@
  * the License.
  *
  * User: khannan
- * Date: 2016-8-2
+ * Date: 2017-9-1
  */
 
 using MARC.HI.EHRS.SVC.Core;
@@ -41,7 +41,7 @@ namespace OpenIZ.Messaging.AMI
 	/// <summary>
 	/// AMI Message handler
 	/// </summary>
-    [Description("AMI Message Service")]
+	[Description("AMI Message Service")]
 	public class AmiMessageHandler : IDaemonService, IApiEndpointProvider
 	{
 		/// <summary>
@@ -132,12 +132,12 @@ namespace OpenIZ.Messaging.AMI
 		/// </summary>
 		public bool Start()
 		{
-            // Don't startup unless in OpenIZ
-            if (Assembly.GetEntryAssembly().GetName().Name != "OpenIZ")
-                return true;
+			// Don't startup unless in OpenIZ
+			if (Assembly.GetEntryAssembly().GetName().Name != "OpenIZ")
+				return true;
 
-            try
-            {
+			try
+			{
 				this.Starting?.Invoke(this, EventArgs.Empty);
 
 				this.m_webHost = new WebServiceHost(typeof(AmiBehavior));

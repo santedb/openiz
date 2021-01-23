@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-7-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Newtonsoft.Json;
 using OpenIZ.Core.Model.Acts;
@@ -32,8 +32,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-
-
+using OpenIZ.Core.Model.Roles;
 
 namespace OpenIZ.Core.Model
 {
@@ -203,7 +202,7 @@ namespace OpenIZ.Core.Model
         /// <summary>
         /// Clone the specified data
         /// </summary>
-        public IdentifiedData GetLocked()
+        public virtual IdentifiedData GetLocked()
         {
             var retVal = this.MemberwiseClone() as IdentifiedData;
             return retVal;
@@ -235,6 +234,29 @@ namespace OpenIZ.Core.Model
         public virtual String ToDisplay()
         {
             return this.Key.ToString();
+        }
+
+        /// <summary>
+        /// Quality Comparer
+        /// </summary>
+        public class EqualityComparer<T> : IEqualityComparer<T>
+            where T : IdentifiedData
+        {
+            /// <summary>
+            /// Equality
+            /// </summary>
+            public bool Equals(T x, T y)
+            {
+                return x.Key == y.Key;
+            }
+
+            /// <summary>
+            /// Get comparison hash code
+            /// </summary>
+            public int GetHashCode(T obj)
+            {
+                return obj.Key.GetHashCode();
+            }
         }
     }
 }

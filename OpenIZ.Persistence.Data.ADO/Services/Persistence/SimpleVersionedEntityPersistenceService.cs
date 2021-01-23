@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System.Security.Principal;
 using OpenIZ.Core.Model;
@@ -59,13 +59,18 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             {
                 if (cacheItem.LoadState < context.LoadState)
                 {
+                    this.m_tracer.TraceEvent(TraceEventType.Warning, 0, "Cache state of {0}({1}) is lower than context ({2})", cacheItem, cacheItem.LoadState, context.LoadState);
                     cacheItem.LoadAssociations(context, principal);
                     cacheService?.Add(cacheItem);
                 }
-                    return cacheItem;
+                else
+                    this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} from cache returned", cacheItem);
+                return cacheItem;
             }
             else
             {
+                this.m_tracer.TraceEvent(TraceEventType.Verbose, 0, "Item {0} ({1}) not in cache will load", key, typeof(TModel).FullName);
+
                 var domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery<TModel>(o => o.Key == key && o.ObsoletionTime == null).Build();
                 domainQuery.OrderBy<TRootEntity>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
                 cacheItem = this.ToModelInstance(context.FirstOrDefault<TQueryReturn>(domainQuery), context, principal);
@@ -117,7 +122,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     if (uuid.VersionId == Guid.Empty)
                         retVal = this.Get(connection, uuid.Id, principal);
                     else
-                        retVal = this.CacheConvert(this.QueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
+                        retVal = this.CacheConvert(this.DoQueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
 
                     var postData = new PostRetrievalEventArgs<TModel>(retVal, principal);
                     this.FireRetrieved(postData);

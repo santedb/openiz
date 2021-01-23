@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-20
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Attributes;
 using System;
@@ -113,7 +113,6 @@ namespace OpenIZ.Core.Model.Security
         [XmlElement("photo"), JsonProperty("photo")]
         public byte[] UserPhoto { get; set; }
         
-
         /// <summary>
         /// The last login time
         /// </summary>
@@ -139,8 +138,7 @@ namespace OpenIZ.Core.Model.Security
         /// <summary>
         /// Represents roles
         /// </summary>
-        [XmlIgnore, JsonIgnore]
-
+        [XmlIgnore, JsonIgnore, QueryParameter("role")]
         public List<SecurityRole> Roles { get; set; }
 
         /// <summary>
@@ -161,6 +159,13 @@ namespace OpenIZ.Core.Model.Security
         [XmlElement("userClass"), JsonProperty("userClass")]
         [Binding(typeof(UserClassKeys))]
         public Guid UserClass { get; set; }
+
+
+        /// <summary>
+        /// Link from this security resource to an entity resource 
+        /// </summary>
+        [XmlIgnore, QueryParameter("userEntity"), JsonIgnore]
+        public UserEntity UserEntity { get; set; }
 
         /// <summary>
         /// Gets the etag

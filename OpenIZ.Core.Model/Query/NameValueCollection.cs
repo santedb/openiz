@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections;
@@ -73,12 +73,15 @@ namespace OpenIZ.Core.Model.Query
         public static NameValueCollection ParseQueryString(String qstring)
         {
             NameValueCollection retVal = new NameValueCollection();
+            if (String.IsNullOrEmpty(qstring)) return retVal;
             if (qstring.StartsWith("?")) qstring = qstring.Substring(1);
             foreach (var itm in qstring.Split('&'))
             {
                 var expr = itm.Split('=');
-                expr[0] = Uri.UnescapeDataString(expr[0]);
-                expr[1] = Uri.UnescapeDataString(expr[1]);
+                if(!String.IsNullOrEmpty(expr[0]))
+                    expr[0] = Uri.UnescapeDataString(expr[0]);
+                if(!String.IsNullOrEmpty(expr[1]))
+                    expr[1] = Uri.UnescapeDataString(expr[1]);
                 var value = expr[1].Replace('+', ' ').
                     Replace("%3A", ":").
                     Replace("%2F", "/").
@@ -130,6 +133,16 @@ namespace OpenIZ.Core.Model.Query
                 }
             }
             return queryString;
+        }
+
+        /// <summary>
+        /// Get the key
+        /// </summary>
+        public List<String> Get(String key)
+        {
+            List<String> retVal = null;
+            this.TryGetValue(key, out retVal);
+            return retVal;
         }
     }
 

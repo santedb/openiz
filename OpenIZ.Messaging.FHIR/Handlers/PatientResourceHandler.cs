@@ -1,24 +1,24 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: justi
- * Date: 2016-9-8
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using MARC.HI.EHRS.SVC.Core;
+using MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.Resources;
 using OpenIZ.Core.Model;
@@ -62,15 +62,16 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 		{
 			var retVal = DataTypeConverter.CreateResource<Patient>(model);
 			retVal.Active = model.StatusConceptKey == StatusKeys.Active;
-			retVal.Address = model.Addresses.Select(o => DataTypeConverter.ToFhirAddress(o)).ToList();
+			retVal.Address = model.LoadCollection<EntityAddress>("Addresses").Select(o => DataTypeConverter.ToFhirAddress(o)).ToList();
 			retVal.BirthDate = model.DateOfBirth;
+            retVal.BirthDate.Precision = model.DateOfBirthPrecision == DatePrecision.Day ? MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes.DatePrecision.Day : MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes.DatePrecision.Month;
 			retVal.Deceased = model.DeceasedDate == DateTime.MinValue ? (object)new FhirBoolean(true) : model.DeceasedDate != null ? new FhirDate(model.DeceasedDate.Value) : null;
-			retVal.Gender = DataTypeConverter.ToFhirCodeableConcept(model.GenderConcept)?.GetPrimaryCode()?.Code;
+			retVal.Gender = DataTypeConverter.ToFhirCodeableConcept(model.LoadProperty<Concept>("GenderConcept"))?.GetPrimaryCode()?.Code;
 			retVal.Identifier = model.Identifiers?.Select(o => DataTypeConverter.ToFhirIdentifier(o)).ToList();
 			retVal.MultipleBirth = model.MultipleBirthOrder == 0 ? (FhirElement)new FhirBoolean(true) : model.MultipleBirthOrder.HasValue ? new FhirInt(model.MultipleBirthOrder.Value) : null;
-			retVal.Name = model.Names.Select(o => DataTypeConverter.ToFhirHumanName(o)).ToList();
+			retVal.Name = model.LoadCollection<EntityName>("Names").Select(o => DataTypeConverter.ToFhirHumanName(o)).ToList();
 			retVal.Timestamp = model.ModifiedOn.DateTime;
-			retVal.Telecom = model.Telecoms.Select(o => DataTypeConverter.ToFhirTelecom(o)).ToList();
+			retVal.Telecom = model.LoadCollection<EntityTelecomAddress>("Telecoms").Select(o => DataTypeConverter.ToFhirTelecom(o)).ToList();
 
 			// TODO: Relationships
 			foreach (var rel in model.LoadCollection<EntityRelationship>("Relationships").Where(o => !o.InversionIndicator))
@@ -167,5 +168,22 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 
 			return patient;
 		}
-	}
+
+        /// <summary>
+        /// Get interactions
+        /// </summary>
+        protected override IEnumerable<InteractionDefinition> GetInteractions()
+        {
+            return new TypeRestfulInteraction[]
+            {
+                TypeRestfulInteraction.InstanceHistory,
+                TypeRestfulInteraction.Read,
+                TypeRestfulInteraction.Search,
+                TypeRestfulInteraction.VersionRead,
+                TypeRestfulInteraction.Delete,
+                TypeRestfulInteraction.Create,
+                TypeRestfulInteraction.Update
+            }.Select(o => new InteractionDefinition() { Type = o });
+        }
+    }
 }

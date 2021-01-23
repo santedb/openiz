@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
@@ -167,18 +167,25 @@ namespace OpenIZ.Core.Services.Impl
 		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
 		public IEnumerable<Concept> FindConceptsByReferenceTerm(string code, Uri codeSystem)
 		{
-			if ((codeSystem.Scheme == "urn" || codeSystem.Scheme == "oid"))
-			{
-				var csOid = codeSystem.LocalPath;
+            var adhocCache = ApplicationContext.Current.GetService<IAdhocCacheService>();
+            var retVal = adhocCache?.Get<IEnumerable<Concept>>($"{code}.{codeSystem}");
+            if (retVal != null)
+                return retVal;
+            else if ((codeSystem.Scheme == "urn" || codeSystem.Scheme == "oid"))
+            {
+                var csOid = codeSystem.LocalPath;
                 if (csOid.StartsWith("oid"))
                 {
                     csOid = codeSystem.LocalPath.Substring(4);
-                    return this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Oid == csOid && r.ReferenceTerm.Mnemonic == code));
+                    retVal = this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Oid == csOid && r.ReferenceTerm.Mnemonic == code && r.ObsoleteVersionSequenceId == null));
                 }
-			}
+            }
+            else
+                retVal = this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Url == codeSystem.OriginalString && r.ReferenceTerm.Mnemonic == code && r.ObsoleteVersionSequenceId == null));
 
-			return this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Url == codeSystem.OriginalString && r.ReferenceTerm.Mnemonic == code));
-		}
+            adhocCache?.Add($"{code}.{codeSystem}", retVal, new TimeSpan(0, 0, 30));
+            return retVal;
+        }
 
 		/// <summary>
 		/// Find concepts by reference terms
@@ -187,12 +194,20 @@ namespace OpenIZ.Core.Services.Impl
 		{
             Regex oidRegex = new Regex("^(\\d+?\\.){1,}\\d+$");
             Uri tryUri = null;
-            if(codeSystemDomain.StartsWith("http:") || codeSystemDomain.StartsWith("urn:"))
-                return this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Url == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
+            var adhocCache = ApplicationContext.Current.GetService<IAdhocCacheService>();
+            var retVal = adhocCache?.Get<IEnumerable<Concept>>($"{code}.{codeSystemDomain}");
+
+            if (retVal != null)
+                return retVal;
+            else if (codeSystemDomain.StartsWith("http:") || codeSystemDomain.StartsWith("urn:"))
+                retVal = this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Url == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
             else if(oidRegex.IsMatch(codeSystemDomain))
-                return this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Oid == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
+                retVal = this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Oid == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
             else
-                return this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Authority == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
+                retVal = this.FindConcepts(o => o.ReferenceTerms.Any(r => r.ReferenceTerm.CodeSystem.Authority == codeSystemDomain && r.ReferenceTerm.Mnemonic == code));
+
+            adhocCache?.Add($"{code}.{codeSystemDomain}", retVal, new TimeSpan(0, 15, 0));
+            return retVal;
 		}
 
 		/// <summary>
@@ -275,8 +290,19 @@ namespace OpenIZ.Core.Services.Impl
 		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
 		public Concept GetConcept(string mnemonic)
 		{
-			return this.FindConcepts(o => o.Mnemonic == mnemonic).FirstOrDefault();
-		}
+            var adhocCache = ApplicationContext.Current.GetService<IAdhocCacheService>();
+            var retVal = adhocCache?.Get<Guid>($"concept.{mnemonic}");
+
+            if (retVal != null)
+                return this.GetConcept(retVal.Value, Guid.Empty) as Concept;
+            else
+            {
+                var result = this.FindConcepts(o => o.Mnemonic == mnemonic).FirstOrDefault();
+                adhocCache?.Add<Guid>($"concept.{mnemonic}", result.Key.Value, new TimeSpan(0, 15, 0));
+                return result;
+
+            }
+        }
 
 		/// <summary>
 		/// Gets a concept class.
@@ -325,8 +351,14 @@ namespace OpenIZ.Core.Services.Impl
 		/// <exception cref="System.InvalidOperationException">Cannot find concept service</exception>
 		public ReferenceTerm GetConceptReferenceTerm(Guid conceptId, string codeSystem)
 		{
-			// Concept is loaded
-			var refTermService = ApplicationContext.Current.GetService<IDataPersistenceService<ConceptReferenceTerm>>();
+            var adhocCache = ApplicationContext.Current.GetService<IAdhocCacheService>();
+            var retVal = adhocCache?.Get<ReferenceTerm>($"refTerm.{conceptId}.{codeSystem}");
+
+            if (retVal != null)
+                return retVal;
+
+            // Concept is loaded
+            var refTermService = ApplicationContext.Current.GetService<IDataPersistenceService<ConceptReferenceTerm>>();
 
 			if (refTermService == null)
 			{
@@ -346,16 +378,18 @@ namespace OpenIZ.Core.Services.Impl
             else
                 refTermEnt = refTermService.Query(o => (o.ReferenceTerm.CodeSystem.Authority == codeSystem) && o.SourceEntityKey == conceptId, 0, 1, AuthenticationContext.Current.Principal, out tr).FirstOrDefault();
 
-            return refTermEnt.LoadProperty<ReferenceTerm>("ReferenceTerm");
-		}
+            retVal = refTermEnt.LoadProperty<ReferenceTerm>("ReferenceTerm");
+            adhocCache?.Add<ReferenceTerm>($"refTerm.{conceptId}.{codeSystem}", retVal, new TimeSpan(0, 15, 0));
+            return retVal;
+        }
 
-		/// <summary>
-		/// Get the specified concept set by identifier
-		/// </summary>
-		/// <param name="id">The id of the concept set to retrieve.</param>
-		/// <returns>Returns the concept set.</returns>
-		/// <exception cref="System.InvalidOperationException">ConceptSet persistence service not found.</exception>
-		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
+        /// <summary>
+        /// Get the specified concept set by identifier
+        /// </summary>
+        /// <param name="id">The id of the concept set to retrieve.</param>
+        /// <returns>Returns the concept set.</returns>
+        /// <exception cref="System.InvalidOperationException">ConceptSet persistence service not found.</exception>
+        [PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
 		public ConceptSet GetConceptSet(Guid id)
 		{
 			var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ConceptSet>>();

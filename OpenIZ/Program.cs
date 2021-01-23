@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MohawkCollege.Util.Console.Parameters;
@@ -26,14 +26,18 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
+using MARC.HI.EHRS.SVC.Core.Services;
 using OpenIZ.Core;
 using OpenIZ.Core.Services.Impl;
 using OpenIZ.Core.Security;
 using OpenIZ.AdminConsole.Shell;
+using OpenIZ.Core.Services.Jobs;
+using ApplicationContext = MARC.HI.EHRS.SVC.Core.ApplicationContext;
 
 namespace OpenIZ
 {
@@ -63,6 +67,8 @@ namespace OpenIZ
 
             // Parser
             ParameterParser<ConsoleParameters> parser = new ParameterParser<ConsoleParameters>();
+            if(!GCSettings.IsServerGC)
+                Trace.TraceInformation("Process is not in server GC mode! Consider switching this");
 
             // Trace copyright information
             Assembly entryAsm = Assembly.GetEntryAssembly();
@@ -79,16 +85,35 @@ namespace OpenIZ
             {
                 var parameters = parser.Parse(args);
                 EntitySource.Current = new EntitySource(new PersistenceServiceEntitySource());
+                var instanceSuffix = !String.IsNullOrEmpty(parameters.InstanceName) ? $"_{parameters.InstanceName}" : null;
 
                 // What to do?
                 if (parameters.ShowHelp)
                     parser.WriteHelp(Console.Out);
+                else if (parameters.Install)
+                {
+                    if (!ServiceTools.ServiceInstaller.ServiceIsInstalled($"OpenIZ{instanceSuffix}"))
+                    {
+                        Console.WriteLine("Installing Service as OpenIZ{0} @ '{1}'...", instanceSuffix, Assembly.GetEntryAssembly().Location);
+                        ServiceTools.ServiceInstaller.Install($"OpenIZ{instanceSuffix}", $"OpenIZ Host Process - {instanceSuffix}", Assembly.GetEntryAssembly().Location, null, null, ServiceTools.ServiceBootFlag.AutoStart);
+                        Console.WriteLine("Installed as OpenIZ{0}", instanceSuffix);
+                    }
+                }
+                else if (parameters.UnInstall)
+                {
+                    if (ServiceTools.ServiceInstaller.ServiceIsInstalled($"OpenIZ{instanceSuffix}"))
+                    {
+                        Console.WriteLine("Un-Installing Service...");
+                        ServiceTools.ServiceInstaller.StopService($"OpenIZ{instanceSuffix}");
+                        ServiceTools.ServiceInstaller.Uninstall($"OpenIZ{instanceSuffix}");
+                    }
+                }
                 else if(parameters.ConsoleMode)
                 {
 #if DEBUG
                     Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.LogAlways);
 #else
-                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.Warning);
+                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.LogAlways);
 #endif
 
                     Console.WriteLine("Open Immunize (OpenIZ) {0} ({1})", entryAsm.GetName().Version, entryAsm.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion);
@@ -97,6 +122,7 @@ namespace OpenIZ
                     ServiceUtil.Start(typeof(Program).GUID);
                     ApplicationServiceContext.Current = MARC.HI.EHRS.SVC.Core.ApplicationContext.Current;
                     MARC.HI.EHRS.SVC.Core.ApplicationContext.Current.AddServiceProvider(typeof(FileConfigurationService));
+                    ApplicationContext.Current.GetService<ITimerService>().AddJob(new GarbageCollectionCompactJob(), new TimeSpan(0,1,0,0));
                     ApplicationServiceContext.HostType = OpenIZHostType.Server;
                     if (!parameters.StartupTest)
                     {
@@ -130,6 +156,12 @@ namespace OpenIZ
                 }
                 else
                 {
+#if DEBUG
+                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.Informational);
+#else
+                    Core.Diagnostics.Tracer.AddWriter(new Core.Diagnostics.LogTraceWriter(System.Diagnostics.Tracing.EventLevel.LogAlways, "OpenIZ.data"), System.Diagnostics.Tracing.EventLevel.Warning);
+#endif
+
                     hasConsole = false;
                     ServiceBase[] servicesToRun = new ServiceBase[] { new OpenIZ() };
                     ServiceBase.Run(servicesToRun);

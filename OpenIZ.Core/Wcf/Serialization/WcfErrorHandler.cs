@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Exceptions;
@@ -26,6 +26,7 @@ using OpenIZ.Core.Security.Audit;
 using OpenIZ.Core.Wcf.Serialization;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Linq;
 using System.Diagnostics;
 using System.IdentityModel.Tokens;
@@ -65,7 +66,7 @@ namespace OpenIZ.Core.Wcf.Serialization
         /// <summary>
         /// Provide fault
         /// </summary>
-        public void ProvideFault(Exception error, MessageVersion version, ref Message fault)
+        public virtual void ProvideFault(Exception error, MessageVersion version, ref Message fault)
         {
 
             FaultCode code = FaultCode.CreateSenderFaultCode("GENERR", "http://openiz.org/model");
@@ -112,7 +113,7 @@ namespace OpenIZ.Core.Wcf.Serialization
             else if (error is Newtonsoft.Json.JsonException ||
                 error is System.Xml.XmlException)
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
-            else if (error is DuplicateKeyException)
+            else if (error is DuplicateKeyException || error is DuplicateNameException)
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Conflict;
             else if (error is FileNotFoundException || error is KeyNotFoundException)
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.NotFound;
@@ -120,10 +121,14 @@ namespace OpenIZ.Core.Wcf.Serialization
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.ServiceUnavailable;
             else if (error is DetectedIssueException)
                 WebOperationContext.Current.OutgoingResponse.StatusCode = (System.Net.HttpStatusCode)422;
+            else if (error is NotImplementedException)
+                WebOperationContext.Current.OutgoingResponse.StatusCode = HttpStatusCode.NotImplemented;
+            else if(error is NotSupportedException)
+                WebOperationContext.Current.OutgoingResponse.StatusCode = HttpStatusCode.MethodNotAllowed;
             else
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.InternalServerError;
            
-       
+
 
             fault = Message.CreateMessage(version, MessageFault.CreateFault(code, reason), String.Empty);
             

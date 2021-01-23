@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -56,11 +56,8 @@ namespace OpenIZ.OrmLite
         // Items to be added to cache after an action
         private Dictionary<Guid, IdentifiedData> m_cacheCommit = new Dictionary<Guid, IdentifiedData>();
 
-        // Cached query
-        private Dictionary<String, IEnumerable<Object>> m_cachedQuery = new Dictionary<string, IEnumerable<object>>();
-
         // Trace source
-        private Tracer m_tracer = Tracer.GetTracer(typeof(DataContext));
+        private TraceSource m_tracer = new TraceSource("OpenIZ.OrmLite");
 
         // Commands prepared on this connection
         private Dictionary<String, IDbCommand> m_preparedCommands = new Dictionary<string, IDbCommand>();
@@ -168,6 +165,21 @@ namespace OpenIZ.OrmLite
                 this.m_connection.Close();
                 this.m_connection.Open();
             }
+
+            try
+            {
+                using (var cmd = this.m_connection.CreateCommand())
+                {
+                    cmd.CommandType = CommandType.Text;
+                    cmd.CommandText = "SET statement_timeout to '3 min'";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch(Exception e)
+            {
+                this.m_tracer.TraceError("Error setting timeout: {0}", e);
+            }
+
         }
 
         /// <summary>
@@ -192,7 +204,6 @@ namespace OpenIZ.OrmLite
             var retVal = this.m_provider.CloneConnection(this);
             retVal.Open();
             retVal.m_dataDictionary = this.m_dataDictionary; // share data
-            retVal.m_cachedQuery = this.m_cachedQuery;
             retVal.LoadState = this.LoadState;
             //retVal.PrepareStatements = this.PrepareStatements;
             return retVal;
@@ -234,10 +245,19 @@ namespace OpenIZ.OrmLite
 
                     itm?.Dispose();
                 }
+
+            if (this.m_lastCommand != null) {
+                this.m_tracer.TraceInfo("Attempting to cancel last command");
+                try
+                {
+                    this.m_lastCommand.Cancel();
+                }
+                catch
+                {
+                }
+            }
             this.m_cacheCommit?.Clear();
             this.m_cacheCommit = null;
-            this.m_cachedQuery?.Clear();
-            this.m_cachedQuery = null;
             this.m_transaction?.Dispose();
             this.m_connection?.Dispose();
         }
@@ -249,6 +269,8 @@ namespace OpenIZ.OrmLite
         {
             try
             {
+                if (this.m_cacheCommit == null) return;
+
                 IdentifiedData existing = null;
                 if (data.Key.HasValue && !this.m_cacheCommit.TryGetValue(data.Key.Value, out existing))
                 {
@@ -273,8 +295,7 @@ namespace OpenIZ.OrmLite
         public IdentifiedData GetCacheCommit(Guid key)
         {
             IdentifiedData retVal = null;
-            lock(this.m_lockObject)
-                this.m_cacheCommit.TryGetValue(key, out retVal);
+            this.m_cacheCommit.TryGetValue(key, out retVal);
             return retVal;
         }
 
@@ -307,9 +328,10 @@ namespace OpenIZ.OrmLite
         /// </summary>
         public String GetQueryLiteral(SqlStatement query)
         {
+            query = query.Build();
             StringBuilder retVal = new StringBuilder(query.SQL);
             String sql = retVal.ToString();
-            var qList = query.Arguments.ToArray();
+            var qList = query.Arguments?.ToArray() ?? new object[0];
             int parmId = 0;
             while (sql.Contains("?"))
             {
@@ -324,27 +346,6 @@ namespace OpenIZ.OrmLite
             return retVal.ToString();
         }
 
-        /// <summary>
-        /// Add a cached set of query results
-        /// </summary>
-        public void AddQuery(SqlStatement domainQuery, IEnumerable<object> results)
-        {
-            var key = this.GetQueryLiteral(domainQuery);
-            lock (this.m_cachedQuery)
-                if (!this.m_cachedQuery.ContainsKey(key))
-                    this.m_cachedQuery.Add(key, results);
-        }
-
-        /// <summary>
-        /// Cache a query 
-        /// </summary>
-        public IEnumerable<Object> CacheQuery(SqlStatement domainQuery)
-        {
-            var key = this.GetQueryLiteral(domainQuery);
-            IEnumerable<Object> retVal = null;
-            this.m_cachedQuery.TryGetValue(key, out retVal);
-            return retVal;
-        }
 
     }
 }

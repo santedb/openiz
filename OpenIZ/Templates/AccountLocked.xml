@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>Your OpenIZ Account has been locked!</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }},</strong></p>
+      <p>This is just a friendly notice that your account has been locked by {{ $authenticatedUser }}.</p>
+      <p>This may be a normal if you have recently changed positions and are receiving a new account.</p>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

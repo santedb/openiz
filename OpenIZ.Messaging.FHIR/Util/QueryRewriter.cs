@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -37,6 +37,7 @@ using OpenIZ.Core.Model.Query;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.Resources;
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.Core.Services;
+using MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes;
 
 namespace OpenIZ.Messaging.FHIR.Util
 {
@@ -71,6 +72,7 @@ namespace OpenIZ.Messaging.FHIR.Util
 
         // The query parameter map
         private static QueryParameterMap s_map;
+
         // Default
         private static QueryParameterType s_default;
 
@@ -79,25 +81,127 @@ namespace OpenIZ.Messaging.FHIR.Util
         /// </summary>
         static QueryRewriter()
         {
-            Stream s = null;
-            try {
-                var externMap = Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "ParameterMap.Fhir.xml");
-                if (File.Exists(externMap))
-                    s = File.OpenRead(externMap);
-                else
-                    s = typeof(QueryRewriter).Assembly.GetManifestResourceStream("OpenIZ.Messaging.FHIR.ParameterMap.xml");
-                XmlSerializer xsz = new XmlSerializer(typeof(QueryParameterMap));
-                s_map = xsz.Deserialize(s) as QueryParameterMap;
-                s_default = s_map.Map.FirstOrDefault(o => o.SourceType == typeof(ResourceBase));
-            }
-            finally
+            OpenMapping(typeof(QueryRewriter).Assembly.GetManifestResourceStream("OpenIZ.Messaging.FHIR.ParameterMap.xml"));
+            var externMap = Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "ParameterMap.Fhir.xml");
+
+            if (File.Exists(externMap))
+                using (var s = File.OpenRead(externMap))
+                    OpenMapping(s);
+        }
+
+        /// <summary>
+        /// Open a query mapping
+        /// </summary>
+        private static void OpenMapping(Stream stream)
+        {
+            XmlSerializer xsz = new XmlSerializer(typeof(QueryParameterMap));
+
+            if (s_map == null)
+                s_map = xsz.Deserialize(stream) as QueryParameterMap;
+            else
             {
-                s?.Close();
-                s?.Dispose();
+                // Merge
+                var map = xsz.Deserialize(stream) as QueryParameterMap;
+                s_map.Merge(map);
+            }
+
+            s_default = s_map.Map.FirstOrDefault(o => o.SourceType == typeof(ResourceBase));
+        }
+
+        /// <summary>
+        /// Get a list of search parameters
+        /// </summary>
+        public static IEnumerable<MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamDefinition> GetSearchParams<TFhirResource, TModelType>()
+        {
+            var map = s_map.Map.FirstOrDefault(o => o.SourceType == typeof(TFhirResource));
+            if (map == null) return new MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamDefinition[0];
+            else
+                return map.Map.Select(o => new MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamDefinition()
+                {
+                    Name = o.FhirName,
+                    Type = MapFhirParameterType<TModelType>(o.FhirType, o.ModelName),
+                    Documentation = o.Description,
+                    Definition = new FhirUri(new Uri($"/Profile/openiz#search-{map.SourceType.Name}.{o.FhirName}", UriKind.Relative))
+                });
+
+        }
+
+        /// <summary>
+        /// Map FHIR parameter type
+        /// </summary>
+        private static MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType MapFhirParameterType<TModelType>(string type, string definition)
+        {
+            switch (type)
+            {
+                case "concept":
+                case "identifier":
+                    return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Token;
+                case "reference":
+                    return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Reference;
+                default:
+                    try
+                    {
+
+
+                        switch (GetQueryType<TModelType>(definition).StripNullable().Name)
+                        {
+                            case "String":
+                                return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.String;
+                            case "Uri":
+                                return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Uri;
+                            case "Int32":
+                            case "Int64":
+                            case "Int16":
+                            case "Double":
+                            case "Decimal":
+                            case "Float":
+                                return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Number;
+                            case "DateTime":
+                            case "DateTimeOffset":
+                                return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Date;
+                            default:
+                                return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.Composite;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        return MARC.HI.EHRS.SVC.Messaging.FHIR.Backbone.SearchParamType.String;
+                    }
             }
         }
 
-        
+        /// <summary>
+        /// Follows the specified query definition and determines the type
+        /// </summary>
+        private static Type GetQueryType<TModelType>(string definition)
+        {
+            var pathParts = definition.Split('.');
+            var scopeType = typeof(TModelType);
+            foreach (var path in pathParts)
+            {
+                // Get actual path
+                var vPath = path;
+                if (vPath.Contains("["))
+                    vPath = vPath.Substring(0, vPath.IndexOf("["));
+                else if (vPath.Contains("@"))
+                    vPath = vPath.Substring(0, vPath.IndexOf("@"));
+
+                if (path.Contains("@")) // cast? 
+                {
+                    var cast = path.Substring(path.IndexOf("@") + 1);
+                    scopeType = typeof(QueryExpressionParser).GetTypeInfo().Assembly.ExportedTypes.FirstOrDefault(o => o.GetTypeInfo().GetCustomAttribute<XmlTypeAttribute>()?.TypeName == cast);
+                }
+                else
+                {
+                    var property = scopeType.GetQueryProperty(vPath, true);
+                    if (property == null)
+                        return scopeType;
+                    scopeType = property.PropertyType.StripGeneric();
+                }
+            }
+            return scopeType;
+        }
+
         /// <summary>
         /// Re-writes the FHIR query parameter to IMSI query parameter format
         /// </summary>
@@ -154,7 +258,7 @@ namespace OpenIZ.Messaging.FHIR.Util
                         ModelName = "extension",
                         FhirType = "tag"
                     };
-                else if(parmMap == null)
+                else if (parmMap == null)
                     continue;
 
                 foreach (var v in fhirQuery.GetValues(kv))
@@ -232,7 +336,7 @@ namespace OpenIZ.Messaging.FHIR.Util
                                 if (codeSystemUri.StartsWith("urn:oid:"))
                                 {
                                     codeSystemUri = codeSystemUri.Substring(8);
-                                    codeSystem = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindCodeSystems(o => o.Oid == codeSystemUri ).FirstOrDefault();
+                                    codeSystem = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindCodeSystems(o => o.Oid == codeSystemUri).FirstOrDefault();
                                 }
                                 else if (codeSystemUri.StartsWith("urn:") || codeSystemUri.StartsWith("http:"))
                                     codeSystem = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindCodeSystems(o => o.Url == codeSystemUri).FirstOrDefault();

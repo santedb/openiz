@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<NotificationTemplate xmlns="http://openiz.org/notification">
+  <subject>Your E-Mail Address was Changed</subject>
+  <body>
+        <![CDATA[
+  <html>
+    <body>
+      <p><strong>Hello {{ $UserName }},</strong></p>
+      <p>This e-mail is to inform you that <strong>{{ $authenticatedUser }}</strong> has changed your e-mail address. The new e-mail address is <a href="mailto:{{ $newEmail }}">{{ $newEmail }}</a>. For security reasons, your account has been locked and must be re-activated.</p>
+      <ul>
+        <li>If you performed this change, you need to <a href="https://openiz.santesuite.net/Account/Activate?{{ $activateToken }}">confirm your account change</a></li>
+        <li>If you did not make this change, please contact your support personnel immediately</li>
+      </ul>
+      <p>You will have until {{ $expiry }} to re-activate your account using the link above</p>
+    </body>
+  </html>
+  ]]></body>
+</NotificationTemplate>

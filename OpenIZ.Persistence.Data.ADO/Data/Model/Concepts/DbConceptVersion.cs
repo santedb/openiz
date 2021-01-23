@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Linq;
@@ -29,7 +29,7 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Model.Concepts
 	/// Physical data layer implemntation of concept
 	/// </summary>
 	[Table("cd_vrsn_tbl")]
-	public class DbConceptVersion : DbVersionedData
+	public class DbConceptVersion : DbVersionedData, IDbHasStatus
 	{
 
 		/// <summary>
@@ -46,7 +46,7 @@ namespace OpenIZ.Persistence.Data.ADO.Data.Model.Concepts
 		/// Gets or sets the status concept id
 		/// </summary>
 		[Column("sts_cd_id"), ForeignKey(typeof(DbConcept), nameof(DbConcept.Key))]
-		public Guid StatusKey {
+		public Guid StatusConceptKey {
 			get;
 			set;
 		}

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Messaging.FHIR.DataTypes;
@@ -271,12 +271,14 @@ namespace OpenIZ.Messaging.FHIR.Util
                 Url = eType.Name
             };
 
-            if (ext.Value is Decimal)
-                retVal.Value = new FhirDecimal((Decimal)ext.Value);
-            else if (ext.Value is String)
-                retVal.Value = new FhirString((String)ext.Value);
-            else if (ext.Value is Boolean)
-                retVal.Value = new FhirBoolean((bool)ext.Value);
+            if (ext.Value is Decimal || eType.ExtensionHandler == typeof(DecimalExtensionHandler))
+                retVal.Value = new FhirDecimal((Decimal)(ext.Value ?? new DecimalExtensionHandler().DeSerialize(ext.Data)));
+            else if (ext.Value is String || eType.ExtensionHandler == typeof(StringExtensionHandler))
+                retVal.Value = new FhirString((String)(ext.Value ?? new StringExtensionHandler().DeSerialize(ext.Data)));
+            else if (ext.Value is Boolean || eType.ExtensionHandler == typeof(BooleanExtensionHandler))
+                retVal.Value = new FhirBoolean((bool)(ext.Value ?? new BooleanExtensionHandler().DeSerialize(ext.Data)));
+            else if (ext.Value is Concept concept)
+                retVal.Value = ToFhirCodeableConcept(concept);
             else
                 retVal.Value = new FhirBase64Binary(ext.Data);
             return retVal;
@@ -536,12 +538,22 @@ namespace OpenIZ.Messaging.FHIR.Util
 			}
 
             if (String.IsNullOrEmpty(preferredCodeSystem))
-                return new FhirCodeableConcept
-                {
-                    Coding = concept.LoadCollection<ConceptReferenceTerm>(nameof(Concept.ReferenceTerms)).Select(o => DataTypeConverter.ToCoding(o.LoadProperty<ReferenceTerm>(nameof(ConceptReferenceTerm.ReferenceTerm)))).ToList(),
-                    Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
-                };
-            else {
+            {
+                var refTerms = concept.LoadCollection<ConceptReferenceTerm>(nameof(Concept.ReferenceTerms));
+                if (refTerms.Any())
+                    return new FhirCodeableConcept
+                    {
+                        Coding = refTerms.Select(o => DataTypeConverter.ToCoding(o.LoadProperty<ReferenceTerm>(nameof(ConceptReferenceTerm.ReferenceTerm)))).ToList(),
+                        Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
+                    };
+                else
+                    return new FhirCodeableConcept(new Uri("http://openiz.org/concept"), concept.Mnemonic)
+                    {
+                        Text = concept.LoadCollection<ConceptName>(nameof(Concept.ConceptNames)).FirstOrDefault()?.Name
+                    };
+            }
+            else
+            {
                 var codeSystemService = ApplicationContext.Current.GetService<IConceptRepositoryService>();
                 var refTerm = codeSystemService.GetConceptReferenceTerm(concept.Key.Value, preferredCodeSystem);
                 if (refTerm == null) // No code in the preferred system, ergo, we will instead use our own

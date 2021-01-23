@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Newtonsoft.Json;
 using System;
@@ -24,6 +24,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
+using Newtonsoft.Json.Serialization;
 
 namespace OpenIZ.Core.Model.Serialization
 {
@@ -35,7 +36,7 @@ namespace OpenIZ.Core.Model.Serialization
 
         private static Dictionary<String, Type> s_typeCache = new Dictionary<string, Type>();
         private static object s_lock = new object();
-
+       
         /// <summary>
         /// Bind to type
         /// </summary>

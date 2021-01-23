@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Collection;
 using System;
@@ -38,6 +38,7 @@ using OpenIZ.Core.Services;
 using OpenIZ.Core.Model.Entities;
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Constants;
+using System.Data.Common;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -48,6 +49,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     {
         // Progress has changed
         public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
+        /// Exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key) => false;
 
         /// <summary>
         /// From model instance
@@ -162,10 +168,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 var svc = ApplicationContext.Current.GetService(idp);
 				var method = "Insert";
 
-	            if (itm.TryGetExisting(context, principal, true) != null)
-	            {
+	            if (itm.CheckExists(context))
 					method = "Update";
-				}
 
                 this.m_tracer.TraceInformation("Will {0} object from bundle {1}...", method, itm);
                 this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)(i + 1) / data.Item.Count, itm));
@@ -177,7 +181,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 }
                 catch(TargetInvocationException e)
                 {
-                    throw e.InnerException;
+                    throw new Exception($"Bundle persistence error inserting record at {i}", e.InnerException);
                 }
             }
 

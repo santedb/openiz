@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Exceptions;
@@ -85,7 +85,6 @@ namespace OpenIZ.Core.Wcf.Security
                         //operationContext.ServiceSecurityContext.AuthorizationContext.Properties["Identities"] = identities;
                         operationContext.ServiceSecurityContext.AuthorizationContext.Properties["Principal"] = Core.Security.AuthenticationContext.AnonymousPrincipal;
                         Core.Security.AuthenticationContext.Current = new Core.Security.AuthenticationContext(Core.Security.AuthenticationContext.AnonymousPrincipal);
-
                         return true; // OPTIONS is non PHI infrastructural
                     }
                     else
@@ -94,10 +93,12 @@ namespace OpenIZ.Core.Wcf.Security
                         throw new UnauthorizedRequestException("Missing Authorization header", "Bearer", this.m_configuration.Security.ClaimsAuth.Realm, this.m_configuration.Security.ClaimsAuth.Audiences.FirstOrDefault());
                     }
                 }
-                else if (!authorization.Trim().StartsWith("bearer", StringComparison.InvariantCultureIgnoreCase))
+                else if (!authorization.Trim().StartsWith("bearer", StringComparison.InvariantCultureIgnoreCase) && 
+                    !authorization.Trim().StartsWith("urn:ietf:params:oauth:token-type:jwt", StringComparison.InvariantCultureIgnoreCase)) // <-- Also acceptable 
                     throw new UnauthorizedRequestException("Invalid authentication scheme", "Bearer", this.m_configuration.Security.ClaimsAuth.Realm, this.m_configuration.Security.ClaimsAuth.Audiences.FirstOrDefault());
 
-                String authorizationToken = authorization.Substring(6).Trim();
+                authorization = authorization.Trim();
+                String authorizationToken = authorization.Substring(authorization.IndexOf(" ")).Trim();
                 JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
 
                 var identityModelConfig = ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("system.identityModel") as SystemIdentityModelSection;

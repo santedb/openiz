@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Linq;
@@ -118,15 +118,15 @@ namespace OpenIZ.Messaging.IMSI.Wcf
                 // TODO: Add a configuration option to disable this
                 Dictionary<String, String> requiredHeaders = new Dictionary<string, string>() {
                     {"Access-Control-Allow-Origin", "*"},
-                    {"Access-Control-Request-Method", "GET,POST,PUT,DELETE,OPTIONS"},
-                    {"Access-Control-Allow-Headers", "X-Requested-With,Content-Type,Accept,Content-Encoding,Accept-Encoding"}
+                    {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
+                    {"Access-Control-Allow-Headers", "X-Requested-With,Content-Type,Accept,Content-Encoding,Accept-Encoding, Authorization"}
                 };
                 foreach (var kv in requiredHeaders)
                     if (!WebOperationContext.Current.OutgoingResponse.Headers.AllKeys.Contains(kv.Key))
                         WebOperationContext.Current.OutgoingResponse.Headers.Add(kv.Key, kv.Value);
 
                 // No reply = no compress :)
-                if (reply.IsEmpty)
+                if (reply == null || reply.IsEmpty)
                     return;
 
                 // Finally compress

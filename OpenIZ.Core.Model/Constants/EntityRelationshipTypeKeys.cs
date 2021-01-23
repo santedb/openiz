@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 
@@ -646,5 +646,10 @@ namespace OpenIZ.Core.Model.Constants
         /// Relates the target entity to a source location
         /// </summary>
         public static readonly Guid LocatedEntity = Guid.Parse("4F6273D3-8223-4E18-8596-C718AD029DEB");
+
+        /// <summary>
+        /// Duplicate
+        /// </summary>
+        public static readonly Guid Duplicate = Guid.Parse("1A19732C-C6BD-4DBA-8931-C6D666C06BAA");
     }
 }

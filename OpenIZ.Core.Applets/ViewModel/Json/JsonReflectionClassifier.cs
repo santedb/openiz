@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections;
@@ -26,6 +26,7 @@ using System.Reflection;
 using OpenIZ.Core.Model.EntityLoader;
 using System.Linq.Expressions;
 using System.Linq;
+using OpenIZ.Core.Applets.ViewModel;
 
 namespace OpenIZ.Core.Applets.ViewModel.Json
 {
@@ -45,14 +46,18 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
         // Type
         private Type m_type;
 
+        // The serializer that owns this serializer
+        private IViewModelSerializer m_serializer;
+
         /// <summary>
         /// Creates a new reflection based classifier
         /// </summary>
-        public JsonReflectionClassifier(Type type)
+        public JsonReflectionClassifier(Type type, IViewModelSerializer owner)
         {
             this.m_type = type;
             var classifierAtt = type.StripGeneric().GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
             this.m_classifierAttribute = classifierAtt;
+            this.m_serializer = owner;
         }
 
         /// <summary>
@@ -81,7 +86,7 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 data.CopyTo(copy, 0);
             }
 
-            foreach(var itm in copy)
+            foreach (var itm in copy)
             {
                 var classifier = this.GetClassifierObj(itm, this.m_classifierAttribute);
                 String classKey = classifier?.ToString() ?? "$other";
@@ -137,11 +142,11 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                 }
 
                 // Now set the classifiers
-                foreach(var inst in itm.Value as IList ?? new List<Object>() { itm.Value })
+                foreach (var inst in itm.Value as IList ?? new List<Object>() { itm.Value })
                 {
                     if (inst == null) continue;
 
-                    if(itm.Key != "$other" )
+                    if (itm.Key != "$other")
                         classifierProperty.SetValue(inst, itmClassifier);
                     retVal.Add(inst);
                 }
@@ -166,7 +171,8 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
             }
 
             Object retVal = null;
-            if(!classValue.TryGetValue(classifierValue, out retVal)) { 
+            if (!classValue.TryGetValue(classifierValue, out retVal))
+            {
                 var funcType = typeof(Func<,>).MakeGenericType(type, typeof(bool));
                 var exprType = typeof(Expression<>).MakeGenericType(funcType);
                 var mi = typeof(IEntitySourceProvider).GetGenericMethod(nameof(IEntitySourceProvider.Query), new Type[] { type }, new Type[] { exprType });
@@ -209,10 +215,19 @@ namespace OpenIZ.Core.Applets.ViewModel.Json
                     return null;
                 var keyPropertyValue = o.GetType().GetRuntimeProperty(keyPropertyName).GetValue(o);
 
-                // Now we want to force load!!!!
-                var getValueMethod = typeof(EntitySource).GetGenericMethod("Get", new Type[] { classProperty.PropertyType }, new Type[] { typeof(Guid?) });
-                classifierObj = getValueMethod.Invoke(EntitySource.Current, new object[] { keyPropertyValue });
-                classProperty.SetValue(o, classifierObj);
+                // Does the owner serializer already load this?
+                if (keyPropertyValue != null)
+                    classifierObj = this.m_serializer.GetLoadedObject((Guid)keyPropertyValue);
+                if (classifierObj == null)
+                {
+                    // Now we want to force load!!!!
+                    var getValueMethod = typeof(EntitySource).GetGenericMethod("Get", new Type[] { classProperty.PropertyType }, new Type[] { typeof(Guid?) });
+                    classifierObj = getValueMethod.Invoke(EntitySource.Current, new object[] { keyPropertyValue });
+                    classProperty.SetValue(o, classifierObj);
+                    if (keyPropertyValue != null)
+                        this.m_serializer.AddLoadedObject((Guid)keyPropertyValue, (IdentifiedData)classifierObj);
+
+                }
             }
 
             if (classifierObj != null)

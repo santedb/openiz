@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -37,6 +37,7 @@ using OpenIZ.Core.Model.Collection;
 using OpenIZ.Messaging.GS1.Configuration;
 using OpenIZ.Core.Security;
 using OpenIZ.Core.Extensions;
+using SwaggerWcf.Attributes;
 
 namespace OpenIZ.Messaging.GS1.Wcf
 {
@@ -44,6 +45,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
     /// Stock service behavior
     /// </summary>
     [ServiceBehavior(Name = "GS1BMS_Behavior", ConfigurationName = "GS1BMS", InstanceContextMode = InstanceContextMode.PerCall)]
+    [SwaggerWcf("/gs1")]
     public class StockServiceBehavior : IStockService
     {
 
@@ -82,6 +84,19 @@ namespace OpenIZ.Messaging.GS1.Wcf
         /// <summary>
         /// The issue despactch advice message will insert a new shipped order into the TImR system.
         /// </summary>
+        [SwaggerWcfSecurity("OAUTH2")]
+        [SwaggerWcfTag("GS1 BMS XML 3.3")]
+        [SwaggerWcfResponse(400, "The client has made a request that this server cannot fulfill")]
+        [SwaggerWcfResponse(401, "Operation requires authentication")]
+        [SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
+        [SwaggerWcfResponse(404, "The provided resource could not be found")]
+        [SwaggerWcfResponse(405, "You are not allowed to perform this operation on this resource")]
+        [SwaggerWcfResponse(409, "You are attempting to create a resource that already exists")]
+        [SwaggerWcfResponse(422, "The operation resulted in one or more business rules being violated")]
+        [SwaggerWcfResponse(429, "The server throttling has been exceeded")]
+        [SwaggerWcfResponse(501, "The method / operation you are calling is not implemented")]
+        [SwaggerWcfResponse(503, "The server has not completed startup or is in a state which cannot accept messages")]
+        [SwaggerWcfResponse(200, "Despatch advice was accepted")]
         public void IssueDespatchAdvice(DespatchAdviceMessageType advice)
         {
             if (advice == null || advice.despatchAdvice == null)
@@ -134,7 +149,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
                 }
 
                 // Now we want to create a new Supply act which that fulfills the old act
-                    Act fulfillAct = new Act()
+                Act fulfillAct = new Act()
                 {
                     CreationTime = DateTimeOffset.Now,
                     MoodConceptKey = ActMoodKeys.Eventoccurrence,
@@ -197,7 +212,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
             }
 
             // insert transaction
-            if(orderTransaction.Item.Count > 0)
+            if (orderTransaction.Item.Count > 0)
                 try
                 {
                     ApplicationContext.Current.GetService<IBatchRepositoryService>().Insert(orderTransaction);
@@ -212,6 +227,17 @@ namespace OpenIZ.Messaging.GS1.Wcf
         /// <summary>
         /// Requests the issuance of a BMS1 inventory report request
         /// </summary>
+        [SwaggerWcfSecurity("OAUTH2")]
+        [SwaggerWcfTag("GS1 BMS XML 3.3")]
+        [SwaggerWcfResponse(400, "The client has made a request that this server cannot fulfill")]
+        [SwaggerWcfResponse(401, "Operation requires authentication")]
+        [SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
+        [SwaggerWcfResponse(404, "The provided resource could not be found")]
+        [SwaggerWcfResponse(405, "You are not allowed to perform this operation on this resource")]
+        [SwaggerWcfResponse(429, "The server throttling has been exceeded")]
+        [SwaggerWcfResponse(501, "The method / operation you are calling is not implemented")]
+        [SwaggerWcfResponse(503, "The server has not completed startup or is in a state which cannot accept messages")]
+        [SwaggerWcfResponse(200, "Inventory report was constructed and returned")]
         public LogisticsInventoryReportMessageType IssueInventoryReportRequest(LogisticsInventoryReportRequestMessageType parameters)
         {
             // Status
@@ -250,7 +276,14 @@ namespace OpenIZ.Messaging.GS1.Wcf
                     var id = filter.inventoryLocation.gln ?? filter.inventoryLocation.additionalPartyIdentification?.FirstOrDefault()?.Value;
                     var place = this.m_placeRepository.Find(o => o.Identifiers.Any(i => i.Value == id), 0, 1, out tc).FirstOrDefault();
                     if (place == null)
-                        throw new FileNotFoundException($"Place {filter.inventoryLocation.gln} not found");
+                    {
+                        Guid uuid = Guid.Empty;
+                        if (Guid.TryParse(id, out uuid))
+                            place = this.m_placeRepository.Get(uuid, Guid.Empty);
+
+                        if(place == null)
+                            throw new FileNotFoundException($"Place {filter.inventoryLocation.gln} not found");
+                    }
                     if (filterPlaces == null)
                         filterPlaces = new List<Place>() { place };
                     else
@@ -273,7 +306,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
             var masterAuthContext = AuthenticationContext.Current;
 
             // Create the inventory report
-            filterPlaces.AsParallel().ForAll(place =>
+            filterPlaces.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ForAll(place =>
             {
                 try
                 {
@@ -289,24 +322,29 @@ namespace OpenIZ.Messaging.GS1.Wcf
                     var tradeItemStatuses = new List<TradeItemInventoryStatusType>();
 
                     // What are the relationships of held entities
-                    foreach (var rel in place.Relationships.Where(o => o.RelationshipTypeKey == EntityRelationshipTypeKeys.OwnedEntity))
+                    var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
+                    var relationships = persistenceService.Query(o=>o.RelationshipTypeKey == EntityRelationshipTypeKeys.OwnedEntity && o.SourceEntityKey == place.Key.Value, AuthenticationContext.Current.Principal);
+                    relationships.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ForAll(rel =>
                     {
+                        AuthenticationContext.Current = masterAuthContext;
+
                         if (!(rel.TargetEntity is ManufacturedMaterial))
                         {
                             var matl = this.m_materialRepository.GetManufacturedMaterial(rel.TargetEntityKey.Value, Guid.Empty);
                             if (matl == null)
                             {
                                 Trace.TraceWarning("It looks like {0} owns {1} but {1} is not a mmat!?!?!", place.Key, rel.TargetEntityKey);
-                                continue;
+                                return;
                             }
                             else
                                 rel.TargetEntity = matl;
                         }
                         var mmat = rel.TargetEntity as ManufacturedMaterial;
                         if (!(mmat is ManufacturedMaterial))
-                            continue;
+                            return;
 
                         var mat = this.m_materialRepository.FindMaterial(o => o.Relationships.Where(r => r.RelationshipType.Mnemonic == "Instance").Any(r => r.TargetEntity.Key == mmat.Key)).FirstOrDefault();
+                        var instanceData = mat.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == EntityRelationshipTypeKeys.Instance);
 
                         decimal balanceOH = rel.Quantity ?? 0;
 
@@ -316,8 +354,16 @@ namespace OpenIZ.Messaging.GS1.Wcf
                         // We want to roll back to the start time and re-calc balance oh at time?
                         if (reportTo.Value.Date < DateTime.Now.Date)
                         {
-                            var prevAdjustments = this.m_stockService.FindAdjustments(mmat.Key.Value, place.Key.Value, reportTo, DateTime.Now);
-                            balanceOH -= (decimal)prevAdjustments.Sum(o => o.Participations.FirstOrDefault(p => p.ParticipationRoleKey == ActParticipationKey.Consumable)?.Quantity);
+                            this.m_tracer.TraceVerbose("{0} : {1} has balance of {2}", place.Key, mmat.Key, balanceOH);
+                            var consumed = this.m_stockService.GetConsumed(mmat.Key.Value, place.Key.Value, reportTo, DateTime.Now);
+                            foreach (var i in consumed)
+                                this.m_tracer.TraceVerbose("\t- {0} ({1} - {2})", i.Quantity, i.PlayerEntityKey, i.Key);
+
+                            balanceOH -= (decimal)consumed.Sum(o => o.Quantity ?? 0);
+                            this.m_tracer.TraceVerbose("{0} : \t {1} {2} (TOTAL)", place.Key, balanceOH, mmat.Key);
+
+                            if (balanceOH == 0 && this.m_stockService.GetConsumed(mmat.Key.Value, place.Key.Value, reportFrom, reportTo).Count() == 0)
+                                return;
                         }
 
                         ReferenceTerm cvx = null;
@@ -331,54 +377,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
                         };
 
                         // First we need the GTIN for on-hand balance
-                        tradeItemStatuses.Add(new TradeItemInventoryStatusType()
-                        {
-                            gtin = mmat.Identifiers.FirstOrDefault(o => o.Authority.DomainName == "GTIN")?.Value,
-                            itemTypeCode = typeItemCode,
-                            additionalTradeItemIdentification = mmat.Identifiers.Where(o => o.Authority.DomainName != "GTIN").Select(o => new AdditionalTradeItemIdentificationType()
-                            {
-                                additionalTradeItemIdentificationTypeCode = o.Authority.DomainName,
-                                Value = o.Value
-                            }).ToArray(),
-                            tradeItemDescription = mmat.Names.Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
-                            tradeItemClassification = new TradeItemClassificationType()
-                            {
-                                additionalTradeItemClassificationCode = mat.Identifiers.Where(o => o.Authority.Oid != gtin.Oid).Select(o => new AdditionalTradeItemClassificationCodeType()
-                                {
-                                    codeListVersion = o.Authority.DomainName,
-                                    Value = o.Value
-                                }).ToArray()
-                            },
-                            inventoryDateTime = DateTime.Now,
-                            inventoryDispositionCode = new InventoryDispositionCodeType() { Value = "ON_HAND" },
-                            transactionalItemData = new TransactionalItemDataType[]
-                            {
-                            new TransactionalItemDataType()
-                            {
-                                tradeItemQuantity = new QuantityType()
-                                {
-                                    measurementUnitCode = (mmat.QuantityConcept ?? mat?.QuantityConcept)?.ReferenceTerms.Select(o => new AdditionalLogisticUnitIdentificationType()
-                                    {
-                                        additionalLogisticUnitIdentificationTypeCode = o.ReferenceTerm.CodeSystem.Name,
-                                        Value = o.ReferenceTerm.Mnemonic
-                                    }).FirstOrDefault()?.Value,
-                                    Value = balanceOH
-                                },
-                                batchNumber = mmat.LotNumber,
-                                itemExpirationDate = mmat.ExpiryDate.Value,
-                                itemExpirationDateSpecified = true
-                            }
-                            }
-                        });
-
-
-                        foreach (var adjgrp in adjustments.GroupBy(o => o.ReasonConceptKey))
-                        {
-                            var reasonConcept = ApplicationContext.Current.GetService<IConceptRepositoryService>().GetConceptReferenceTerm(adjgrp.Key.Value, "GS1_STOCK_STATUS")?.Mnemonic;
-                            if (reasonConcept == null)
-                                reasonConcept = (ApplicationContext.Current.GetService<IConceptRepositoryService>().GetConcept(adjgrp.Key.Value, Guid.Empty) as Concept)?.Mnemonic;
-
-                            // Broken vials?
+                        lock(tradeItemStatuses)
                             tradeItemStatuses.Add(new TradeItemInventoryStatusType()
                             {
                                 gtin = mmat.Identifiers.FirstOrDefault(o => o.Authority.DomainName == "GTIN")?.Value,
@@ -388,6 +387,7 @@ namespace OpenIZ.Messaging.GS1.Wcf
                                     additionalTradeItemIdentificationTypeCode = o.Authority.DomainName,
                                     Value = o.Value
                                 }).ToArray(),
+                                tradeItemDescription = mmat.Names.Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
                                 tradeItemClassification = new TradeItemClassificationType()
                                 {
                                     additionalTradeItemClassificationCode = mat.Identifiers.Where(o => o.Authority.Oid != gtin.Oid).Select(o => new AdditionalTradeItemClassificationCodeType()
@@ -396,31 +396,85 @@ namespace OpenIZ.Messaging.GS1.Wcf
                                         Value = o.Value
                                     }).ToArray()
                                 },
-                                tradeItemDescription = mmat.Names.Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
                                 inventoryDateTime = DateTime.Now,
-                                inventoryDispositionCode = new InventoryDispositionCodeType() { Value = reasonConcept },
+                                inventoryDispositionCode = new InventoryDispositionCodeType() { Value = "ON_HAND" },
                                 transactionalItemData = new TransactionalItemDataType[]
                                 {
-                                    new TransactionalItemDataType()
+                                new TransactionalItemDataType()
+                                {
+                                    tradeItemQuantity = new QuantityType()
                                     {
-                                        tradeItemQuantity = new QuantityType()
+                                        measurementUnitCode = (mmat.QuantityConcept ?? mat?.QuantityConcept)?.ReferenceTerms.Select(o => new AdditionalLogisticUnitIdentificationType()
                                         {
-                                            measurementUnitCode = (mmat.QuantityConcept ?? mat?.QuantityConcept)?.ReferenceTerms.Select(o => new AdditionalLogisticUnitIdentificationType()
-                                            {
-                                                additionalLogisticUnitIdentificationTypeCode = o.ReferenceTerm.CodeSystem.Name,
-                                                Value = o.ReferenceTerm.Mnemonic
-                                            }).FirstOrDefault()?.Value,
-                                            Value = Math.Abs(adjgrp.Sum(o => o.Participations.First(p => p.ParticipationRoleKey == ActParticipationKey.Consumable && p.PlayerEntityKey == mmat.Key).Quantity.Value))
-                                        },
-                                        batchNumber = mmat.LotNumber,
-                                        itemExpirationDate = mmat.ExpiryDate.Value,
-                                        itemExpirationDateSpecified = true
-                                    }
+                                            additionalLogisticUnitIdentificationTypeCode = o.ReferenceTerm.CodeSystem.Name,
+                                            Value = o.ReferenceTerm.Mnemonic
+                                        }).FirstOrDefault()?.Value,
+                                        Value = balanceOH
+                                    },
+                                    batchNumber = mmat.LotNumber,
+                                    itemExpirationDate = mmat.ExpiryDate.Value,
+                                    itemExpirationDateSpecified = true
+                                }
                                 }
                             });
+
+
+                        foreach (var adjgrp in adjustments.GroupBy(o => o.ReasonConceptKey))
+                        {
+                            var reasonConcept = ApplicationContext.Current.GetService<IConceptRepositoryService>().GetConceptReferenceTerm(adjgrp.Key.Value, "GS1_STOCK_STATUS")?.Mnemonic;
+                            if (reasonConcept == null)
+                                reasonConcept = (ApplicationContext.Current.GetService<IConceptRepositoryService>().GetConcept(adjgrp.Key.Value, Guid.Empty) as Concept)?.Mnemonic;
+
+                            // Broken vials?
+                            lock(tradeItemStatuses)
+                                tradeItemStatuses.Add(new TradeItemInventoryStatusType()
+                                {
+                                    gtin = mmat.Identifiers.FirstOrDefault(o => o.Authority.DomainName == "GTIN")?.Value,
+                                    itemTypeCode = typeItemCode,
+                                    additionalTradeItemIdentification = mmat.Identifiers.Where(o => o.Authority.DomainName != "GTIN").Select(o => new AdditionalTradeItemIdentificationType()
+                                    {
+                                        additionalTradeItemIdentificationTypeCode = o.Authority.DomainName,
+                                        Value = o.Value
+                                    }).ToArray(),
+                                    tradeItemClassification = new TradeItemClassificationType()
+                                    {
+                                        additionalTradeItemClassificationCode = mat.Identifiers.Where(o => o.Authority.Oid != gtin.Oid).Select(o => new AdditionalTradeItemClassificationCodeType()
+                                        {
+                                            codeListVersion = o.Authority.DomainName,
+                                            Value = o.Value
+                                        }).ToArray()
+                                    },
+                                    tradeItemDescription = mmat.Names.Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
+                                    inventoryDateTime = DateTime.Now,
+                                    inventoryDispositionCode = new InventoryDispositionCodeType() { Value = reasonConcept },
+                                    transactionalItemData = new TransactionalItemDataType[]
+                                    {
+                                        new TransactionalItemDataType()
+                                        {
+                                            transactionalItemLogisticUnitInformation = instanceData == null ? null : new TransactionalItemLogisticUnitInformationType()
+                                            {
+                                              numberOfLayers = "1",
+                                              numberOfUnitsPerLayer = instanceData.Quantity.ToString(),
+                                              packageTypeCode = new PackageTypeCodeType() { Value = mat.LoadCollection<EntityExtension>("Extensions").FirstOrDefault(o=>o.ExtensionTypeKey == Gs1ModelExtensions.PackagingUnit)?.ExtensionValue?.ToString() ?? "CONT" }
+                                            },
+                                            tradeItemQuantity = new QuantityType()
+                                            {
+                                                measurementUnitCode = (mmat.QuantityConcept ?? mat?.QuantityConcept)?.ReferenceTerms.Select(o => new AdditionalLogisticUnitIdentificationType()
+                                                {
+                                                    additionalLogisticUnitIdentificationTypeCode = o.ReferenceTerm.CodeSystem.Name,
+                                                    Value = o.ReferenceTerm.Mnemonic
+                                                }).FirstOrDefault()?.Value,
+                                                Value = Math.Abs(adjgrp.Sum(o => o.Participations.First(p => p.ParticipationRoleKey == ActParticipationKey.Consumable && p.PlayerEntityKey == mmat.Key).Quantity.Value))
+                                            },
+                                            batchNumber = mmat.LotNumber,
+                                            itemExpirationDate = mmat.ExpiryDate.Value,
+                                            itemExpirationDateSpecified = true
+                                        }
+                                    }
+                                });
                         }
 
-                    }
+                    });
 
                     // Reduce
                     locationStockStatus.tradeItemInventoryStatus = tradeItemStatuses.ToArray();
@@ -440,6 +494,19 @@ namespace OpenIZ.Messaging.GS1.Wcf
         /// <summary>
         /// Issues the order response message which will mark the requested order as underway
         /// </summary>
+        [SwaggerWcfSecurity("OAUTH2")]
+        [SwaggerWcfTag("GS1 BMS XML 3.3")]
+        [SwaggerWcfResponse(400, "The client has made a request that this server cannot fulfill")]
+        [SwaggerWcfResponse(401, "Operation requires authentication")]
+        [SwaggerWcfResponse(403, "User attempted to perform an operation but they are unauthorized to do so")]
+        [SwaggerWcfResponse(404, "The provided resource could not be found")]
+        [SwaggerWcfResponse(405, "You are not allowed to perform this operation on this resource")]
+        [SwaggerWcfResponse(409, "You are attempting to create a resource that already exists")]
+        [SwaggerWcfResponse(422, "The operation resulted in one or more business rules being violated")]
+        [SwaggerWcfResponse(429, "The server throttling has been exceeded")]
+        [SwaggerWcfResponse(501, "The method / operation you are calling is not implemented")]
+        [SwaggerWcfResponse(503, "The server has not completed startup or is in a state which cannot accept messages")]
+        [SwaggerWcfResponse(200, "Order response was accepted")]
         public void IssueOrderResponse(OrderResponseMessageType orderResponse)
         {
             // TODO: Validate the standard header

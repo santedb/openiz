@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-7-4
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Interop.Clients;
 using System;
@@ -30,6 +30,9 @@ using System.Xml.Serialization;
 using System.IO;
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
+using OpenIZ.Core.Model.Roles;
+using System.Linq.Expressions;
+using OpenIZ.Core.Model.Constants;
 
 namespace OpenIZ.Messaging.GS1.Transport.AS2
 {

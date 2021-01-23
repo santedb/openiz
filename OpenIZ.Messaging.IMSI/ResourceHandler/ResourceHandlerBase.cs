@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-13
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -133,24 +133,31 @@ namespace OpenIZ.Messaging.IMSI.ResourceHandler
         {
             var queryExpression = QueryExpressionParser.BuildLinqExpression<TResource>(queryParameters, null, false);
             List<String> query = null;
+            IEnumerable<TResource> retVal = null;
 
             if (queryParameters.TryGetValue("_queryId", out query) && this.m_repository is IPersistableQueryRepositoryService)
             {
                 Guid queryId = Guid.Parse(query[0]);
-                List<String> lean = null;
-                if (queryParameters.TryGetValue("_lean", out lean) && lean[0] == "true" && this.m_repository is IFastQueryRepositoryService)
-                    return (this.m_repository as IFastQueryRepositoryService).FindFast<TResource>(queryExpression, offset, count, out totalCount, queryId);
+                List<String> data = null;
+                if (queryParameters.TryGetValue("_subscription", out data))
+                { // subscription based query
+                    totalCount = 0;
+                    retVal = ApplicationContext.Current.GetService<ISubscriptionExecutor>()?.Execute(Guid.Parse(data.First()), queryParameters, offset, count, out totalCount, queryId).OfType<TResource>();
+                }
+                else if (queryParameters.TryGetValue("_lean", out data) && data[0] == "true" && this.m_repository is IFastQueryRepositoryService)
+                    retVal = (this.m_repository as IFastQueryRepositoryService).FindFast<TResource>(queryExpression, offset, count, out totalCount, queryId);
                 else
-                    return (this.m_repository as IPersistableQueryRepositoryService).Find<TResource>(queryExpression, offset, count, out totalCount, queryId);
+                    retVal = (this.m_repository as IPersistableQueryRepositoryService).Find<TResource>(queryExpression, offset, count, out totalCount, queryId);
             }
             else
             {
                 List<String> lean = null;
                 if (queryParameters.TryGetValue("_lean", out lean) && lean[0] == "true" && this.m_repository is IFastQueryRepositoryService)
-                    return (this.m_repository as IFastQueryRepositoryService).FindFast<TResource>(queryExpression, offset, count, out totalCount, Guid.Empty);
+                    retVal = (this.m_repository as IFastQueryRepositoryService).FindFast<TResource>(queryExpression, offset, count, out totalCount, Guid.Empty);
                 else
-                    return this.m_repository.Find(queryExpression, offset, count, out totalCount);
+                    retVal = this.m_repository.Find(queryExpression, offset, count, out totalCount);
             }
+            return retVal;
         }
 
         /// <summary>

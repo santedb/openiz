@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: khannan
- * Date: 2017-4-16
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using OpenIZ.OrmLite;
 using OpenIZ.Persistence.Reporting.PSQL.Model;
 using System;
@@ -73,7 +72,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 			if (!loadFast)
 			{
-				reportDefinition.Parameters = context.Query<ReportParameter>(r => r.ReportId == key).Select(r => new Core.Model.RISI.ReportParameter
+				reportDefinition.Parameters = context.Query<ReportParameter>(r => r.ReportId == key).ToArray().Select(r => new Core.Model.RISI.ReportParameter
 				{
 					Key = r.Key,
 					Name = r.Name,
@@ -207,7 +206,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 		{
 			foreach (var reportFormat in reportDefinition.Formats)
 			{
-				var existing = context.Query<ReportDefinitionFormatAssociation>(c => c.Key == reportFormat.Key.Value && c.SourceKey == reportDefinition.Key.Value).FirstOrDefault();
+				var existing = context.FirstOrDefault<ReportDefinitionFormatAssociation>(c => c.Key == reportFormat.Key.Value && c.SourceKey == reportDefinition.Key.Value);
 
 				if (existing != null)
 				{
@@ -230,7 +229,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 			foreach (var reportParameter in reportDefinition.Parameters)
 			{
-				var existingReportParameter = context.Query<ReportParameter>(c => c.ReportId == reportDefinition.Key.Value && c.CorrelationId == reportParameter.CorrelationId).FirstOrDefault();
+				var existingReportParameter = context.FirstOrDefault<ReportParameter>(c => c.ReportId == reportDefinition.Key.Value && c.CorrelationId == reportParameter.CorrelationId);
 
 				reportParameter.ReportDefinitionKey = reportDefinition.Key.Value;
 

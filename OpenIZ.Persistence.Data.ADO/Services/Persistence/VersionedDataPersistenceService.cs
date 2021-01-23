@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model;
 using OpenIZ.Persistence.Data.ADO.Data.Model;
@@ -45,6 +45,8 @@ using OpenIZ.Persistence.Data.ADO.Data.Model.Acts;
 using OpenIZ.Persistence.Data.ADO.Data.Model.Entities;
 using OpenIZ.Core.Model.Acts;
 using OpenIZ.Core.Model.Entities;
+using OpenIZ.Core.Diagnostics;
+using OpenIZ.Core.Model.Constants;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -56,6 +58,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         where TModel : VersionedEntityData<TModel>, new()
         where TDomainKey : IDbIdentified, new()
     {
+
+        /// <summary>
+        /// Return true if the specified object exists
+        /// </summary>
+        public override bool Exists(DataContext context, Guid key)
+        {
+            return context.Any<TDomainKey>(o => o.Key == key);
+        }
 
         /// <summary>
         /// Insert the data
@@ -100,7 +110,17 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 data.CreationTime = DateTimeOffset.Now;
             domainObject.CreationTime = data.CreationTime;
             domainObject.VersionSequenceId = null;
-            domainObject = context.Insert(domainObject);
+            domainObject.ObsoletionTime = null;
+            domainObject.ObsoletedByKey = null;
+            if (m_configuration.AutoUpdateExisting &&
+                context.Any<TDomain>(o => o.Key == domainObject.Key))
+            {
+                this.m_tracer.TraceWarning("INSERT for {0} key={1} was changed to UPDATE as item already exists", domainObject.GetType().Name, domainObject.Key);
+                domainObject = context.Update(domainObject);
+            }
+            else
+                domainObject = context.Insert(domainObject);
+
             data.VersionSequence = domainObject.VersionSequenceId;
             data.VersionKey = domainObject.VersionKey;
             data.Key = domainObject.Key;
@@ -119,7 +139,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             data.CreatedBy.EnsureExists(context, principal);
             data.CreatedByKey = data.CreatedBy?.Key ?? data.CreatedByKey;
-
+            if (data.CreatedByKey == Guid.Empty) // HACK: For some reason the UUID For created by is null
+                data.CreatedByKey = null;
 
             // This is technically an insert and not an update
             SqlStatement currentVersionQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
@@ -130,7 +151,17 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var nonVersionedObect = context.FirstOrDefault<TDomainKey>(o => o.Key == data.Key);
 
             if (existingObject == null)
-                throw new KeyNotFoundException(data.Key.ToString());
+            {
+                if(nonVersionedObect != null) // There is just no active version - so - activate the last one
+                {
+                    currentVersionQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
+                        .Where(o => o.Key == data.Key)
+                        .OrderBy<TDomain>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
+                    existingObject = context.FirstOrDefault<TDomain>(currentVersionQuery); // Get the last version (current)
+                }
+                else
+                    throw new KeyNotFoundException(data.Key.ToString());
+            }
             else if ((existingObject as IDbReadonly)?.IsReadonly == true ||
                 (nonVersionedObect as IDbReadonly)?.IsReadonly == true)
                 throw new AdoFormalConstraintException(AdoFormalConstraintType.UpdatedReadonlyObject);
@@ -158,10 +189,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             existingObject.ObsoletionTime = DateTimeOffset.Now;
             newEntityVersion.CreationTime = DateTimeOffset.Now;
 
-	        context.Update(existingObject);
+            context.Update(existingObject);
 
-	        newEntityVersion = context.Insert<TDomain>(newEntityVersion);
-			nonVersionedObect = context.Update<TDomainKey>(nonVersionedObect);
+            // There must always be an active version
+            newEntityVersion.ObsoletedByKey = null;
+            newEntityVersion.ObsoletionTime = null;
+            newEntityVersion = context.Insert<TDomain>(newEntityVersion);
+            nonVersionedObect = context.Update<TDomainKey>(nonVersionedObect);
 
             // Pull database generated fields
             data.VersionSequence = newEntityVersion.VersionSequenceId;
@@ -181,10 +215,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         {
             return rawQuery.OrderBy<TDomain>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
         }
+
+
         /// <summary>
         /// Query internal
         /// </summary>
-        protected override IEnumerable<Object> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool countResults = true)
+        protected override IEnumerable<Object> DoQueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, bool countResults = true)
         {
             // Is obsoletion time already specified?
             if (!query.ToString().Contains("ObsoletionTime"))
@@ -193,79 +229,69 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
             }
 
+
             // Query has been registered?
-            if (this.m_queryPersistence?.IsRegistered(queryId.ToString()) == true)
-            {
-                totalResults = (int)this.m_queryPersistence.QueryResultTotalQuantity(queryId.ToString());
-                var keyResults = this.m_queryPersistence.GetQueryResults<Guid>(queryId.ToString(), offset, count.Value);
-                return keyResults.Select(p => p.Id).OfType<Object>();
-            }
+            if (queryId != Guid.Empty && this.m_queryPersistence?.IsRegistered(queryId.ToString()) == true)
+                return this.GetStoredQueryResults(queryId, offset, count, out totalResults);
 
             SqlStatement domainQuery = null;
-            try
-            {
-                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
+            var expr = m_mapper.MapModelExpression<TModel, TDomain>(query, false);
+            if (expr != null)
+                domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom(typeof(TDomain), typeof(TDomainKey))
                     .InnerJoin<TDomain, TDomainKey>(o => o.Key, o => o.Key)
-                    .Where<TDomain>(m_mapper.MapModelExpression<TModel, TDomain>(query)).Build();
-
-            }
-            catch (Exception e)
-            {
-                m_tracer.TraceEvent(System.Diagnostics.TraceEventType.Verbose, e.HResult, "Will use slow query construction due to {0}", e.Message);
+                    .Where<TDomain>(expr).Build();
+            else
                 domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query).Build();
-            }
+
 
             domainQuery = this.AppendOrderBy(domainQuery);
-                
 
-            // Query id just get the UUIDs in the db
-            if (queryId != Guid.Empty)
+            // Only perform count
+            if (count == 0)
             {
-                ColumnMapping pkColumn = TableMapping.Get(typeof(TDomainKey)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+                totalResults = context.Count(domainQuery);
+                return new List<CompositeResult<TDomain, TDomainKey>>();
+            }
+            else
+            {
+                
+                var retVal = context.Query<CompositeResult<TDomain, TDomainKey>>(domainQuery);
 
-                var keyQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pkColumn).Build();
-                var resultKeys = context.Query<Guid>(keyQuery.Build());
-                this.m_queryPersistence?.RegisterQuerySet(queryId.ToString(), resultKeys.Count(), resultKeys.Take(1000).Select(o => new Identifier<Guid>(o)).ToArray(), query);
-
-                ApplicationContext.Current.GetService<IThreadPoolService>().QueueNonPooledWorkItem(o =>
+                // Counts
+                if (queryId != Guid.Empty && ApplicationContext.Current.GetService<MARC.HI.EHRS.SVC.Core.Services.IQueryPersistenceService>() != null)
                 {
-                    int ofs = 1000;
-                    var rkeys = o as Guid[];
-	                if (rkeys == null)
-	                {
-		                return;
-	                }
-                    while (ofs < rkeys.Length)
-                    {
-                        this.m_queryPersistence?.AddResults(queryId.ToString(), rkeys.Skip(ofs).Take(1000).Select(k => new Identifier<Guid>(k)).ToArray());
-                        ofs += 1000;
-                    }
-                }, resultKeys.ToArray());
-
-                if (countResults)
-                    totalResults = (int)resultKeys.Count();
+                    var keys = retVal.Keys<Guid>().ToArray();
+                    totalResults = keys.Length;
+                    this.AddQueryResults(context, query, queryId, offset, keys, totalResults);
+                    if (totalResults == 0)
+                        return new List<Object>();
+                }
+                else if (count.HasValue && countResults && !m_configuration.UseFuzzyTotals)
+                {
+                    totalResults = retVal.Count();
+                    if (totalResults == 0)
+                        return new List<Object>();
+                }
                 else
                     totalResults = 0;
 
-                var retVal = resultKeys.Skip(offset);
+                // Fuzzy totals - This will only fetch COUNT + 1 as the total results
                 if (count.HasValue)
-                    retVal = retVal.Take(count.Value);
-                return retVal.OfType<Object>();
-            }
-            else if (countResults)
-            {
-                totalResults = context.Count(domainQuery);
-                if (totalResults == 0)
-                    return new List<CompositeResult<TDomain, TDomainKey>>();
-            }
-            else
-                totalResults = 0;
+                {
+                    if (m_configuration.UseFuzzyTotals && totalResults == 0)
+                    {
+                        var fuzzResults = retVal.Skip(offset).Take(count.Value + 1).OfType<Object>().ToList();
+                        totalResults = fuzzResults.Count();
+                        return fuzzResults.Take(count.Value);
+                    }
+                    else // We already counted as part of the queryId so no need to take + 1
+                        return retVal.Skip(offset).Take(count.Value).OfType<Object>();
+                }
+                else
+                    return retVal.Skip(offset).OfType<Object>();
 
-            if (offset > 0)
-                domainQuery.Offset(offset);
-            if (count.HasValue)
-                domainQuery.Limit(count.Value);
-            return context.Query<CompositeResult<TDomain, TDomainKey>>(domainQuery).OfType<Object>();
+            }
+
 
         }
 
@@ -278,9 +304,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var cacheService = new AdoPersistenceCache(context);
             var retVal = cacheService.GetCacheItem<TModel>(key);
             if (retVal != null)
+            {
+                this.m_tracer.TraceVerbose("Object {0} found in cache", retVal);
                 return retVal;
+            }
             else
             {
+                this.m_tracer.TraceVerbose("Object {0}({1}) not found in cache will load", typeof(TModel).FullName, key);
+
                 var domainQuery = context.CreateSqlStatement<TDomain>().SelectFrom()
                     .InnerJoin<TDomain, TDomainKey>(o => o.Key, o => o.Key)
                     .Where<TDomain>(o => o.Key == key && o.ObsoletionTime == null)
@@ -336,10 +367,14 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     if (uuid.VersionId == Guid.Empty)
                         retVal = this.Get(connection, uuid.Id, principal);
                     else
-                        retVal = this.CacheConvert(this.QueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId && o.ObsoletionTime == null || o.ObsoletionTime != null, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
+                        retVal = this.CacheConvert(this.DoQueryInternal(connection, o => o.Key == uuid.Id && o.VersionKey == uuid.VersionId && o.ObsoletionTime == null || o.ObsoletionTime != null, Guid.Empty, 0, 1, out tr).FirstOrDefault(), connection, principal);
 
                     var postData = new PostRetrievalEventArgs<TModel>(retVal, principal);
                     this.FireRetrieved(postData);
+
+                    // Add to cache
+                    foreach (var d in connection.CacheOnCommit)
+                        ApplicationContext.Current.GetService<IDataCachingService>().Add(d);
 
                     return retVal;
 
@@ -361,6 +396,40 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 #endif
                 }
 
+        }
+
+        /// <summary>
+        /// Query keys for versioned objects 
+        /// </summary>
+        /// <remarks>This redirects the query from the primary key (on TDomain) into the primary key on the base object</remarks>
+        protected override IEnumerable<Guid> QueryKeysInternal(DataContext context, Expression<Func<TModel, bool>> query, int offset, int? count, out int totalResults)
+        {
+            if (!query.ToString().Contains("ObsoletionTime") && !query.ToString().Contains("VersionKey"))
+            {
+                var obsoletionReference = Expression.MakeBinary(ExpressionType.Equal, Expression.MakeMemberAccess(query.Parameters[0], typeof(TModel).GetProperty(nameof(BaseEntityData.ObsoletionTime))), Expression.Constant(null));
+                query = Expression.Lambda<Func<TModel, bool>>(Expression.MakeBinary(ExpressionType.AndAlso, obsoletionReference, query.Body), query.Parameters);
+            }
+
+            // Construct the SQL query
+            var pk = TableMapping.Get(typeof(TDomainKey)).Columns.SingleOrDefault(o => o.IsPrimaryKey);
+            var domainQuery = AdoPersistenceService.GetQueryBuilder().CreateQuery(query, pk);
+
+            var results = context.Query<Guid>(domainQuery);
+
+            count = count ?? 100;
+            if (m_configuration.UseFuzzyTotals)
+            {
+                // Skip and take
+                results = results.Skip(offset).Take(count.Value + 1);
+                totalResults = offset + results.Count();
+            }
+            else
+            {
+                totalResults = results.Count();
+                results = results.Skip(offset).Take(count.Value);
+            }
+
+            return results.ToList(); // exhaust the results and continue
         }
 
         /// <summary>
@@ -409,13 +478,13 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                         currentVersion = context.FirstOrDefault<DbEntityVersion>(versionQuery);
                     }
 
-                    if(currentVersion != null)
+                    if (currentVersion != null)
                         sourceVersionMaps.Add(itm.SourceEntityKey.Value, currentVersion.VersionSequenceId.Value);
                 }
 
             // Get existing
             // TODO: What happens which this is reverse?
-            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key);
+            var existing = context.Query<TDomainAssociation>(o => o.SourceKey == source.Key).ToArray();
 
             // Remove old
             var obsoleteRecords = existing.Where(o => !storage.Any(ecn => ecn.Key == o.Key));
@@ -433,9 +502,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             }
 
             // Update those that need it
-            var updateRecords = storage.Select(o => new { store = o, existing = existing.FirstOrDefault(ecn => ecn.Key == o.Key && o.Key != Guid.Empty && o != ecn) }).Where(o=>o.existing != null);
+            var updateRecords = storage.Select(o => new { store = o, existing = existing.FirstOrDefault(ecn => ecn.Key == o.Key && o.Key != Guid.Empty && o != ecn) }).Where(o => o.existing != null);
             foreach (var upd in updateRecords)
-            { 
+            {
                 // Update by key, these lines make no sense we just update the existing versioned association
                 //upd.store.EffectiveVersionSequenceId = upd.existing.EffectiveVersionSequenceId;
                 //upd.store.ObsoleteVersionSequenceId = upd.existing.EffectiveVersionSequenceId;
@@ -451,7 +520,51 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                     eftVersion = source.VersionSequence.GetValueOrDefault();
                 ins.EffectiveVersionSequenceId = eftVersion;
 
-                persistenceService.InsertInternal(context, ins, principal);
+                if (ins.Key.HasValue && persistenceService.Get(context, ins.Key.Value, principal) != null)
+                    persistenceService.UpdateInternal(context, ins, principal);
+                else
+                    persistenceService.InsertInternal(context, ins, principal);
+            }
+        }
+
+        /// <summary>
+        /// Obsolete the specified keys
+        /// </summary>
+        protected sealed override void BulkObsoleteInternal(DataContext context, IPrincipal principal, Guid[] keysToObsolete)
+        {
+            foreach (var k in keysToObsolete)
+            {
+
+                // Get the current version
+                var currentVersion = context.SingleOrDefault<TDomain>(o => o.ObsoletionTime == null && o.Key == k);
+                // Create a new version
+                var newVersion = new TDomain();
+                newVersion.CopyObjectData(currentVersion);
+
+                // Create a new version which has a status of obsolete
+                if (newVersion is IDbHasStatus status)
+                {
+                    status.StatusConceptKey = StatusKeys.Obsolete;
+                    // Update the old version
+                    currentVersion.ObsoletedByKey = principal.GetUserKey(context);
+                    currentVersion.ObsoletionTime = DateTimeOffset.Now;
+                    context.Update(currentVersion);
+                    // Provenance data
+                    newVersion.VersionSequenceId = null;
+                    newVersion.ReplacesVersionKey = currentVersion.VersionKey;
+                    newVersion.CreatedByKey = principal.GetUserKey(context).GetValueOrDefault();
+                    newVersion.CreationTime = DateTimeOffset.Now;
+                    newVersion.VersionKey = Guid.Empty;
+                    context.Insert(newVersion);
+
+                }
+                else // Just remove the version
+                {
+                    // Update the old version
+                    currentVersion.ObsoletedByKey = principal.GetUserKey(context);
+                    currentVersion.ObsoletionTime = DateTimeOffset.Now;
+                    context.Update(currentVersion);
+                }
             }
         }
     }

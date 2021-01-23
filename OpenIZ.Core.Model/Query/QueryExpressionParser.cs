@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-8-2
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Collections.Generic;
@@ -31,6 +31,7 @@ using System.Globalization;
 using OpenIZ.Core.Model.Attributes;
 using System.Collections;
 using System.Runtime.CompilerServices;
+using OpenIZ.Core.Model.Interfaces;
 
 namespace OpenIZ.Core.Model.Query
 {
@@ -62,12 +63,29 @@ namespace OpenIZ.Core.Model.Query
         }
 
         /// <summary>
+        /// Build expression for specified type
+        /// </summary>
+        public static Expression BuildLinqExpression(Type modelType, NameValueCollection httpQueryParameters)
+        {
+            var methodInfo = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { modelType }, new Type[] { typeof(NameValueCollection) });
+            return methodInfo.Invoke(null, new object[] { httpQueryParameters }) as Expression;
+        }
+
+        /// <summary>
+        /// Build expression for specified type
+        /// </summary>
+        public static Expression BuildLinqExpression(Type modelType, NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables)
+        {
+            var methodInfo = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { modelType }, new Type[] { typeof(NameValueCollection), typeof(Dictionary<String, Delegate>) });
+            return methodInfo.Invoke(null, new object[] { httpQueryParameters, variables }) as Expression;
+        }
+
+        /// <summary>
         /// Build a LINQ expression
         /// </summary>
         public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables)
         {
-            return BuildLinqExpression<TModelType>(httpQueryParameters, variables, true);
-
+            return BuildLinqExpression<TModelType>(httpQueryParameters, variables, true, false);
         }
 
         /// <summary>
@@ -80,7 +98,25 @@ namespace OpenIZ.Core.Model.Query
         /// <returns>Expression&lt;Func&lt;TModelType, System.Boolean&gt;&gt;.</returns>
         public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables, bool safeNullable)
         {
-            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable);
+            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable, false);
+
+            if (expression == null) // No query!
+                return (TModelType o) => o != null;
+            else
+                return Expression.Lambda<Func<TModelType, bool>>(expression.Body, expression.Parameters);
+        }
+
+        /// <summary>
+        /// Builds the linq expression.
+        /// </summary>
+        /// <typeparam name="TModelType">The type of the t model type.</typeparam>
+        /// <param name="httpQueryParameters">The HTTP query parameters.</param>
+        /// <param name="variables">The variables.</param>
+        /// <param name="safeNullable">if set to <c>true</c> [safe nullable].</param>
+        /// <returns>Expression&lt;Func&lt;TModelType, System.Boolean&gt;&gt;.</returns>
+        public static Expression<Func<TModelType, bool>> BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, Dictionary<String, Delegate> variables, bool safeNullable, bool forceLoad)
+        {
+            var expression = BuildLinqExpression<TModelType>(httpQueryParameters, "o", variables, safeNullable, forceLoad);
 
             if (expression == null) // No query!
                 return (TModelType o) => o != null;
@@ -91,7 +127,7 @@ namespace OpenIZ.Core.Model.Query
         /// <summary>
         /// Build LINQ expression
         /// </summary>
-        public static LambdaExpression BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, string parameterName, Dictionary<String, Delegate> variables = null, bool safeNullable = true)
+        public static LambdaExpression BuildLinqExpression<TModelType>(NameValueCollection httpQueryParameters, string parameterName, Dictionary<String, Delegate> variables = null, bool safeNullable = true, bool forceLoad = false)
         {
             var parameterExpression = Expression.Parameter(typeof(TModelType), parameterName);
             Expression retVal = null;
@@ -115,11 +151,19 @@ namespace OpenIZ.Core.Model.Query
                 String[] memberPath = currentValue.Key.Split('.');
                 String path = "";
 
-                foreach (var rawMember in memberPath)
+                for (int i = 0; i < memberPath.Length; i++)
                 {
+                    var rawMember = memberPath[i];
                     var pMember = rawMember;
                     String guard = String.Empty,
                         cast = String.Empty;
+
+                    // Guard token incomplete?
+                    if (pMember.Contains("[") && !pMember.Contains("]"))
+                    {
+                        while (!pMember.Contains("]") && i < memberPath.Length)
+                            pMember += "." + memberPath[++i];
+                    }
 
                     // Update path
                     path += pMember + ".";
@@ -156,9 +200,9 @@ namespace OpenIZ.Core.Model.Query
                     PropertyInfo memberInfo = null;
                     if (!memberCache.TryGetValue(pMember, out memberInfo))
                     {
-                        memberInfo = accessExpression.Type.GetRuntimeProperties().FirstOrDefault(p => p.GetCustomAttributes<XmlElementAttribute>()?.Any(a => a.ElementName == pMember) == true);
+                        memberInfo = accessExpression.Type.GetRuntimeProperties().FirstOrDefault(p => p.GetCustomAttributes<XmlElementAttribute>()?.Any(a => a.ElementName == pMember) == true || p.GetCustomAttribute<QueryParameterAttribute>()?.ParameterName == pMember);
                         if (memberInfo == null)
-                            throw new ArgumentOutOfRangeException(currentValue.Key);
+                            throw new ArgumentOutOfRangeException(currentValue.Key, $"Property {currentValue.Key} could not be found on {accessExpression.Type.FullName}");
 
                         // Member cache
                         lock (memberCache)
@@ -169,7 +213,7 @@ namespace OpenIZ.Core.Model.Query
                     // Handle XML props
                     if (memberInfo.Name.EndsWith("Xml"))
                         memberInfo = accessExpression.Type.GetRuntimeProperty(memberInfo.Name.Replace("Xml", ""));
-                    else if (pMember != memberPath.Last())
+                    else if (i != memberPath.Length - 1)
                     {
                         PropertyInfo backingFor = null;
 
@@ -196,8 +240,24 @@ namespace OpenIZ.Core.Model.Query
                             memberInfo = backingFor;
                     }
 
-                    accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
 
+                    if (forceLoad)
+                    {
+                        if (typeof(IList).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
+                        {
+                            var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadCollection), new Type[] { memberInfo.PropertyType.GenericTypeArguments[0] }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                            accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
+                        }
+                        else if (typeof(IIdentifiedEntity).GetTypeInfo().IsAssignableFrom(memberInfo.PropertyType.GetTypeInfo()))
+                        {
+                            var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadProperty), new Type[] { memberInfo.PropertyType }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                            accessExpression = Expression.Call(loadMethod, accessExpression, Expression.Constant(memberInfo.Name));
+                        }
+                        else
+                            accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
+                    }
+                    else
+                        accessExpression = Expression.MakeMemberAccess(accessExpression, memberInfo);
 
                     if (!String.IsNullOrEmpty(cast))
                     {
@@ -241,8 +301,22 @@ namespace OpenIZ.Core.Model.Query
                         Expression guardAccessor = guardParameter;
                         while (classifierProperty != null && classAttr != null)
                         {
-                            guardAccessor = Expression.MakeMemberAccess(guardAccessor, classifierProperty);
 
+                            // Force loading
+                            if (typeof(IdentifiedData).GetTypeInfo().IsAssignableFrom(classifierProperty.PropertyType.GetTypeInfo()) && guard != null)
+                            {
+                                if (forceLoad)
+                                {
+                                    var loadMethod = (MethodInfo)typeof(ExtensionMethods).GetGenericMethod(nameof(ExtensionMethods.LoadProperty), new Type[] { classifierProperty.PropertyType }, new Type[] { typeof(IdentifiedData), typeof(String) });
+                                    var loadExpression = Expression.Call(loadMethod, guardAccessor, Expression.Constant(classifierProperty.Name));
+                                    guardAccessor = Expression.Coalesce(loadExpression, Expression.New(classifierProperty.PropertyType));
+                                }
+                                else
+                                    guardAccessor = Expression.Coalesce(Expression.MakeMemberAccess(guardAccessor, classifierProperty), Expression.New(classifierProperty.PropertyType));
+
+                            }
+                            else
+                                guardAccessor = Expression.MakeMemberAccess(guardAccessor, classifierProperty);
 
                             classAttr = classifierProperty.PropertyType.GetTypeInfo().GetCustomAttribute<ClassifierAttribute>();
                             if (classAttr != null && guard != null)
@@ -306,9 +380,9 @@ namespace OpenIZ.Core.Model.Query
                             workingValues.Remove(wv);
                         }
 
-                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection), typeof(String), typeof(Dictionary<String, Delegate>), typeof(bool) });
+                        var builderMethod = typeof(QueryExpressionParser).GetGenericMethod(nameof(BuildLinqExpression), new Type[] { itemType }, new Type[] { typeof(NameValueCollection), typeof(String), typeof(Dictionary<String, Delegate>), typeof(bool), typeof(bool) });
 
-                        Expression predicate = (builderMethod.Invoke(null, new object[] { subFilter, pMember, variables, safeNullable }) as LambdaExpression);
+                        Expression predicate = (builderMethod.Invoke(null, new object[] { subFilter, pMember, variables, safeNullable, forceLoad }) as LambdaExpression);
                         if (predicate == null)
                             continue;
                         keyExpression = Expression.Call(anyMethod, accessExpression, predicate);
@@ -389,7 +463,9 @@ namespace OpenIZ.Core.Model.Query
                                     pValue = "true";
                                 }
                                 else if (thisAccessExpression.Type == typeof(DateTime) ||
-                                    thisAccessExpression.Type == typeof(DateTime?))
+                                    thisAccessExpression.Type == typeof(DateTime?) ||
+                                    thisAccessExpression.Type == typeof(DateTimeOffset) ||
+                                    thisAccessExpression.Type == typeof(DateTimeOffset?))
                                 {
                                     pValue = value.Substring(1);
                                     DateTime dateLow = DateTime.ParseExact(pValue, "yyyy-MM-dd".Substring(0, pValue.Length), CultureInfo.InvariantCulture), dateHigh = DateTime.MaxValue;
@@ -399,15 +475,17 @@ namespace OpenIZ.Core.Model.Query
                                         dateHigh = new DateTime(dateLow.Year, dateLow.Month, DateTime.DaysInMonth(dateLow.Year, dateLow.Month), 23, 59, 59);
                                     else if (pValue.Length == 10)
                                         dateHigh = new DateTime(dateLow.Year, dateLow.Month, dateLow.Day, 23, 59, 59);
-                                    if (thisAccessExpression.Type == typeof(DateTime?))
+
+                                    if (thisAccessExpression.Type == typeof(DateTime?) || thisAccessExpression.Type == typeof(DateTimeOffset?))
                                         thisAccessExpression = Expression.MakeMemberAccess(thisAccessExpression, thisAccessExpression.Type.GetRuntimeProperty("Value"));
-                                    Expression lowerBound = Expression.MakeBinary(ExpressionType.GreaterThanOrEqual, thisAccessExpression, Expression.Constant(dateLow)),
-                                        upperBound = Expression.MakeBinary(ExpressionType.LessThanOrEqual, thisAccessExpression, Expression.Constant(dateHigh));
+
+                                    Expression lowerBound = Expression.MakeBinary(ExpressionType.GreaterThanOrEqual, thisAccessExpression, Expression.Convert(Expression.Constant(dateLow), thisAccessExpression.Type.StripNullable())),
+                                        upperBound = Expression.MakeBinary(ExpressionType.LessThanOrEqual, thisAccessExpression, Expression.Convert(Expression.Constant(dateHigh), thisAccessExpression.Type.StripNullable()));
                                     thisAccessExpression = Expression.MakeBinary(ExpressionType.AndAlso, lowerBound, upperBound);
                                     pValue = "true";
                                 }
                                 else
-                                    throw new InvalidOperationException("~ can only be applied to string properties");
+                                    throw new InvalidOperationException($"~ can only be applied to string and date properties not {thisAccessExpression.Type}");
 
                                 break;
                             case '!':

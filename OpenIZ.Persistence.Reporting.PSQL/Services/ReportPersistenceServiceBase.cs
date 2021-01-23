@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: khannan
- * Date: 2017-4-16
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using MARC.HI.EHRS.SVC.Core.Data;
 using MARC.HI.EHRS.SVC.Core.Event;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -476,8 +475,8 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 					if ((count ?? 1000) > 25)
 						connection.PrepareStatements = true;
-					if (fastQuery)
-						connection.AddData("loadFast", true);
+					//if (fastQuery)
+					//	connection.AddData("loadFast", true);
 
 					var results = this.Query(connection, query, offset, count ?? 1000, out totalCount, true, authContext);
 
@@ -485,7 +484,7 @@ namespace OpenIZ.Persistence.Reporting.PSQL.Services
 
 					this.Queried?.Invoke(this, postData);
 
-					var retVal = postData.Results.AsParallel().ToList();
+					var retVal = postData.Results.AsParallel().AsOrdered().WithDegreeOfParallelism(2).ToList();
 
 					this.traceSource.TraceEvent(TraceEventType.Verbose, 0, $"Returning {offset}..{offset + (count ?? 1000)} or {totalCount} results");
 

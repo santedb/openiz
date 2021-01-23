@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-1-21
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.OrmLite.Attributes;
 using System;
@@ -122,10 +122,15 @@ namespace OpenIZ.OrmLite
         /// <summary>
         /// Get the column mapping for the named property
         /// </summary>
-        public ColumnMapping GetColumn(string propertyName)
+        public ColumnMapping GetColumn(string propertyName, bool scanHeirarchy = false)
         {
             ColumnMapping map = null;
-            this.m_mappings.TryGetValue(propertyName, out map);
+            if(!this.m_mappings.TryGetValue(propertyName, out map) && scanHeirarchy &&
+                this.OrmType.BaseType != typeof(Object))
+            {
+                var t = TableMapping.Get(this.OrmType.BaseType);
+                return t.GetColumn(propertyName, scanHeirarchy);
+            }
             return map;
         }
 

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-4-5
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -30,6 +30,7 @@ using System.Linq;
 using OpenIZ.Core.Exceptions;
 using OpenIZ.Core.Model.Roles;
 using OpenIZ.Core.Interfaces;
+using System.Diagnostics;
 
 namespace OpenIZ.Core.Services.Impl
 {
@@ -40,6 +41,8 @@ namespace OpenIZ.Core.Services.Impl
         IAuditEventSource,
         IFastQueryRepositoryService
     {
+
+        private TraceSource m_traceSource = new TraceSource("OpenIZ.Repository");
         public event EventHandler<AuditDataEventArgs> DataCreated;
         public event EventHandler<AuditDataEventArgs> DataUpdated;
         public event EventHandler<AuditDataEventArgs> DataObsoleted;
@@ -210,6 +213,12 @@ namespace OpenIZ.Core.Services.Impl
             {
                 throw new DetectedIssueException(details);
             }
+            else
+                foreach (var itm in details)
+                {
+                    this.m_traceSource.TraceEvent(itm.Priority == DetectedIssuePriorityType.Warning ? TraceEventType.Warning : TraceEventType.Information, 0, itm.Text);
+                }
+
             return p;
         }
 

@@ -1,23 +1,22 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
- * User: khannan
- * Date: 2017-4-7
+ * 
+ * User: fyfej
+ * Date: 2017-9-1
  */
-
 using MARC.HI.EHRS.SVC.Core;
 using MARC.HI.EHRS.SVC.Core.Data;
 using MARC.HI.EHRS.SVC.Core.Services;
@@ -421,7 +420,7 @@ namespace OpenIZ.Reporting.Jasper
 
 			var userId = OpenIZ.Core.ExtensionMethods.GetUserId(AuthenticationContext.Current.Principal.Identity);
 
-			var reportUnit = this.LookupResource<ReportUnit>(reportDefinition.CorrelationId, new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>(UserIdKey, Guid.Parse(userId).ToString())});
+			var reportUnit = this.LookupResource<ReportUnit>(reportDefinition.CorrelationId, new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>(UserIdKey, Guid.Parse(userId).ToString()) });
 
 			var count = 0;
 
@@ -429,6 +428,7 @@ namespace OpenIZ.Reporting.Jasper
 			{
 				var inputControl = this.LookupResource<InputControl>(reportUnitInputControlReference.Uri);
 
+                this.tracer.TraceEvent(TraceEventType.Verbose, 0, "Input Control From Jasper: dt={0},name={1}", inputControl.DataType, inputControl.Label);
 				var reportParameter = new ReportParameter(inputControl.Label, count++, null)
 				{
 					CorrelationId = inputControl.Uri,
@@ -502,9 +502,14 @@ namespace OpenIZ.Reporting.Jasper
 
 							var userEntityId = ApplicationContext.Current.GetService<IDataPersistenceService<UserEntity>>().Query(c => c.SecurityUserKey == securityUserId, 0, 1, AuthenticationContext.Current.Principal, out totalCount)?.FirstOrDefault()?.Key;
 
-							query.Value = query.Value.Replace("${Userid}", $"'{userEntityId}'::uuid");
-							query.Value = query.Value.Replace("$P{Userid}", $"'{userEntityId}'::uuid");
+							query.Value = query.Value.Replace("${Userid}", $"'{userEntityId}'");
+							query.Value = query.Value.Replace("$P{Userid}", $"'{userEntityId}'");
 						}
+
+						query.Value = query.Value.Replace("$P{Region}", "null").Replace("$P!{Region}", "null");
+						query.Value = query.Value.Replace("$P{District}", "null").Replace("$P!{District}", "null");
+						query.Value = query.Value.Replace("$P{Facility}", "null").Replace("$P!{Facility}", "null");
+
 						queryResult = warehouseService.AdhocQuery(query.Value) as IEnumerable<ExpandoObject>;
 					}
 					catch (Exception e)
@@ -773,7 +778,102 @@ namespace OpenIZ.Reporting.Jasper
 		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
 		public AutoCompleteSourceDefinition GetReportParameterValues(Guid id, Guid parameterId)
 		{
-			throw new NotImplementedException();
+			return this.GetReportParameterValuesCascading(id, parameterId, null);
+		}
+
+		/// <summary>
+		/// Gets a list of auto-complete parameters which are applicable for the specified parameter.
+		/// </summary>
+		/// <param name="id">The id of the report.</param>
+		/// <param name="parameterId">The id of the parameter for which to retrieve detailed information.</param>
+		/// <param name="parameterValue">The parameter value.</param>
+		/// <returns>Returns an auto complete source definition of valid parameter values for a given parameter within the context of another parameter value.</returns>
+		/// <exception cref="InvalidOperationException">
+		/// ReportDefinition
+		/// or
+		/// IAdHocDatawarehouseService
+		/// </exception>
+		[PolicyPermission(SecurityAction.Demand, PolicyId = PermissionPolicyIdentifiers.ReadMetadata)]
+		public AutoCompleteSourceDefinition GetReportParameterValuesCascading(Guid id, Guid parameterId, string parameterValue)
+		{
+			var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ReportDefinition>>();
+
+			if (persistenceService == null)
+			{
+				throw new InvalidOperationException($"Unable to locate persistence service: {nameof(IDataPersistenceService<ReportDefinition>)}");
+			}
+
+			var reportDefinition = persistenceService.Get(new Identifier<Guid>(id), AuthenticationContext.Current.Principal, false);
+
+			var reportUnit = this.LookupResource<ReportUnit>(reportDefinition?.CorrelationId);
+			var reportParameter = reportDefinition?.Parameters.FirstOrDefault(c => c.Key == parameterId);
+			var sourceDefinition = new ListAutoCompleteSourceDefinition();
+			var reportUnitInputControlReference = reportUnit?.InputControlReferences.FirstOrDefault(c => c.Uri == reportParameter?.CorrelationId);
+
+			if (reportUnitInputControlReference != null)
+			{
+				var inputControl = this.LookupResource<InputControl>(reportUnitInputControlReference.Uri);
+
+				if (inputControl.Query != null)
+				{
+					var query = this.LookupResource<Query>(inputControl.Query.Uri);
+
+					this.tracer.TraceEvent(TraceEventType.Verbose, 0, $"Jasper Query: {query.Value}");
+
+					var warehouseService = ApplicationContext.Current.GetService<IAdHocDatawarehouseService>();
+
+					if (warehouseService == null)
+					{
+						throw new InvalidOperationException($"Unable to locate service: {nameof(IAdHocDatawarehouseService)}");
+					}
+
+					IEnumerable<ExpandoObject> queryResult = null;
+
+					try
+					{
+						// set the user id
+						if (query.Value.Contains("${Userid}") || query.Value.Contains("$P{Userid}"))
+						{
+							var securityUserId = Guid.Parse(OpenIZ.Core.ExtensionMethods.GetUserId(AuthenticationContext.Current.Principal.Identity));
+
+							var totalCount = 0;
+
+							var userEntityId = ApplicationContext.Current.GetService<IDataPersistenceService<UserEntity>>().Query(c => c.SecurityUserKey == securityUserId, 0, 1, AuthenticationContext.Current.Principal, out totalCount)?.FirstOrDefault()?.Key;
+
+							query.Value = query.Value.Replace("${Userid}", $"'{userEntityId}'");
+							query.Value = query.Value.Replace("$P{Userid}", $"'{userEntityId}'");
+						}
+
+						if (Guid.TryParse(parameterValue, out var parentKey))
+						{
+							query.Value = query.Value.Replace("$P{Region}", $"{parentKey}").Replace("$P!{Region}", $"{parentKey}");
+							query.Value = query.Value.Replace("$P{District}", $"{parentKey}").Replace("$P!{District}", $"{parentKey}");
+							query.Value = query.Value.Replace("$P{Facility}", $"{parentKey}").Replace("$P!{Facility}", $"{parentKey}");
+						}
+
+						queryResult = warehouseService.AdhocQuery(query.Value) as IEnumerable<ExpandoObject>;
+					}
+					catch (Exception e)
+					{
+						tracer.TraceEvent(TraceEventType.Warning, 0, $"Unable to execute query: {e}");
+					}
+
+					if (queryResult != null)
+					{
+						try
+						{
+							sourceDefinition.Items.AddRange(queryResult.Where(o => o.HasProperty(inputControl.ValueColumn)).Select(p => MapIdentifiedData(p, inputControl.ValueColumn, inputControl.VisibleColumns.FirstOrDefault())));
+						}
+						catch (Exception e)
+						{
+							tracer.TraceEvent(TraceEventType.Error, 0, $"Error: {e}");
+						}
+					}
+				}
+			}
+
+
+			return sourceDefinition;
 		}
 
 		/// <summary>
@@ -822,7 +922,9 @@ namespace OpenIZ.Reporting.Jasper
 		/// <returns>Returns the raw report.</returns>
 		public byte[] RunReport(Guid reportId, Guid reportFormatId, IEnumerable<ReportParameter> parameters)
 		{
-			var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ReportDefinition>>();
+
+            this.Authenticate(this.username, this.password);
+            var persistenceService = ApplicationContext.Current.GetService<IDataPersistenceService<ReportDefinition>>();
 
 			if (persistenceService == null)
 			{
@@ -984,6 +1086,11 @@ namespace OpenIZ.Reporting.Jasper
 		/// <exception cref="System.InvalidOperationException">Unable to lookup resource</exception>
 		private T LookupResource<T>(string resourceUri, IEnumerable<KeyValuePair<string, string>> parameters = null) where T : ResourceBase, new()
 		{
+			if (resourceUri == null)
+			{
+				throw new ArgumentNullException(nameof(resourceUri), "Value cannot be null");
+			}
+
 			var url = $"{this.ReportUri}{JasperResourcesPath}{resourceUri}";
 
 			if (parameters?.Count() == 1)
@@ -1040,7 +1147,12 @@ namespace OpenIZ.Reporting.Jasper
 					{
 						Mnemonic = dictionary[keyPropertyName].ToString()
 					};
-				}
+
+                    if (valuePropertyName != null && dictionary.ContainsKey(valuePropertyName))
+                    {
+                        ((Concept)identifiedData).ConceptNames.Add(new ConceptName("en", dictionary[valuePropertyName].ToString()));
+                    }
+                }
 				else
 				{
 					identifiedData = new Entity

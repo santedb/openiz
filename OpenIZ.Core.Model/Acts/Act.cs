@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-7-16
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using OpenIZ.Core.Model.Attributes;
 using OpenIZ.Core.Model.DataTypes;
@@ -608,36 +608,6 @@ namespace OpenIZ.Core.Model.Acts
         }
 
 
-        /// <summary>
-        /// Should serialize relationships?
-        /// </summary>
-        /// <returns></returns>
-        public bool ShouldSerializeRelationships() => this.Relationships?.Count > 0;
-        /// <summary>
-        /// Should serialize identifiers
-        /// </summary>
-        public bool ShouldSerializeIdentifiers() => this.Identifiers?.Count > 0;
-        /// <summary>
-        /// Should serialize extensions?
-        /// </summary>
-        public bool ShouldSerializeExtensions() => this.Extensions?.Count > 0;
-        /// <summary>
-        /// Should serialize notes
-        /// </summary>
-        public bool ShouldSerializeNotes() => this.Notes?.Count > 0;
-        /// <summary>
-        /// Should serialize participations
-        /// </summary>
-        public bool ShouldSerializeParticipations() => this.Participations?.Count > 0;
-        /// <summary>
-        /// Should serialize tags
-        /// </summary>
-        public bool ShouldSerializeTags() => this.Tags?.Count > 0;
-        /// <summary>
-        /// Should serialize protocols
-        /// </summary>
-        /// <returns></returns>
-        public bool ShouldSerializeProtocols() => this.Protocols?.Count > 0;
 
         /// <summary>
         /// Should serialize template key

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-2-4
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using System;
 using System.Linq;
@@ -129,8 +129,8 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// <returns></returns>
         public override IEnumerable<TModel> QueryInternal(DataContext context, Expression<Func<TModel, bool>> query, Guid queryId, int offset, int? count, out int totalResults, IPrincipal principal, bool countResults = true)
         {
-            var qresult = this.QueryInternal(context, query, queryId, offset, count, out totalResults, countResults);
-            return qresult.Select(o => o is Guid ? this.Get(context, (Guid)o, principal) : this.CacheConvert(o, context, principal)).ToList();
+            var qresult = this.DoQueryInternal(context, query, queryId, offset, count, out totalResults, countResults);
+            return qresult.ToList().Select(o => o is Guid ? this.Get(context, (Guid)o, principal) : this.CacheConvert(o, context, principal));
         }
 
         /// <summary>

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2017-6-25
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using MARC.HI.EHRS.SVC.Core;
 using OpenIZ.Core.Model;
@@ -59,8 +59,11 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public TReturn GetCacheItem<TReturn>(Guid key)
         {
-            return (TReturn)(this.m_context.GetCacheCommit(key) ??
-                this.m_cache?.GetCacheItem(key));
+            object candidate = this.m_context.GetCacheCommit(key) ?? this.m_cache?.GetCacheItem(key);
+            if (candidate is TReturn)
+                return (TReturn)candidate;
+            else
+                return default(TReturn);
         }
 
         /// <summary>

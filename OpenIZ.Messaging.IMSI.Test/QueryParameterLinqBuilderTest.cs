@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-6-14
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenIZ.Core.Model.Acts;
@@ -236,6 +236,21 @@ namespace OpenIZ.Messaging.IMSI.Test
             String expected = "o => o.Names.Where(guard => (guard.NameUse.Mnemonic == \"L\")).Any(name => name.Component.Where(guard => (guard.ComponentType == null)).Any(component => (component.Value == \"John\")))";
             NameValueCollection httpQueryParameters = new NameValueCollection();
             httpQueryParameters.Add("name[Legal|OfficialRecord].component[Given|Family].value", "John");
+            var expr = QueryExpressionParser.BuildLinqExpression<Patient>(httpQueryParameters);
+            var pexpr = new NameValueCollection(QueryExpressionBuilder.BuildQuery<Patient>(expr, true).ToArray());
+            Assert.AreEqual(httpQueryParameters.ToString(), pexpr.ToString());
+
+        }
+
+        /// <summary>
+        /// Tests of LINQ using non-serialized property
+        /// </summary>
+        [TestMethod]
+        public void TestNonSerializedParse()
+        {
+            String expected = "o => o.Extensions.Any(extension => extension.ExtensionDisplay == \"1\")";
+            NameValueCollection httpQueryParameters = new NameValueCollection();
+            httpQueryParameters.Add("extension.display", "1");
             var expr = QueryExpressionParser.BuildLinqExpression<Patient>(httpQueryParameters);
             var pexpr = new NameValueCollection(QueryExpressionBuilder.BuildQuery<Patient>(expr, true).ToArray());
             Assert.AreEqual(httpQueryParameters.ToString(), pexpr.ToString());

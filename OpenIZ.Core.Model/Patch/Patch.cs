@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2017 Mohawk College of Applied Arts and Technology
+ * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
  *
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: justi
- * Date: 2016-11-30
+ * User: fyfej
+ * Date: 2017-9-1
  */
 using Newtonsoft.Json;
 using System;
@@ -69,6 +69,9 @@ namespace OpenIZ.Core.Model.Patch
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();
+            builder.AppendFormat("# PATCH v.{0}\r\n", this.GetType().GetTypeInfo().Assembly.GetName().Version);
+            builder.AppendFormat("# TARGET: {0}/{1}\r\n", this.AppliesTo.TypeXml, this.AppliesTo.Key);
+            builder.AppendFormat("# AUTHENTICATION SID: {0}\r\n", this.CreatedByKey);
             foreach (var itm in this.Operation)
                 builder.AppendFormat("{0}\r\n", itm);
             return builder.ToString();
