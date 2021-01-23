@@ -51,14 +51,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
     /// <summary>
     /// Entity derived persistence services
     /// </summary>
-    public class EntityDerivedPersistenceService<TModel, TData, TQueryReturn> : SimpleVersionedEntityPersistenceService<TModel, TData, TQueryReturn, DbEntityVersion>
+    public class EntityDerivedPersistenceService<TModel, TData, TQueryReturn> : SimpleVersionedEntityPersistenceService<TModel, TData, TQueryReturn, DbEntityVersion>, IReportProgressChanged
         where TModel : Core.Model.Entities.Entity, new()
         where TData : DbEntitySubTable, new()
         where TQueryReturn : CompositeResult
     {
 
         // Entity persister
-        protected EntityPersistenceService m_entityPersister = new EntityPersistenceService();
+        protected EntityPersistenceService m_entityPersister;
+
+        /// <summary>
+        /// Fire when progress has changed
+        /// </summary>
+
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
+        /// Entity derived persistence service
+        /// </summary>
+        public EntityDerivedPersistenceService()
+        {
+             this.m_entityPersister = new EntityPersistenceService();
+            this.m_entityPersister.ProgressChanged += (o, e) => this.ProgressChanged?.Invoke(o, e);
+
+        }
 
         /// <summary>
         /// From model instance

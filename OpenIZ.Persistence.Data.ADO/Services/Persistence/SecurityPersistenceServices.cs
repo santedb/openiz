@@ -29,6 +29,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Principal;
 using MARC.HI.EHRS.SVC.Core.Data;
+using OpenIZ.Core.Services;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
@@ -37,7 +38,12 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// </summary>
 	public class SecurityApplicationPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityApplication, DbSecurityApplication>
 	{
-		internal override SecurityApplication Get(DataContext context, Guid key, IPrincipal principal)
+		/// <summary>
+		/// Progress has changed
+		/// </summary>
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        internal override SecurityApplication Get(DataContext context, Guid key, IPrincipal principal)
 		{
 			var application = base.Get(context, key, principal);
 
@@ -131,6 +137,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 			return data;
 		}
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			var sysUsers = new String[] { "Administrator", "SYSTEM", "ANONYMOUS" };
+			int offset = 0;
+			var appNames = toContext.Query<DbSecurityApplication>(o => o.ObsoletionTime == null).Select(o => o.PublicId).Distinct().ToArray().Select(o => o.ToLower()).ToArray();
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)keysToCopy.Length, "Archiving Users"));
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityApplication>(o => batchKeys.Contains(o.Key) && !appNames.Contains(o.PublicId.ToLower())).Select(o => o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityApplication>(o => userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityApplicationPolicy>(o => userKeys.Contains(o.SourceKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityApplicationPolicy>(o => userKeys.Contains(o.SourceKey)));
+
+			}
+		}
 	}
 
 	/// <summary>
@@ -138,6 +168,30 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// </summary>
 	public class SecurityDevicePersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityDevice, DbSecurityDevice>
 	{
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			var sysUsers = new String[] { "Administrator", "SYSTEM", "ANONYMOUS" };
+			int offset = 0;
+			var appNames = toContext.Query<DbSecurityDevice>(o => o.ObsoletionTime == null).Select(o => o.PublicId).Distinct().ToArray().Select(o => o.ToLower()).ToArray();
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityDevice>(o => batchKeys.Contains(o.Key) && !appNames.Contains(o.PublicId.ToLower())).Select(o => o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevice>(o => userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityDevicePolicy>(o => userKeys.Contains(o.SourceKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityDevicePolicy>(o => userKeys.Contains(o.SourceKey)));
+
+			}
+		}
+
 		internal override SecurityDevice Get(DataContext context, Guid key, IPrincipal principal)
 		{
 			var device = base.Get(context, key, principal);
@@ -249,6 +303,26 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// </summary>
 	public class SecurityRolePersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityRole, DbSecurityRole>
 	{
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+		public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+		{
+			int offset = 0;
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityPolicy>(o => o.ObsoletionTime == null));
+
+			while (offset < keysToCopy.Length)
+			{
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				offset += 100;
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityRole>(o => batchKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityRolePolicy>(o => batchKeys.Contains(o.SourceKey));
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityRolePolicy>(o => batchKeys.Contains(o.SourceKey)));
+
+			}
+		}
+
 		/// <summary>
 		/// Gets the specified context.
 		/// </summary>
@@ -362,16 +436,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	/// <summary>
 	/// Security user persistence
 	/// </summary>
-	public class SecurityUserPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityUser, DbSecurityUser>
+	public class SecurityUserPersistenceService : BaseDataPersistenceService<Core.Model.Security.SecurityUser, DbSecurityUser>, IReportProgressChanged
 	{
 		/// <summary>
-		/// Insert the specified object
+		/// Report progress changed
 		/// </summary>
-		/// <param name="context">Context.</param>
-		/// <param name="data">Data.</param>
-		/// <param name="principal">The principal.</param>
-		/// <returns>Core.Model.Security.SecurityUser.</returns>
-		public override Core.Model.Security.SecurityUser InsertInternal(DataContext context, Core.Model.Security.SecurityUser data, IPrincipal principal)
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
+        /// Insert the specified object
+        /// </summary>
+        /// <param name="context">Context.</param>
+        /// <param name="data">Data.</param>
+        /// <param name="principal">The principal.</param>
+        /// <returns>Core.Model.Security.SecurityUser.</returns>
+        public override Core.Model.Security.SecurityUser InsertInternal(DataContext context, Core.Model.Security.SecurityUser data, IPrincipal principal)
 		{
 			var retVal = base.InsertInternal(context, data, principal);
 
@@ -494,5 +573,34 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
 			return user;
 		}
-	}
+
+		/// <summary>
+		/// Copy user information over
+		/// </summary>
+        public override void Copy(Guid[] keysToCopy, DataContext fromContext, DataContext toContext)
+        {
+			var sysUsers = new String[] { "SYSTEM", "ANONYMOUS" };
+			var sysUserKeys = fromContext.Query<DbSecurityUser>(o => sysUsers.Contains(o.UserName)).Select(o => o.Key).Distinct();
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o => sysUserKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityUserRole>(o => sysUserKeys.Contains(o.UserKey));
+			toContext.InsertOrUpdate(fromContext.Query<DbSecurityUserRole>(o => sysUserKeys.Contains(o.UserKey)));
+
+			int offset = 0;
+			var userNames = toContext.Query<DbSecurityUser>(o => o.ObsoletionTime == null).Select(o => o.UserName).Distinct().ToArray().Select(o => o.ToLower()).ToArray() ;
+
+			while (offset < keysToCopy.Length)
+            {
+				var batchKeys = keysToCopy.Skip(offset).Take(100);
+				this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)keysToCopy.Length, "Archiving Users"));
+				offset += 100;
+				var userKeys = fromContext.Query<DbSecurityUser>(o => batchKeys.Contains(o.Key) && !userNames.Contains(o.UserName.ToLower())).Select(o=>o.Key).ToArray();
+				if (userKeys.Length == 0) continue;
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityUser>(o=>userKeys.Contains(o.Key)));
+				toContext.Delete<DbSecurityUserRole>(o => userKeys.Contains(o.UserKey));
+
+				toContext.InsertOrUpdate(fromContext.Query<DbSecurityUserRole>(o => userKeys.Contains(o.UserKey)));
+
+            }
+        }
+    }
 }

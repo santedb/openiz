@@ -47,7 +47,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             retVal.IsMobile = placeInstance?.IsMobile == true;
             retVal.Lat = placeInstance?.Lat;
             retVal.Lng = placeInstance?.Lng;
-            retVal.Services = context.Query<DbPlaceService>(o => o.SourceKey == retVal.Key && !o.ObsoleteVersionSequenceId.HasValue).Select(o => new PlaceService()
+            retVal.Services = context.Query<DbPlaceService>(o => o.SourceKey == retVal.Key && !o.ObsoleteVersionSequenceId.HasValue).ToArray().Select(o => new PlaceService()
             {
                 EffectiveVersionSequenceId = o.EffectiveVersionSequenceId,
                 Key = o.Key,

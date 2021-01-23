@@ -80,6 +80,7 @@ namespace OizDevTool
                 foreach (var vardef in configuration.Variables)
                     parameters.Add(vardef.Name, vardef.CompileFunc());
 
+                // Copy over the specified security roles, etc.
                 foreach (var rule in configuration.RetentionRules)
                 {
 
@@ -94,8 +95,11 @@ namespace OizDevTool
                     IEnumerable<Guid> keys = new Guid[0];
                     foreach (var exprDef in rule.IncludeExpressions)
                     {
+
                         var expr = QueryExpressionParser.BuildLinqExpression(rule.ResourceType, NameValueCollection.ParseQueryString(exprDef), parameters);
                         int offset = 0, totalCount = 1;
+                        Console.WriteLine("\t Including {0}", new NameValueCollection(QueryExpressionBuilder.BuildQuery(rule.ResourceType, expr).ToArray()).ToString());
+
                         while (offset < totalCount) // gather the included keys
                         {
                             keys = keys.Union(persistenceService.QueryKeys(expr, offset, 1000, out totalCount));
@@ -110,17 +114,23 @@ namespace OizDevTool
                         int offset = 0, totalCount = 1;
                         while (offset < totalCount) // gather the included keys
                         {
+                            Console.WriteLine("\t Excluding {0}", expr);
+
                             keys = keys.Except(persistenceService.QueryKeys(expr, offset, 1000, out totalCount));
                             offset += 1000;
 
                         }
                     }
 
+                    keys = keys.Distinct();
                     Console.WriteLine($"Executing {rule.Action} {rule.ResourceTypeXml} ({rule.Name}) on {keys.Count()} objects");
 
                     if (persistenceService is IReportProgressChanged rpc)
                         rpc.ProgressChanged += (o, e) => Console.WriteLine("{0} - {1:0%}", e.State, e.Progress);
-                    
+
+                    if (keys.Any(k => k.ToString() == "ed144bd2-a334-40a2-9a8f-b767a1397d07"))
+                        System.Diagnostics.Debugger.Break();
+
                     // Now we want to execute the specified action
                     switch (rule.Action)
                     {
@@ -133,7 +143,6 @@ namespace OizDevTool
                         case DataRetentionActionType.Archive:
                         case DataRetentionActionType.Archive | DataRetentionActionType.Obsolete:
                         case DataRetentionActionType.Archive | DataRetentionActionType.Purge:
-
                             var archiveService = ApplicationContext.Current.GetService<IDataArchiveService>();
                             if (archiveService == null)
                                 throw new InvalidOperationException("Could not find archival service");
@@ -144,11 +153,14 @@ namespace OizDevTool
                                 archiveService.Archive(rule.ResourceType, keys.ToArray());
                                 persistenceService.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, keys.ToArray());
                             }
-                            else
+                            else if (rule.Action.HasFlag(DataRetentionActionType.Obsolete))
                             {
-                                persistenceService.Obsolete(TransactionMode.Rollback, AuthenticationContext.SystemPrincipal, keys.ToArray());
                                 archiveService.Archive(rule.ResourceType, keys.ToArray());
                                 persistenceService.Obsolete(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, keys.ToArray());
+                            }
+                            else
+                            {
+                                archiveService.Archive(rule.ResourceType, keys.ToArray());
                             }
                             break;
                     }

@@ -476,6 +476,18 @@ namespace OpenIZ.Core.Model.Query
             return retVal;
         }
 
+        /// <summary>
+        /// Builds the query dictionary .
+        /// </summary>
+        /// <returns>The query.</returns>
+        /// <param name="model">Model.</param>
+        /// <typeparam name="TModel">The 1st type parameter.</typeparam>
+        public static IEnumerable<KeyValuePair<String, Object>> BuildQuery(Type tModel, Expression model, bool stripNullChecks = false)
+        {
+
+            return typeof(QueryExpressionBuilder).GetGenericMethod(nameof(BuildQuery), new Type[] { tModel }, new Type[] { typeof(Expression<>).MakeGenericType(typeof(Func<,>).MakeGenericType(tModel, typeof(bool))), typeof(bool) }).Invoke(null, new Object[] { model, true })
+                as IEnumerable<KeyValuePair<String,Object>>;
+        }
     }
 }
 

@@ -9,12 +9,6 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 	FROM cd_set_mem_vw
 	WHERE set_mnemonic = 'EntityClass';
 		
--- DUPLICATE CAN BE ANY CLASS CODE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc)
-		SELECT DISTINCT '1A19732C-C6BD-4DBA-8931-C6D666C06BAA'::UUID, cd_id, cd_id, 'DUPLICATE ENTITY'
-	FROM cd_set_mem_vw
-	WHERE set_mnemonic = 'EntityClass';
-
 CREATE TABLE ent_rel_part_dup_tbl PARTITION OF ent_rel_tbl FOR VALUES IN ('1A19732C-C6BD-4DBA-8931-C6D666C06BAA');
 ALTER TABLE ent_rel_part_dup_tbl ADD CONSTRAINT pk_ent_rel_part_dup_tbl PRIMARY KEY (ent_rel_id); 
 ALTER TABLE ent_rel_part_dup_tbl ADD CONSTRAINT fk_ent_rel_part_dup_trg_ent_id FOREIGN KEY (trg_ent_id) REFERENCES ent_tbl (ent_id); 

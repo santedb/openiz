@@ -157,6 +157,8 @@ namespace OpenIZ.OrmLite.Providers
         /// <returns></returns>
         public DataContext GetWriteConnection()
         {
+            if (string.IsNullOrEmpty(this.ConnectionString))
+                throw new ReadOnlyException("This connection is readonly");
             var conn = this.GetProviderFactory().CreateConnection();
             conn.ConnectionString = this.ConnectionString;
             return new DataContext(this, conn, false);

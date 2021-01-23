@@ -98,9 +98,9 @@ namespace OpenIZ.OrmLite
             if (this.IsFinalized) throw new InvalidOperationException();
 
             if (this.m_rhs != null)
-                this.m_rhs.Append(sql);
+                this.m_rhs.Append(sql.Build());
             else
-                this.m_rhs = sql;
+                this.m_rhs = sql.Build();
             return this;
         }
 
