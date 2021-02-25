@@ -94,7 +94,10 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         public void AddBusinessRule(String target, String trigger, Func<Object, ExpandoObject> _delegate)
         {
             using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+            {
+                this.m_tracer.TraceInfo("Adding trigger {0} to {1}", trigger, target);
                 instance.RegisterRule(target, trigger, _delegate);
+            }
         }
 
         /// <summary>
@@ -233,6 +236,7 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public Object ExecuteBundleRules(String trigger, Object bundle)
         {
+            this.m_tracer.TraceInfo("Running Bundle Rules for {0}", trigger);
             using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
             {
                 try
@@ -245,7 +249,7 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
                     object rawItems = null;
                     if (!bdl.TryGetValue("$item", out rawItems) && !bdl.TryGetValue("item", out rawItems))
                     {
-                        this.m_tracer.TraceVerbose("Bundle contains no items: {0}", this.ProduceLiteral(bdl));
+                        this.m_tracer.TraceWarning("Bundle contains no items: {0}", this.ProduceLiteral(bdl));
                         return bundle;
                     }
 

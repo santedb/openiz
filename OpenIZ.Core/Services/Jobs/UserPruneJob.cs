@@ -31,42 +31,47 @@ namespace OpenIZ.Core.Security.Jobs
 
             try
             {
+
                 if (ApplicationServiceContext.Current == null)
                     ApplicationServiceContext.Current = ApplicationContext.Current;
-                AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
-                this.m_tracer.TraceInformation("Will notify users of inactivity...");
-                var secRepo = ApplicationContext.Current.GetService<ISecurityRepositoryService>();
-                DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-28); // TODO: Make this configurable
-                var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:");
-
-                int offset = 0, totalResults = 1;
-                while(offset < totalResults)
+                ApplicationContext.Current.GetService<IThreadPoolService>().QueueUserWorkItem(xx =>
                 {
-                    // Users who haven't logged in 
-                    foreach (var usr in secRepo.FindUsers(o => o.UserClass == UserClassKeys.HumanUser && o.Email.Contains("@") && o.LastLoginTime < cutoff, offset, 100, out totalResults))
-                    {
-                        var fields = NotificationTemplate.GetTemplateFields(usr);
-                        double days = 0;
-                        if (!usr.LastLoginTime.HasValue)
-                            days = DateTimeOffset.Now.Subtract(usr.CreationTime).TotalDays;
-                        else
-                            days = DateTimeOffset.Now.Subtract(usr.LastLoginTime.Value).TotalDays;
+                    AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
+                    this.m_tracer.TraceInformation("Will notify users of inactivity...");
+                    var secRepo = ApplicationContext.Current.GetService<ISecurityRepositoryService>();
+                    DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-28); // TODO: Make this configurable
+                    var relay = NotificationRelayUtil.GetNotificationRelay($"mailto:");
 
-                        if(days > 35)
+                    int offset = 0, totalResults = 1;
+                    while (offset < totalResults)
+                    {
+                        // Users who haven't logged in 
+                        foreach (var usr in secRepo.FindUsers(o => o.UserClass == UserClassKeys.HumanUser && o.Email.Contains("@") && o.LastLoginTime < cutoff && o.ObsoletionTime == null, offset, 100, out totalResults))
                         {
-                            secRepo.ObsoleteUser(usr.Key.Value);
-                            var email = NotificationTemplate.FillTemplate("AccountAutoDeleted", fields);
-                            relay.Send($"mailto:{usr.Email}", email.SubjectLine, email.BodyText);
+                            var fields = NotificationTemplate.GetTemplateFields(usr);
+                            double days = 0;
+                            if (!usr.LastLoginTime.HasValue)
+                                days = DateTimeOffset.Now.Subtract(usr.CreationTime).TotalDays;
+                            else
+                                days = DateTimeOffset.Now.Subtract(usr.LastLoginTime.Value).TotalDays;
+
+                            if (days > 35)
+                            {
+                                secRepo.ObsoleteUser(usr.Key.Value);
+                                var email = NotificationTemplate.FillTemplate("AccountAutoDeleted", fields);
+                                relay.Send($"mailto:{usr.Email}", email.SubjectLine, email.BodyText);
+                            }
+                            else if (days > 28)
+                            {
+                                fields.Add("days", Math.Round((35 - days)).ToString());
+                                var email = NotificationTemplate.FillTemplate("AccountInactivityNotify", fields);
+                                relay.Send($"mailto:{usr.Email}", email.SubjectLine, email.BodyText);
+                            }
                         }
-                        else if(days > 28)
-                        {
-                            fields.Add("days", Math.Round((35 - days)).ToString());
-                            var email = NotificationTemplate.FillTemplate("AccountInactivityNotify", fields);
-                            relay.Send($"mailto:{usr.Email}", email.SubjectLine, email.BodyText);
-                        }
+                        offset += 100;
                     }
-                    offset += 100;
                 }
+                , null);
             }
             catch(Exception ex)
             {

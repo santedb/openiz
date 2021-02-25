@@ -494,10 +494,19 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 if (!sourceVersionMaps.TryGetValue(del.SourceKey, out obsVersion))
                     obsVersion = source.VersionSequence.GetValueOrDefault();
 
+                
 #if DEBUG
-                this.m_tracer.TraceInformation("----- OBSOLETING {0} {1} ---- ", del.GetType().Name, del.Key);
+                this.m_tracer.TraceWarning("----- OBSOLETING {0} {1} ---- ", del.GetType().Name, del.Key);
 #endif
+                // HACK: The DIVO portal sends updates but removes objects / doesn't re-post them on order details, so we are skipping this condition.
+                if (del is DbActParticipation actpct && (actpct.ParticipationRoleKey == ActParticipationKey.Product ||
+                    actpct.ParticipationRoleKey == ActParticipationKey.Consumable)) {
+                    this.m_tracer.TraceWarning("++> Looks like a product is attempting to be removed from an order - skipping");
+                    continue;
+                }
                 del.ObsoleteVersionSequenceId = obsVersion;
+                if (del is DbActParticipation aptcp)
+                    aptcp.SequenceId = -1;
                 context.Update<TDomainAssociation>(del);
             }
 

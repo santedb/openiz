@@ -88,9 +88,9 @@ namespace OpenIZ.Messaging.Discovery.Swagger
                           Name = "auth",
                           Description = "Forces authentication with credentials via an oauth gateway",
                           Flow = "password",
-                          TokenUrl = authUrl.Replace("0.0.0.0", wcUrl) + "/oauth2_token",
-                          Scopes = apis.Where(a=>a.Capabilities.HasFlag(ServiceEndpointCapabilities.BearerAuth) && a.Url.Any()).ToDictionary(a=>a.Url.FirstOrDefault().Replace("0.0.0.0", wcUrl), a=>a.ApiType.ToString()),
-                          AuthorizationUrl = authUrl.Replace("0.0.0.0", wcUrl) + "/oauth2_token"
+                          TokenUrl = authUrl.Replace("http://0.0.0.0:8080", wcUrl) + "/oauth2_token",
+                          Scopes = apis.Where(a=>a.Capabilities.HasFlag(ServiceEndpointCapabilities.BearerAuth) && a.Url.Any()).ToDictionary(a=>a.Url.FirstOrDefault().Replace("http://0.0.0.0:8080", wcUrl), a=>a.ApiType.ToString()),
+                          AuthorizationUrl = authUrl.Replace("http://0.0.0.0:8080", wcUrl) + "/oauth2_token"
                         }
                       }
                     };

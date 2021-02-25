@@ -370,19 +370,6 @@ namespace OpenIZ.BusinessRules.JavaScript
             Dictionary<String, List<Func<object, ExpandoObject>>> triggerHandler = null;
             if (!this.m_triggerDefinitions.TryGetValue(target, out triggerHandler))
             {
-                this.m_tracer.TraceInfo("Will try to create BRE service for {0}", target);
-                // We need to create a rule service base and register it!!! :)
-                // Find the target type
-                var targetType = typeof(Act).GetTypeInfo().Assembly.ExportedTypes.FirstOrDefault(o => o.GetTypeInfo().GetCustomAttribute<JsonObjectAttribute>()?.Id == target);
-                if (targetType == null)
-                    throw new KeyNotFoundException(target);
-                var ruleService = typeof(RuleServiceBase<>).MakeGenericType(targetType);
-                var serviceManager = ApplicationServiceContext.Current.GetService(typeof(IServiceManager)) as IServiceManager;
-
-                lock (s_syncLock)
-                    if (ApplicationServiceContext.Current.GetService(ruleService) == null)
-                        serviceManager.AddServiceProvider(ruleService);
-
                 // Now add
                 lock (this.m_localLock)
                     this.m_triggerDefinitions.Add(target, new Dictionary<string, List<Func<object, ExpandoObject>>>()
@@ -400,6 +387,24 @@ namespace OpenIZ.BusinessRules.JavaScript
                 else
                     delegates.Add(_delegate);
             }
+
+            // Find the target type
+            var targetType = typeof(Act).GetTypeInfo().Assembly.ExportedTypes.FirstOrDefault(o => o.GetTypeInfo().GetCustomAttribute<JsonObjectAttribute>()?.Id == target);
+            if (targetType == null)
+                throw new KeyNotFoundException(target);
+            var ruleService = typeof(RuleServiceBase<>).MakeGenericType(targetType);
+            var serviceManager = ApplicationServiceContext.Current.GetService(typeof(IServiceManager)) as IServiceManager;
+
+            lock (s_syncLock)
+                if (ApplicationServiceContext.Current.GetService(ruleService) == null)
+                {
+                    this.m_tracer.TraceInfo("Registering {0} with BRE engine", ruleService);
+                    serviceManager.AddServiceProvider(ruleService);
+                }
+                else
+                {
+                    this.m_tracer.TraceInfo("Rule service {0} already registered", ruleService);
+                }
         }
 
         /// <summary>
@@ -468,7 +473,10 @@ namespace OpenIZ.BusinessRules.JavaScript
                     var binder = new OpenIZ.Core.Model.Serialization.ModelSerializationBinder();
 
                     var sdata = data as IDictionary<String, Object>;
-                    if (sdata == null || !sdata.ContainsKey("$type")) return data;
+                    if (sdata == null || !sdata.ContainsKey("$type")) {
+                        this.m_tracer.TraceWarning("Object {0} has no type, not running rules", ProduceLiteral(data));
+                        return data;
+                    }
 
                     var callList = this.GetCallList(binder.BindToType("OpenIZ.Core.Model, Version=1.0.0.0", sdata["$type"].ToString()), action);
                     var retVal = data;
@@ -477,9 +485,12 @@ namespace OpenIZ.BusinessRules.JavaScript
                     {
                         foreach (var c in callList)
                         {
+                            this.m_tracer.TraceInfo("Calling rule {0} on {1}", c, data);
                             data = c(data);
                         }
                     }
+                    else
+                        this.m_tracer.TraceWarning("Could not find any business rule call targets for {0}", data);
 
                     return data;
                 }
@@ -529,10 +540,13 @@ namespace OpenIZ.BusinessRules.JavaScript
                         dynamic viewModel = this.m_bridge.ToViewModel(retVal);
                         foreach (var c in callList)
                         {
+                            this.m_tracer.TraceInfo("Calling rule {0} on {1}", c, data);
                             viewModel = c(viewModel);
                         }
                         retVal = (TBinding)this.m_bridge.ToModel(viewModel);
                     }
+                    else
+                        this.m_tracer.TraceWarning("Could not find any business rule call targets for {0}", data);
 
                     return retVal;
                 }

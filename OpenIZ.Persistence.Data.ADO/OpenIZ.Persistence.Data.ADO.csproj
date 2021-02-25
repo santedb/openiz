@@ -276,7 +276,9 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Data\SQL\PSQL\openiz-vws.sql" />
+    <Content Include="Data\SQL\PSQL\openiz-vws.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Data\SQL\Updates\20180126-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
@@ -292,11 +294,21 @@
     <Content Include="Data\SQL\Updates\20180131-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="Data\SQL\Updates\20201023-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\20201220-PSQL.sql" />
-    <Content Include="Data\SQL\Updates\ARCHIVE_INIT.SQL" />
-    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL10.sql" />
-    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL11.sql" />
+    <Content Include="Data\SQL\Updates\20201023-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\20201220-PSQL.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\ARCHIVE_INIT.SQL">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL10.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SQL\Updates\ZZ-Partition-PSQL11.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <EmbeddedResource Include="Data\SQL\Updates\20171030-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>

@@ -97,7 +97,7 @@ namespace OpenIZ.Core.Wcf.Serialization
             else if (error is UnauthorizedRequestException)
             {
                 isSecurityViolation = true;
-                AuditUtil.AuditRestrictedFunction(error as UnauthorizedRequestException, WebOperationContext.Current.IncomingRequest.UriTemplateMatch.RequestUri);
+                AuditUtil.AuditRestrictedFunction(error as UnauthorizedRequestException, WebOperationContext.Current.IncomingRequest.UriTemplateMatch?.RequestUri);
                 WebOperationContext.Current.OutgoingResponse.StatusCode = System.Net.HttpStatusCode.Unauthorized;
                 WebOperationContext.Current.OutgoingResponse.Headers.Add("WWW-Authenticate", (error as UnauthorizedRequestException).AuthenticateChallenge);
             }

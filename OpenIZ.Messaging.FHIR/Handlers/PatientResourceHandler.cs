@@ -45,12 +45,21 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 		/// </summary>
 		private IPatientRepositoryService repository;
 
+		// IDs of family members
+		private List<Guid> familyMemberSets;
+
 		/// <summary>
 		/// Resource handler subscription
 		/// </summary>
 		public PatientResourceHandler()
 		{
-			ApplicationContext.Current.Started += (o, e) => this.repository = ApplicationContext.Current.GetService<IPatientRepositoryService>();
+
+			ApplicationContext.Current.Started += (o, e) =>
+			{
+				this.repository = ApplicationContext.Current.GetService<IPatientRepositoryService>();
+				this.familyMemberSets = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindConcepts(x => x.ConceptSets.Any(c => c.Mnemonic == "FamilyMember")).Select(c => c.Key.Value).ToList();
+
+			};
 		}
 
 		/// <summary>
@@ -77,7 +86,8 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			foreach (var rel in model.LoadCollection<EntityRelationship>("Relationships").Where(o => !o.InversionIndicator))
 			{
 				// Family member
-				if (rel.LoadProperty<Concept>(nameof(EntityRelationship.RelationshipType)).ConceptSetsXml.Contains(ConceptSetKeys.FamilyMember))
+				if (rel.LoadProperty<Concept>(nameof(EntityRelationship.RelationshipType)).ConceptSetsXml.Contains(ConceptSetKeys.FamilyMember) ||
+					this.familyMemberSets.Contains(rel.RelationshipTypeKey.Value))
 				{
 					// Create the relative object
 					var relative = DataTypeConverter.CreateResource<RelatedPerson>(rel.LoadProperty<Person>(nameof(EntityRelationship.TargetEntity)));

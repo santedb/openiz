@@ -80,6 +80,7 @@ namespace OpenIZ.Core.Model.DataTypes
                 if (value == null) this.ExtensionValueXml = null;
                 try
                 {
+
                     if (value.Length % 2 == 1) value = "0" + value;
                     this.ExtensionValueXml = Enumerable.Range(0, value.Length)
                                  .Where(x => x % 2 == 0)

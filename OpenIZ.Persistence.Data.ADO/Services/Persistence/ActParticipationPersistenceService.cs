@@ -31,13 +31,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
 using OpenIZ.Persistence.Data.ADO.Data.Model.Concepts;
+using System.Diagnostics;
 
 namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 {
     /// <summary>
     /// Act participation persistence service
     /// </summary>
-    public class ActParticipationPersistenceService : IdentifiedPersistenceService<ActParticipation, DbActParticipation, DbActParticipation> ,IAdoAssociativePersistenceService
+    public class ActParticipationPersistenceService : IdentifiedPersistenceService<ActParticipation, DbActParticipation, DbActParticipation>, IAdoAssociativePersistenceService
     {
         /// <summary>
         /// Get from source id
@@ -99,7 +100,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             data.ParticipationRoleKey = data.ParticipationRole?.Key ?? data.ParticipationRoleKey;
             if (data.Act != null) data.Act = data.Act.EnsureExists(context, principal) as Act;
             data.ActKey = data.Act?.Key ?? data.ActKey;
-            
+
             // Lookup the original 
             if (!data.EffectiveVersionSequenceId.HasValue)
                 data.EffectiveVersionSequenceId = context.FirstOrDefault<DbActVersion>(o => o.Key == data.SourceEntityKey)?.VersionSequenceId;
@@ -130,7 +131,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 data.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence ?? data.ObsoleteVersionSequenceId;
 
             // Duplicate check 
-            var existing = context.FirstOrDefault<DbActParticipation>(r => r.SourceKey == data.SourceEntityKey && r.TargetKey == data.PlayerEntityKey && r.ParticipationRoleKey == data.ParticipationRoleKey && !r.ObsoleteVersionSequenceId.HasValue);
+            var existing = context.FirstOrDefault<DbActParticipation>(r => r.Key != data.Key && r.SourceKey == data.SourceEntityKey && r.TargetKey == data.PlayerEntityKey && r.ParticipationRoleKey == data.ParticipationRoleKey && !r.ObsoleteVersionSequenceId.HasValue);
             if (existing != null && existing.Key != data.Key) // There is an existing relationship which isn't this one, obsolete it 
             {
                 existing.ObsoleteVersionSequenceId = data.SourceEntity?.VersionSequence;

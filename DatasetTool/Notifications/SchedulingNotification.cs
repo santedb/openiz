@@ -141,7 +141,7 @@ namespace OizDevTool.Notifications
                                 {
                                     new ClinicScheduleInfo()
                                     {
-                                        Capacity = (int)count.c / (int)7,
+                                        Capacity = (int)count.c / (int)5,
                                         Days = new List<DayOfWeek>() { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
                                         StartXml = "09:00",
                                         StopXml = "15:30"

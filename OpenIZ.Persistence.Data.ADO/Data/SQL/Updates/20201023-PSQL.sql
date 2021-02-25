@@ -13,7 +13,7 @@ CREATE TABLE ent_rel_part_dup_tbl PARTITION OF ent_rel_tbl FOR VALUES IN ('1A197
 ALTER TABLE ent_rel_part_dup_tbl ADD CONSTRAINT pk_ent_rel_part_dup_tbl PRIMARY KEY (ent_rel_id); 
 ALTER TABLE ent_rel_part_dup_tbl ADD CONSTRAINT fk_ent_rel_part_dup_trg_ent_id FOREIGN KEY (trg_ent_id) REFERENCES ent_tbl (ent_id); 
 CREATE UNIQUE INDEX ent_rel_part_dup_unq_idx ON ent_rel_part_dup_tbl (digest((src_ent_id::text || trg_ent_id::text) || rel_typ_cd_id::text, 'sha1'::text)) WHERE obslt_vrsn_seq_id IS NULL;
-CREATE TRIGGER ent_rel_part_dup_tbl_vrfy BEFORE INSERT OR UPDATE ON ent_rel_part_bp_cit_tbl FOR EACH ROW EXECUTE PROCEDURE trg_vrfy_ent_rel_tbl();
+CREATE TRIGGER ent_rel_part_dup_tbl_vrfy BEFORE INSERT OR UPDATE ON ent_rel_part_dup_tbl FOR EACH ROW EXECUTE PROCEDURE trg_vrfy_ent_rel_tbl();
 
 -- FIX DUPLICATES
 CREATE OR REPLACE FUNCTION fix_duplicates() RETURNS VOID AS $$

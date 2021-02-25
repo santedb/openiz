@@ -502,7 +502,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public override Entity InsertInternal(DataContext context, Entity data, IPrincipal principal)
         {
-            switch (data.ClassConceptKey.ToString().ToUpper())
+            switch (data.ClassConceptKey.ToString().ToLower())
             {
                 case EntityClassKeyStrings.Device:
                     return new DeviceEntityPersistenceService().InsertInternal(context, data.Convert<DeviceEntity>(), principal);
@@ -538,14 +538,21 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
         /// </summary>
         public override Entity UpdateInternal(DataContext context, Entity data, IPrincipal principal)
         {
-            switch (data.ClassConceptKey.ToString().ToUpper())
+            switch (data.ClassConceptKey.ToString().ToLower())
             {
                 case EntityClassKeyStrings.Device:
                     return new DeviceEntityPersistenceService().UpdateInternal(context, data.Convert<DeviceEntity>(), principal);
                 case EntityClassKeyStrings.NonLivingSubject:
                     return new ApplicationEntityPersistenceService().UpdateInternal(context, data.Convert<ApplicationEntity>(), principal);
                 case EntityClassKeyStrings.Person:
-                    return new PersonPersistenceService().UpdateInternal(context, data.Convert<Person>(), principal);
+                    var sqlStmt = context.CreateSqlStatement<DbUserEntity>().SelectFrom()
+                        .InnerJoin<DbEntityVersion>(o => o.ParentKey, o => o.VersionKey)
+                        .Where<DbEntityVersion>(o => o.Key == data.Key)
+                        .OrderBy<DbEntityVersion>(o => o.VersionSequenceId, Core.Model.Map.SortOrderType.OrderByDescending);
+                    if (data is UserEntity || context.Query<DbUserEntity>(sqlStmt).Any())
+                        return new UserEntityPersistenceService().UpdateInternal(context, data.Convert<UserEntity>(), principal);
+                    else 
+                        return new PersonPersistenceService().UpdateInternal(context, data.Convert<Person>(), principal);
                 case EntityClassKeyStrings.Patient:
                     return new PatientPersistenceService().UpdateInternal(context, data.Convert<Patient>(), principal);
                 case EntityClassKeyStrings.Provider:

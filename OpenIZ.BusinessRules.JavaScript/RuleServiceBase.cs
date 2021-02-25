@@ -56,11 +56,18 @@ namespace OpenIZ.BusinessRules.JavaScript
         {
             try
             {
+
                 if (JavascriptBusinessRulesEngine.Current.HasRule<TBinding>(triggerName, data?.GetType()))
                     using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
+                    {
                         return instance.Invoke(triggerName, data);
+                        this.m_tracer.TraceInfo("Invoke trigger {0} on {1}", triggerName, data);
+                    }
                 else
+                {
+                    this.m_tracer.TraceInfo("Skipping trigger {0} on {1} as no rules are registered", triggerName, data);
                     return data;
+                }
             }
             catch (JavaScriptException e)
             {

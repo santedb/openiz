@@ -55,6 +55,14 @@ namespace OpenIZ.OrmLite
         public SqlStatement Statement { get; private set; }
 
         /// <summary>
+        /// Instructs the reader to count the number of records
+        /// </summary>
+        public bool Any()
+        {
+            return this.Context.Any(this.Statement);
+        }
+
+        /// <summary>
         /// Get the context
         /// </summary>
         public DataContext Context { get; private set; }

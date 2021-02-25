@@ -56,8 +56,13 @@ namespace OpenIZ.Core.Extensions
             if (extensionData.Length == 16)
                 edata = extensionData;
             else
+            {
+                // Hack: This has been serialized as NNNNNN
+                if (extensionData.All(p => p < 99))
+                    return Decimal.Parse(BitConverter.ToString(extensionData).Replace("-", "")); // 
                 for (int i = 0; i < extensionData.Length; i++)
                     edata[i] = extensionData[i];
+            }
             Int32[] ints = new int[]
             {
                 BitConverter.ToInt32(edata, 0),

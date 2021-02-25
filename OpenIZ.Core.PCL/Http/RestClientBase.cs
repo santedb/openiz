@@ -492,18 +492,18 @@ namespace OpenIZ.Core.Http
                             else
                             {
                                 // Validate the realm
-                                string wwwAuth = response.Headers["WWW-Authenticate"];
-                                int realmStart = wwwAuth.IndexOf("realm=\"");
-                                if (realmStart < 0)
-                                    return ServiceClientErrorType.SecurityError; // No realm
-                                realmStart += 7;// skip realm
-                                string realm = wwwAuth.Substring(realmStart, wwwAuth.IndexOf('"', realmStart) - realmStart);
+                                //string wwwAuth = response.Headers["WWW-Authenticate"];
+                                //int realmStart = wwwAuth.IndexOf("realm=\"");
+                                //if (realmStart < 0)
+                                //    return ServiceClientErrorType.SecurityError; // No realm
+                                //realmStart += 7;// skip realm
+                                //string realm = wwwAuth.Substring(realmStart, wwwAuth.IndexOf('"', realmStart) - realmStart);
 
-                                if (!String.IsNullOrEmpty(this.Description.Binding.Security.AuthRealm) &&
-                                    !this.Description.Binding.Security.AuthRealm.Equals(realm))
-                                {
-                                    s_tracer.TraceWarning("Warning: REALM mismatch, authentication may fail. Server reports {0} but client configured for {1}", realm, this.Description.Binding.Security.AuthRealm);
-                                }
+                                //if (!String.IsNullOrEmpty(this.Description.Binding.Security.AuthRealm) &&
+                                //    !this.Description.Binding.Security.AuthRealm.Equals(realm))
+                                //{
+                                //    s_tracer.TraceWarning("Warning: REALM mismatch, authentication may fail. Server reports {0} but client configured for {1}", realm, this.Description.Binding.Security.AuthRealm);
+                                //}
 
                                 // Credential provider
                                 if (this.Description.Binding.Security.CredentialProvider != null)
