@@ -501,7 +501,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
                 // HACK: The DIVO portal sends updates but removes objects / doesn't re-post them on order details, so we are skipping this condition.
                 if (del is DbActParticipation actpct && (actpct.ParticipationRoleKey == ActParticipationKey.Product ||
                     actpct.ParticipationRoleKey == ActParticipationKey.Consumable)) {
-                    this.m_tracer.TraceWarning("++> Looks like a product is attempting to be removed from an order - skipping");
+                    this.m_tracer.TraceWarning("++> Looks like a product {0} [{1}] is attempting to be removed from an order - skipping", actpct.Key, actpct.ParticipationRoleKey);
                     continue;
                 }
                 del.ObsoleteVersionSequenceId = obsVersion;

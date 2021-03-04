@@ -230,7 +230,7 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
             var cache = new AdoPersistenceCache(context);
 
             if (!dbEntityVersion.ObsoletionTime.HasValue)
-                switch (dbEntity.ClassConceptKey.ToString().ToUpper())
+                switch (dbEntity.ClassConceptKey.ToString().ToLowerInvariant())
                 {
                     case EntityClassKeyStrings.Device:
                         retVal = cache?.GetCacheItem<DeviceEntity>(dbEntity.Key);

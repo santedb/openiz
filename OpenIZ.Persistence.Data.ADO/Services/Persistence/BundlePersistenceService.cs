@@ -161,6 +161,9 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 
             if(AdoPersistenceService.GetConfiguration().PrepareStatements)
                 context.PrepareStatements = true;
+
+            List<object> alreadyProcessed = new List<object>();
+
             for(int i  = 0; i < data.Item.Count; i++)
             {
                 var itm = data.Item[i];
@@ -171,8 +174,17 @@ namespace OpenIZ.Persistence.Data.ADO.Services.Persistence
 	            if (itm.CheckExists(context))
 					method = "Update";
 
-                this.m_tracer.TraceInformation("Will {0} object from bundle {1}...", method, itm);
-                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)(i + 1) / data.Item.Count, itm));
+                if (alreadyProcessed.Contains(itm))
+                {
+                    this.m_tracer.TraceInformation("Object {0} already processed, skipping", itm);
+                    continue;
+                }
+                else
+                {
+                    alreadyProcessed.Add(itm);
+                    this.m_tracer.TraceInformation("Will {0} object from bundle {1}...", method, itm);
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)(i + 1) / data.Item.Count, itm));
+                }
 
                 var mi = svc.GetType().GetRuntimeMethod(method, new Type[] { typeof(DataContext), itm.GetType(), typeof(IPrincipal) });
                 try

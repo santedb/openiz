@@ -278,22 +278,22 @@ namespace OpenIZ.Messaging.GS1.Model
 
                 return new TransactionalTradeItemType()
                 {
-                    additionalTradeItemIdentification = material.LoadCollection<EntityIdentifier>("Identifiers").Where(o => o.Authority.DomainName != "GTIN").Select(o => new AdditionalTradeItemIdentificationType()
+                    additionalTradeItemIdentification = material.LoadCollection<EntityIdentifier>("Identifiers").Where(o => o.LoadProperty<AssigningAuthority>("Authority").DomainName != "GTIN").Select(o => new AdditionalTradeItemIdentificationType()
                     {
                         Value = o.Value,
-                        additionalTradeItemIdentificationTypeCode = o.LoadProperty<AssigningAuthority>("Authority").DomainName
+                        additionalTradeItemIdentificationTypeCode = o.LoadProperty<AssigningAuthority>("Authority")?.DomainName
                     }).ToArray(),
                     tradeItemClassification = new TradeItemClassificationType()
                     {
                         additionalTradeItemClassificationCode = mat.LoadCollection<EntityIdentifier>("Identifiers").Select(o => new AdditionalTradeItemClassificationCodeType()
                         {
                             Value = o.Value,
-                            codeListVersion = o.LoadProperty<AssigningAuthority>("Authority").DomainName
+                            codeListVersion = o.LoadProperty<AssigningAuthority>("Authority")?.DomainName
                         }).ToArray()
                     },
-                    gtin = material.LoadCollection<EntityIdentifier>("Identifiers").FirstOrDefault(o => o.Authority.DomainName == "GTIN").Value,
+                    gtin = material.LoadCollection<EntityIdentifier>("Identifiers")?.FirstOrDefault(o => o.Authority.DomainName == "GTIN")?.Value,
                     itemTypeCode = typeItemCode,
-                    tradeItemDescription = material.LoadCollection<EntityName>("Names").Select(o => new Description200Type() { Value = o.Component.FirstOrDefault()?.Value }).FirstOrDefault(),
+                    tradeItemDescription = material.LoadCollection<EntityName>("Names").Select(o => new Description200Type() { Value = o.LoadCollection<EntityNameComponent>("Component")?.FirstOrDefault()?.Value })?.FirstOrDefault(),
                     transactionalItemData = new TransactionalItemDataType[]
                     {
                         new TransactionalItemDataType() {

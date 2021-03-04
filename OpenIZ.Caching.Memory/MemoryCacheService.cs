@@ -161,33 +161,22 @@ namespace OpenIZ.Caching.Memory
         {
             lock (s_lock)
             {
-                //// Relationships should always be clean of source/target so the source/target will load the new relationship
-                if (e.Object is ActParticipation)
+                // If someone inserts a relationship directly, we need to unload both the source and target so they are re-loaded 
+                if (e.Object is ActParticipation ptcpt)
                 {
-                    var ptcpt = (e.Object as ActParticipation);
-
                     this.Remove(ptcpt.SourceEntityKey.GetValueOrDefault());
                     this.Remove(ptcpt.PlayerEntityKey.GetValueOrDefault());
                     //MemoryCache.Current.RemoveObject(ptcpt.PlayerEntity?.GetType() ?? typeof(Entity), ptcpt.PlayerEntityKey);
                 }
-                else if (e.Object is ActRelationship)
+                else if (e.Object is ActRelationship actrel)
                 {
-                    var rel = (e.Object as ActRelationship);
-                    this.Remove(rel.SourceEntityKey.GetValueOrDefault());
-                    this.Remove(rel.TargetActKey.GetValueOrDefault());
+                    this.Remove(actrel.SourceEntityKey.GetValueOrDefault());
+                    this.Remove(actrel.TargetActKey.GetValueOrDefault());
                 }
-                else if (e.Object is EntityRelationship)
+                else if (e.Object is EntityRelationship entrel)
                 {
-                    var rel = (e.Object as EntityRelationship);
-                    this.Remove(rel.SourceEntityKey.GetValueOrDefault());
-                    this.Remove(rel.TargetEntityKey.GetValueOrDefault());
-                }
-                else if (e.Object is Act) // We need to remove RCT 
-                {
-                    var act = e.Object as Act;
-                    var rct = act.Participations.FirstOrDefault(x => x.ParticipationRoleKey == ActParticipationKey.RecordTarget || x.ParticipationRole?.Mnemonic == "RecordTarget");
-                    if (rct != null)
-                        MemoryCache.Current.RemoveObject(rct.PlayerEntityKey);
+                    this.Remove(entrel.SourceEntityKey.GetValueOrDefault());
+                    this.Remove(entrel.TargetEntityKey.GetValueOrDefault());
                 }
             }
         }
