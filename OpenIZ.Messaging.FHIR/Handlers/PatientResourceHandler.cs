@@ -46,19 +46,22 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 		private IPatientRepositoryService repository;
 
 		// IDs of family members
-		private List<Guid> familyMemberSets;
-
+		private List<Guid> m_familyMembers;
+		private List<Guid> m_contacts;
 		/// <summary>
 		/// Resource handler subscription
 		/// </summary>
 		public PatientResourceHandler()
 		{
-
 			ApplicationContext.Current.Started += (o, e) =>
 			{
 				this.repository = ApplicationContext.Current.GetService<IPatientRepositoryService>();
-				this.familyMemberSets = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindConcepts(x => x.ConceptSets.Any(c => c.Mnemonic == "FamilyMember")).Select(c => c.Key.Value).ToList();
-
+				this.m_familyMembers = ApplicationContext.Current.GetService<IConceptRepositoryService>().FindConcepts(x => x.ConceptSets.Any(c => c.Mnemonic == "FamilyMember")).Select(c => c.Key.Value).ToList();
+				this.m_contacts = new List<Guid>();
+				this.m_contacts.Add(EntityRelationshipTypeKeys.Employee);
+				this.m_contacts.Add(EntityRelationshipTypeKeys.EmergencyContact);
+				this.m_contacts.Add(EntityRelationshipTypeKeys.CoverageSponsor);
+				this.m_contacts.Add(EntityRelationshipTypeKeys.NextOfKin);
 			};
 		}
 
@@ -85,27 +88,67 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 			// TODO: Relationships
 			foreach (var rel in model.LoadCollection<EntityRelationship>("Relationships").Where(o => !o.InversionIndicator))
 			{
-				// Family member
-				if (rel.LoadProperty<Concept>(nameof(EntityRelationship.RelationshipType)).ConceptSetsXml.Contains(ConceptSetKeys.FamilyMember) ||
-					this.familyMemberSets.Contains(rel.RelationshipTypeKey.Value))
+				// Contact => Person
+				if (this.m_familyMembers.Contains(rel.RelationshipTypeKey.Value) ||
+					rel.RelationshipTypeKey == EntityRelationshipTypeKeys.Contact)
 				{
 					// Create the relative object
-					var relative = DataTypeConverter.CreateResource<RelatedPerson>(rel.LoadProperty<Person>(nameof(EntityRelationship.TargetEntity)));
+					var relative = DataTypeConverter.CreateResource<RelatedPerson>(rel.LoadProperty<Core.Model.Entities.Person>(nameof(EntityRelationship.TargetEntity)));
 					relative.Relationship = DataTypeConverter.ToFhirCodeableConcept(rel.LoadProperty<Concept>(nameof(EntityRelationship.RelationshipType)));
-					relative.Address = DataTypeConverter.ToFhirAddress(rel.TargetEntity.Addresses.FirstOrDefault());
-					relative.Gender = DataTypeConverter.ToFhirCodeableConcept((rel.TargetEntity as Core.Model.Roles.Patient)?.LoadProperty<Concept>(nameof(Core.Model.Roles.Patient.GenderConcept)));
-					relative.Identifier = rel.TargetEntity.LoadCollection<EntityIdentifier>(nameof(Entity.Identifiers)).Select(o => DataTypeConverter.ToFhirIdentifier(o)).ToList();
-					relative.Name = DataTypeConverter.ToFhirHumanName(rel.TargetEntity.LoadCollection<EntityName>(nameof(Entity.Names)).FirstOrDefault());
-					if (rel.TargetEntity is Core.Model.Roles.Patient)
-						relative.Patient = DataTypeConverter.CreateReference<Patient>(rel.TargetEntity, webOperationContext);
+
+					var relatedPerson = rel.LoadProperty<Person>(nameof(EntityRelationship.TargetEntity));
+					relative.Address = DataTypeConverter.ToFhirAddress(relatedPerson.LoadCollection<EntityAddress>(nameof(Entity.Addresses)).FirstOrDefault());
+					// TODO: Refactor this (see DSM-42 issue ticket)
+					relative.DateOfBirth = relatedPerson.DateOfBirth;
+
+					//relative.Gender = DataTypeConverter.ToFhirCodeableConcept((rel.TargetEntity as Core.Model.Roles.Patient)?.LoadProperty<Concept>(nameof(Core.Model.Roles.Patient.GenderConcept)));
+					relative.Identifier = relatedPerson.LoadCollection<EntityIdentifier>(nameof(Entity.Identifiers)).Select(o => DataTypeConverter.ToFhirIdentifier(o)).ToList();
+					relative.Name = relatedPerson.LoadCollection<EntityName>(nameof(Entity.Names)).Select(o => DataTypeConverter.ToFhirHumanName(o)).FirstOrDefault();
+					relative.Patient = DataTypeConverter.CreateInternalReference<Patient>(model);
 					relative.Telecom = rel.TargetEntity.LoadCollection<EntityTelecomAddress>(nameof(Entity.Telecoms)).Select(o => DataTypeConverter.ToFhirTelecom(o)).ToList();
 					retVal.Contained.Add(new ContainedResource()
 					{
 						Item = relative
 					});
+
+					relative.Extension.AddRange(DataTypeConverter.GetCommonExtendedAttributes(relatedPerson, webOperationContext));
 				}
-				else if (rel.RelationshipTypeKey == EntityRelationshipTypeKeys.HealthcareProvider)
-					retVal.Provider = DataTypeConverter.CreateReference<Practitioner>(rel.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity)), webOperationContext);
+				else if (this.m_contacts.Contains(rel.RelationshipTypeKey.Value))
+				{
+					var person = rel.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity));
+
+
+					var contact = new PatientContact()
+					{
+						XmlId = $"urn:uuid:{person.Key}",
+						
+						Address = DataTypeConverter.ToFhirAddress(person.LoadCollection<EntityAddress>(nameof(Entity.Addresses)).FirstOrDefault()),
+						Relationship = new List<FhirCodeableConcept>() { DataTypeConverter.ToFhirCodeableConcept(rel.LoadProperty<Concept>(nameof(EntityRelationship.RelationshipType)), "http://terminology.hl7.org/CodeSystem/v2-0131") },
+						Name = DataTypeConverter.ToFhirHumanName(person.LoadCollection<EntityName>(nameof(Entity.Names)).FirstOrDefault()),
+						// TODO: Gender
+						Telecom = person.LoadCollection<EntityTelecomAddress>(nameof(Entity.Telecoms)).Select(t => DataTypeConverter.ToFhirTelecom(t)).ToList(),
+					};
+
+					DataTypeConverter.AddExtensions(person, contact);
+					contact.Extension.AddRange(DataTypeConverter.GetCommonExtendedAttributes(person, webOperationContext));
+
+
+					retVal.Contact.Add(contact);
+
+					// TODO: 
+					//retVal.Link.Add(new Patient.LinkComponent()
+					//{
+					//    Other = DataTypeConverter.CreateNonVersionedReference<RelatedPerson>(rel.TargetEntityKey, restOperationContext),
+					//    Type = Patient.LinkType.Seealso
+					//});
+				}
+				else if (rel.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces)
+					retVal.Link.Add(new PatientLink()
+					{
+						Type = PatientLinkType.Replace,
+						Other = DataTypeConverter.CreateReference<Patient>(rel.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity)), webOperationContext)
+					});
+				
 			}
 
 			var photo = model.LoadCollection<EntityExtension>("Extensions").FirstOrDefault(o => o.ExtensionTypeKey == ExtensionTypeKeys.JpegPhotoExtension);
@@ -119,6 +162,7 @@ namespace OpenIZ.Messaging.FHIR.Handlers
 				};
 
 			// TODO: Links
+			retVal.Extension.AddRange(DataTypeConverter.GetCommonExtendedAttributes(model, webOperationContext));
 			return retVal;
 		}
 

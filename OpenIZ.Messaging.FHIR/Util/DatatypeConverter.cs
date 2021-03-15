@@ -120,6 +120,55 @@ namespace OpenIZ.Messaging.FHIR.Util
 
         }
 
+		/// <summary>
+		/// Creates a FHIR reference.
+		/// </summary>
+		/// <typeparam name="TResource">The type of the resource.</typeparam>
+		/// <param name="targetEntity">The target entity.</param>
+		/// <returns>Returns a reference instance.</returns>
+		public static Reference<TResource> CreateInternalReference<TResource>(IdentifiedData targetEntity) where TResource : DomainResourceBase, new()
+		{
+			if (targetEntity == null)
+				throw new ArgumentNullException(nameof(targetEntity));
+			
+			var fhirType = typeof(TResource).Name;
+			var refer = new Reference<TResource>();
+			refer.ReferenceUrl = targetEntity.Key.ToString();
+			refer.Display = targetEntity.ToDisplay();
+			return refer;
+
+		}
+
+		/// <summary>
+		/// Add common extended attributes
+		/// </summary>
+        internal static IEnumerable<Extension> GetCommonExtendedAttributes(Entity relatedPerson, WebOperationContext context)
+        {
+
+			foreach (var itm in relatedPerson.LoadCollection<EntityRelationship>(nameof(Person.Relationships)))
+			{
+				var target = itm.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity));
+
+				if (itm.RelationshipTypeKey == EntityRelationshipTypeKeys.Citizen)
+				{
+					var iso = target.Identifiers.FirstOrDefault(o => o.AuthorityKey == Guid.Parse("ff6e7402-8545-48e1-8a70-ebf06f3ee4b8"))?.Value;
+					yield return new Extension()
+					{
+						Url = "http://openiz.org/fhir/extension/rim/relationship/Citizen",
+						Value = new FhirCode<String>(iso)
+					};
+				}
+				else if (itm.RelationshipTypeKey == EntityRelationshipTypeKeys.Birthplace)
+				{
+					yield return new Extension()
+					{
+						Url = "http://openiz.org/fhir/extension/rim/relationship/Birthplace",
+						Value = CreatePlainReference<Location>(target, context)
+					};
+				}
+			}
+        }
+
         /// <summary>
         /// Converts an <see cref="Extension"/> instance to an <see cref="ActExtension"/> instance.
         /// </summary>
@@ -154,13 +203,22 @@ namespace OpenIZ.Messaging.FHIR.Util
             return extension;
 		}
 
-        /// <summary>
-        /// Converts an <see cref="Extension"/> instance to an <see cref="ActExtension"/> instance.
-        /// </summary>
-        /// <param name="fhirExtension">The FHIR extension.</param>
-        /// <returns>Returns the converted act extension instance.</returns>
-        /// <exception cref="System.ArgumentNullException">fhirExtension - Value cannot be null</exception>
-        public static EntityExtension ToEntityExtension(Extension fhirExtension)
+		/// <summary>
+		/// Add extensions from <paramref name="extendable"/> to <paramref name="fhirExtension"/>
+		/// </summary>
+		/// <returns>The extensions that were applied</returns>
+		public static void AddExtensions(Core.Model.Interfaces.IExtendable extendable, FhirElement fhirExtension)
+		{
+			// TODO: Do we want to expose all internal extensions as external ones? Or do we just want to rely on the IFhirExtensionHandler?
+			fhirExtension.Extension = extendable?.Extensions.Where(o => o.ExtensionTypeKey != ExtensionTypeKeys.JpegPhotoExtension).Select(o => DataTypeConverter.ToExtension(o)).ToList();
+		}
+		/// <summary>
+		/// Converts an <see cref="Extension"/> instance to an <see cref="ActExtension"/> instance.
+		/// </summary>
+		/// <param name="fhirExtension">The FHIR extension.</param>
+		/// <returns>Returns the converted act extension instance.</returns>
+		/// <exception cref="System.ArgumentNullException">fhirExtension - Value cannot be null</exception>
+		public static EntityExtension ToEntityExtension(Extension fhirExtension)
         {
             traceSource.TraceEvent(TraceEventType.Verbose, 0, "Mapping FHIR extension");
 
@@ -501,6 +559,8 @@ namespace OpenIZ.Messaging.FHIR.Util
 			{
 				if (com.ComponentTypeKey == AddressComponentKeys.City)
 					retVal.City = com.Value;
+				else if (com.ComponentTypeKey == AddressComponentKeys.County)
+					retVal.District = com.Value;
 				else if (com.ComponentTypeKey == AddressComponentKeys.Country)
 					retVal.Country = com.Value;
 				else if (com.ComponentTypeKey == AddressComponentKeys.AddressLine ||

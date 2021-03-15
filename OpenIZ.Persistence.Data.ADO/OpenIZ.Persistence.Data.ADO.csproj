@@ -300,6 +300,7 @@
     <Content Include="Data\SQL\Updates\20201220-PSQL.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\SQL\Updates\20210310-PSQL.sql" />
     <Content Include="Data\SQL\Updates\ARCHIVE_INIT.SQL">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

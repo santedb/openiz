@@ -110,6 +110,7 @@
     <None Include="Data\004-FHIR-ContactPointUseCodes.dataset">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="Data\004-FHIR-ContactType.dataset" />
     <None Include="Data\004-FHIR-NameUseCodes.dataset">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -23,6 +23,7 @@ using MARC.HI.EHRS.SVC.Core.Services;
 using OpenIZ.Core.Configuration;
 using OpenIZ.Core.Diagnostics;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Configuration;
@@ -38,144 +39,227 @@ namespace OpenIZ.Core.Services.Impl
     /// Represents a thread pool service
     /// </summary>
     [Description("OpenIZ PCL ThreadPool Provider")]
-    public class ThreadPoolService : IDaemonService, IDisposable, IThreadPoolService
+    public class ThreadPoolService : IDisposable, IThreadPoolService
     {
 
-        // Constructs a thread pool
-        private WaitThreadPool m_threadPool = new WaitThreadPool();
+        // Lock
+        private object s_lock = new object();
 
-        private TraceSource m_traceSource = new TraceSource(OpenIzConstants.ServiceTraceSourceName);
+        // Tracer
+        private Tracer m_tracer = Tracer.GetTracer(typeof(ThreadPoolService));
+
+        // Timers
+        private List<Timer> m_timers = new List<Timer>();
+
+        // Number of threads to keep alive
+        private int m_concurrencyLevel = System.Environment.ProcessorCount * 4;
+
+        // Queue of work items
+        private ConcurrentQueue<WorkItem> m_queue = null;
+
+        // Active threads
+        private Thread[] m_threadPool = null;
+
+        // True when the thread pool is being disposed
+        private bool m_disposing = false;
+
+        // Reset event
+        private ManualResetEventSlim m_resetEvent = new ManualResetEventSlim(false);
 
         /// <summary>
-        /// True if the service is running
+        /// Gets the service name
         /// </summary>
-        public bool IsRunning
+        public string ServiceName => "Legacy Thread Pool Service";
+
+        /// <summary>
+        /// Creates a new instance of the wait thread pool
+        /// </summary>
+        public ThreadPoolService()
         {
-            get
+            this.EnsureStarted(); // Ensure thread pool threads are started
+            this.m_queue = new ConcurrentQueue<WorkItem>();
+        }
+
+        /// <summary>
+        /// Worker data structure
+        /// </summary>
+        private struct WorkItem
+        {
+            /// <summary>
+            /// The callback to execute on the worker
+            /// </summary>
+            public Action<Object> Callback { get; set; }
+            /// <summary>
+            /// The state or parameter to the worker
+            /// </summary>
+            public object State { get; set; }
+            /// <summary>
+            /// The execution context
+            /// </summary>
+            public ExecutionContext ExecutionContext { get; set; }
+        }
+
+        /// <summary>
+        /// Queue a work item to be completed
+        /// </summary>
+        public void QueueUserWorkItem(Action<Object> callback)
+        {
+            QueueUserWorkItem(callback, null);
+        }
+
+        /// <summary>
+        /// Queue a user work item with the specified parameters
+        /// </summary>
+        public void QueueUserWorkItem(Action<Object> callback, object state)
+        {
+            this.QueueWorkItemInternal(callback, state);
+        }
+
+        /// <summary>
+        /// Perform queue of workitem internally
+        /// </summary>
+        private void QueueWorkItemInternal(Action<Object> callback, object state)
+        {
+            ThrowIfDisposed();
+
+            try
             {
-                return this.m_threadPool != null;
+                WorkItem wd = new WorkItem()
+                {
+                    Callback = callback,
+                    State = state,
+                    ExecutionContext = ExecutionContext.Capture()
+                };
+
+                m_queue.Enqueue(wd);
+                this.m_resetEvent.Set();
+            }
+            catch (Exception e)
+            {
+                try
+                {
+                    this.m_tracer.TraceError("Error queueing work item: {0}", e);
+                }
+                catch { }
             }
         }
 
-        // Event handlers
-        public event EventHandler Started;
-        public event EventHandler Starting;
-        public event EventHandler Stopped;
-        public event EventHandler Stopping;
+        /// <summary>
+        /// Ensure the thread pool threads are started
+        /// </summary>
+        private void EnsureStarted()
+        {
+            // Load configuration
+            this.m_concurrencyLevel = (ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("openiz.core") as OpenIzConfiguration)?.ThreadPoolSize ?? this.m_concurrencyLevel;
+            m_threadPool = new Thread[m_concurrencyLevel];
+            for (int i = 0; i < m_threadPool.Length; i++)
+            {
+                m_threadPool[i] = this.CreateThreadPoolThread();
+                m_threadPool[i].Start();
+            }
+        }
 
         /// <summary>
-        /// Dispose this thread pool
+        /// Create a thread pool thread
+        /// </summary>
+        private Thread CreateThreadPoolThread()
+        {
+            return new Thread(this.DispatchLoop)
+            {
+                Name = String.Format("RSRVR-ThreadPoolThread"),
+                IsBackground = true,
+                Priority = ThreadPriority.AboveNormal
+            };
+        }
+
+        /// <summary>
+        /// Dispatch loop
+        /// </summary>
+        private void DispatchLoop()
+        {
+            while (!this.m_disposing)
+            {
+                try
+                {
+                    this.m_resetEvent.Wait();
+                    while (this.m_queue.TryDequeue(out WorkItem wi))
+                    {
+                        wi.Callback(wi.State);
+                    }
+                    this.m_resetEvent.Reset();
+                }
+                catch (Exception e)
+                {
+                    this.m_tracer.TraceError("Error in dispatchloop {0}", e);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Throw an exception if the object is disposed
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (this.m_disposing) throw new ObjectDisposedException(nameof(ThreadPoolService));
+        }
+
+
+        /// <summary>
+        /// Dispose the object
         /// </summary>
         public void Dispose()
         {
-            this.m_threadPool?.Dispose();
-        }
 
-        /// <summary>
-        /// Queues a non-pooled work item
-        /// </summary>
-        public void QueueNonPooledWorkItem(Action<object> action, object parm)
-        {
-            Thread thd = new Thread(new ParameterizedThreadStart((o) =>
+            if (this.m_disposing) return;
+
+            this.m_disposing = true;
+
+            this.m_resetEvent.Set();
+
+            if (m_threadPool != null)
             {
-                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD START: {0}({1})", action, o);
-                action(o);
-                this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "NPWI THREAD STOP: {0}({1})", action, o);
-            }));
-            thd.IsBackground = true;
-            thd.Name = $"OpenIZBackground-{action}";
-            thd.Start(parm);
+                for (int i = 0; i < m_threadPool.Length; i++)
+                {
+                    if (!m_threadPool[i].Join(1000))
+                        m_threadPool[i].Abort();
+                    m_threadPool[i] = null;
+                }
+            }
         }
 
         /// <summary>
-        /// Enqueues a user work item on the master thread pool
-        /// </summary>
-        /// <param name="action"></param>
-        public void QueueUserWorkItem(Action<object> action)
-        {
-            this.m_threadPool.QueueUserWorkItem((o) =>
-            {
-                try
-                {
-                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
-                    action(o);
-                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
-                }
-                catch (Exception e)
-                {
-                    this.m_traceSource.TraceError("THREAD DEATH: {0}", e);
-                }
-            });
-        }
-
-        /// <summary>
-        /// Queue user work item
-        /// </summary>
-        public void QueueUserWorkItem(Action<object> action, object parm)
-        {
-            this.m_threadPool.QueueUserWorkItem((o) => {
-                try
-                {
-                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD START: {0}({1})", action, o);
-                    action(o);
-                    this.m_traceSource.TraceEvent(TraceEventType.Verbose, 0, "THREAD STOP: {0}({1})", action, o);
-                }
-                catch (Exception e)
-                {
-                    this.m_traceSource.TraceError("THREAD DEATH: {0}", e);
-
-                }
-            }, parm);
-        }
-
-        /// <summary>
-        /// Queue user work item
+        /// Queue a work item on a timeout
         /// </summary>
         public void QueueUserWorkItem(TimeSpan timeout, Action<object> action, object parm)
         {
             // Use timer service if it is available
-            new Timer((o) => {
+            Timer timer = null;
+            timer = new Timer((o) => {
                 try
                 {
-                    this.m_traceSource.TraceVerbose("TIMER THREAD START: {0}({1})", action, o);
+                    this.m_tracer.TraceVerbose("TIMER THREAD START: {0}({1})", action, o);
                     action(o);
-                    this.m_traceSource.TraceVerbose("TIMER THREAD STOP: {0}({1})", action, o);
+                    this.m_tracer.TraceVerbose("TIMER THREAD STOP: {0}({1})", action, o);
                 }
                 catch (Exception e)
                 {
-                    this.m_traceSource.TraceError("THREAD DEATH: {0}", e);
+                    this.m_tracer.TraceError("THREAD DEATH: {0}", e);
 
                 }
+                finally
+                {
+                    this.m_timers.Remove(timer);
+                }
             }, parm, (int)timeout.TotalMilliseconds, Timeout.Infinite);
+            this.m_timers.Add(timer);
         }
 
         /// <summary>
-        /// Start
+        /// Queue a non-pooled item
         /// </summary>
-        public bool Start()
+        public void QueueNonPooledWorkItem(Action<object> action, object parm)
         {
-            this.Starting?.Invoke(this, EventArgs.Empty);
-
-            int concurrency = (ApplicationContext.Current.GetService<IConfigurationManager>().GetSection("openiz.core") as OpenIzConfiguration)?.ThreadPoolSize ?? Environment.ProcessorCount;
-            if (this.m_threadPool != null)
-                this.m_threadPool.Dispose();
-            this.m_threadPool = new WaitThreadPool(concurrency);
-
-            this.Started?.Invoke(this, EventArgs.Empty);
-            return true;
-        }
-
-        /// <summary>
-        /// Stop the service
-        /// </summary>
-        public bool Stop()
-        {
-            this.Stopping?.Invoke(this, EventArgs.Empty);
-            this.m_threadPool.Dispose();
-            this.m_threadPool = null;
-            this.Stopped?.Invoke(this, EventArgs.Empty);
-
-            return true;
+            this.QueueUserWorkItem(action, parm);
         }
     }
 }

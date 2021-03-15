@@ -292,10 +292,20 @@ namespace OpenIZ.Warehouse.ADO
                         SchemaId = dmSchema.Id
                     });
 
-                    foreach (var itm in dmSchema.Queries)
-                        this.CreateStoredQueryInternal(context, retVal.Id, itm);
-
                     context.Transaction.Commit();
+
+                    foreach (var itm in dmSchema.Queries)
+                    {
+                        try
+                        {
+                            this.CreateStoredQueryInternal(context, retVal.Id, itm);
+                        }
+                        catch(Exception e)
+                        {
+                            this.m_tracer.TraceEvent(TraceEventType.Warning, e.HResult, "Could not create {0} - {1}", itm.Name, e);
+                        }
+                    }
+
                     return retVal;
                 }
                 catch (Exception e)

@@ -577,8 +577,15 @@ namespace OizDevTool
             {
                 if (parms.Create)
                 {
-                    Console.WriteLine("Datamart for care plan service doesn't exist, will have to create it...");
-                    dataMart = warehouseService.CreateDatamart("oizcp", DatamartSchema.Load(typeof(Warehouse).Assembly.GetManifestResourceStream("OizDevTool.Resources.CarePlanWarehouseSchema.xml")));
+                    try
+                    {
+                        Console.WriteLine("Datamart for care plan service doesn't exist, will have to create it...");
+                        dataMart = warehouseService.CreateDatamart("oizcp", DatamartSchema.Load(typeof(Warehouse).Assembly.GetManifestResourceStream("OizDevTool.Resources.CarePlanWarehouseSchema.xml")));
+                    }
+                    catch(Exception e)
+                    {
+                        Console.WriteLine("Warning: Cannot create care plan schema - {0}", e);
+                    }
                 }
                 else
                     throw new InvalidOperationException("Warehouse schema does not exist!");
