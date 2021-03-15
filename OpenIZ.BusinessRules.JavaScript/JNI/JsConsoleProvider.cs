@@ -1,6 +1,5 @@
 ﻿/*
- * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
- *
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -15,21 +14,18 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2017-9-1
+ * Date: 2021-2-9
  */
 using OpenIZ.Core.Diagnostics;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace OpenIZ.BusinessRules.JavaScript.JNI
 {
     /// <summary>
     /// Supplies console
     /// </summary>
-    public class JsConsoleProvider 
+    public class JsConsoleProvider
     {
         // Tracker
         private Tracer m_tracer = Tracer.GetTracer(typeof(JsConsoleProvider));
@@ -63,8 +59,16 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public void assert(bool comparison, string message)
         {
-            if(!comparison)
+            if (!comparison)
                 throw new ArgumentOutOfRangeException(nameof(comparison), message);
+        }
+
+        /// <summary>
+        /// Output to debug log
+        /// </summary>
+        public void debug(string log)
+        {
+            Debug.WriteLine($"JS> {log}");
         }
     }
 }

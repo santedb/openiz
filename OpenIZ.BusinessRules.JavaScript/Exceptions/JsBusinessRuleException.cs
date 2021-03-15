@@ -1,6 +1,5 @@
 ﻿/*
- * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
- *
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -15,27 +14,27 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2017-9-1
+ * Date: 2021-2-9
  */
 using System;
 
-namespace OpenIZ.BusinessRules.JavaScript
+namespace OpenIZ.BusinessRules.JavaScript.Exceptions
 {
     /// <summary>
     /// Business rule exception
     /// </summary>
-    public class BusinessRulesExecutionException : Exception
+    public class JsBusinessRuleException : Exception
     {
 
-        public BusinessRulesExecutionException()
+        public JsBusinessRuleException()
         {
         }
 
-        public BusinessRulesExecutionException(string message) : base(message)
+        public JsBusinessRuleException(string message) : base(message)
         {
         }
 
-        public BusinessRulesExecutionException(string message, Exception innerException) : base(message, innerException)
+        public JsBusinessRuleException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }

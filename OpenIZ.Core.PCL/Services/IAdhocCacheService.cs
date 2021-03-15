@@ -27,7 +27,10 @@ namespace OpenIZ.Core.Services
         /// <returns>The fetched value</returns>
         T Get<T>(String key);
 
-
+        /// <summary>
+        /// Remove the specified item from cache
+        /// </summary>
+        void Remove(string cacheKey);
     }
 }
 

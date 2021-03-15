@@ -44,6 +44,7 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using OpenIZ.Core.Model.Json.Formatter;
 using Jint.Runtime;
+using OpenIZ.BusinessRules.JavaScript.Util;
 
 namespace OpenIZ.BusinessRules.JavaScript.JNI
 {
@@ -62,6 +63,17 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
 
         // Cache objects for find and get
         private Dictionary<Guid, ExpandoObject> m_cacheObject = new Dictionary<Guid, ExpandoObject>(10);
+        private JavascriptExecutor m_owner;
+        private object m_adhocCache;
+
+        /// <summary>
+        /// Javascript business rules bridge ctor
+        /// </summary>
+        internal BusinessRulesBridge(JavascriptExecutor owner)
+        {
+            this.m_owner = owner;
+            this.m_adhocCache = ApplicationServiceContext.Current.GetService(typeof(IAdhocCacheService));
+        }
 
         /// <summary>
         /// Initializes the business rules bridge
@@ -93,11 +105,8 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public void AddBusinessRule(String target, String trigger, Func<Object, ExpandoObject> _delegate)
         {
-            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
-            {
                 this.m_tracer.TraceInfo("Adding trigger {0} to {1}", trigger, target);
-                instance.RegisterRule(target, trigger, _delegate);
-            }
+                this.m_owner.RegisterCallback(Guid.NewGuid().ToString(), target, trigger, null, _delegate);
         }
 
         /// <summary>
@@ -105,8 +114,7 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public void AddValidator(String target, Func<Object, Object[]> _delegate)
         {
-            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
-                instance.RegisterValidator(target, _delegate);
+                this.m_owner.RegisterCallback(Guid.NewGuid().ToString(), target, "Validate", null, _delegate);
         }
 
         /// <summary>
@@ -114,12 +122,9 @@ namespace OpenIZ.BusinessRules.JavaScript.JNI
         /// </summary>
         public object ExecuteRule(String action, Object data)
         {
-            using (var instance = JavascriptBusinessRulesEngine.GetThreadInstance())
-            {
-                var sData = this.ToModel(data);
-                var retVal = instance.Invoke(action, sData);
-                return this.ToViewModel(retVal);
-            }
+            var sData = JavascriptUtils.ToModel(data);
+            var retVal = this.m_owner.Invoke(action, sData);
+            return JavascriptUtils.ToViewModel(retVal);
         }
 
         /// <summary>

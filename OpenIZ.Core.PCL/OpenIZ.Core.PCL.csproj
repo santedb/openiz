@@ -37,6 +37,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ApplicationServiceContext.cs" />
+    <Compile Include="BusinessRulesExtensions.cs" />
     <Compile Include="Data\Warehouse\DatamartDefinition.cs" />
     <Compile Include="Data\Warehouse\DatamartSchema.cs" />
     <Compile Include="Data\Warehouse\DatamartSchemaProperty.cs" />

@@ -1,6 +1,5 @@
 ﻿/*
- * Copyright 2015-2018 Mohawk College of Applied Arts and Technology
- *
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -15,19 +14,15 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2017-9-1
+ * Date: 2021-2-9
  */
 using OpenIZ.Core;
 using OpenIZ.Core.Applets.Services;
 using OpenIZ.Core.Diagnostics;
-using OpenIZ.Core.Model.Json.Formatter;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OpenIZ.BusinessRules.JavaScript
 {
@@ -42,18 +37,16 @@ namespace OpenIZ.BusinessRules.JavaScript
         /// <summary>
         /// Load all rules from applets
         /// </summary>
-        public void LoadRules()
+        public void LoadRules(Assembly serializerAssembly = null)
         {
             try
             {
-                var appletManager = ApplicationServiceContext.Current.GetService(typeof(IAppletManagerService)) as IAppletManagerService;
-                JavascriptBusinessRulesEngine.InitializeGlobal();
-
-                foreach (var itm in appletManager.Applets.SelectMany(a => a.Assets).Where(a => a.Name.StartsWith("rules/")))
-                    using (StreamReader sr = new StreamReader(new MemoryStream(appletManager.Applets.RenderAssetContent(itm))))
+                var solutionManager = ApplicationServiceContext.Current.GetService(typeof(IAppletManagerService)) as IAppletManagerService;
+                foreach (var itm in solutionManager.Applets.SelectMany(c => c.Assets).Where(a => a.Name.StartsWith("rules/")))
+                    using (StreamReader sr = new StreamReader(new MemoryStream(solutionManager.Applets.RenderAssetContent(itm))))
                     {
-                        JavascriptBusinessRulesEngine.AddRulesGlobal(itm.Name, sr);
-                        //OpenIZ.BusinessRules.JavaScript.JavascriptBusinessRulesEngine.Current.AddRules(itm.Name, sr);
+                        var script = sr.ReadToEnd();
+                        JavascriptExecutorPool.Current.ExecuteGlobal(o => o.ExecuteScript(itm.ToString(), script));
                         this.m_tracer.TraceInfo("Added rules from {0}", itm.Name);
                     }
 

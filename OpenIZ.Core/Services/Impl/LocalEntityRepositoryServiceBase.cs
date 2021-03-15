@@ -241,5 +241,6 @@ namespace OpenIZ.Core.Services.Impl
 
             return businessRulesService != null ? businessRulesService.AfterQuery(results) : results;
         }
+
     }
 }

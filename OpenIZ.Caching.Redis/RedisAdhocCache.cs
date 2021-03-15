@@ -136,5 +136,21 @@ namespace OpenIZ.Caching.Redis
             this.Stopped?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+        /// <summary>
+        /// Remove the object from the cache
+        /// </summary>
+        public void Remove(string key)
+        {
+            try
+            {
+                var db = this.m_connection.GetDatabase(RedisCacheConstants.AdhocDatabaseId);
+                db?.KeyDelete(key);
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error removing entity from ad-hoc cache : {0}", e);
+            }
+        }
     }
 }
